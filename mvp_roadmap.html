@@ -1,0 +1,243 @@
+
+<style>
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:var(--font-sans);}
+.wrap{padding:0 0 1rem;}
+.snav{display:flex;gap:0;border-bottom:0.5px solid var(--color-border-tertiary);overflow-x:auto;padding:0 14px;}
+.sp{padding:9px 12px;font-size:12px;font-weight:500;cursor:pointer;border:none;background:transparent;color:var(--color-text-tertiary);border-bottom:2px solid transparent;white-space:nowrap;}
+.sp.on{color:var(--color-text-primary);border-bottom-color:var(--color-text-primary);}
+.scene{padding:14px;}
+.note{border-left:2px solid;border-radius:0 8px 8px 0;padding:8px 12px;font-size:11px;line-height:1.65;margin-bottom:10px;}
+.note b{color:var(--color-text-primary);}
+.n-blue{border-left-color:#185FA5;background:#E6F1FB18;color:var(--color-text-secondary);}
+.n-green{border-left-color:#1D9E75;background:#EAF3DE18;color:var(--color-text-secondary);}
+.n-amber{border-left-color:#EF9F27;background:#FAEEDA18;color:var(--color-text-secondary);}
+.n-red{border-left-color:#E24B4A;background:#FCEBEB18;color:var(--color-text-secondary);}
+.card{background:var(--color-background-primary);border:0.5px solid var(--color-border-tertiary);border-radius:var(--border-radius-lg);overflow:hidden;margin-bottom:10px;}
+.ch{padding:7px 12px;font-size:11px;font-weight:500;border-bottom:0.5px solid var(--color-border-tertiary);display:flex;align-items:center;gap:6px;}
+.dot{width:8px;height:8px;border-radius:2px;flex-shrink:0;}
+.row{display:grid;font-size:11px;padding:6px 12px;border-bottom:0.5px solid var(--color-border-tertiary);align-items:start;gap:8px;}
+.row:last-child{border-bottom:none;}
+.val{color:var(--color-text-primary);line-height:1.5;}
+.val.ok{color:#3B6D11;font-weight:500;}
+.val.warn{color:#854F0B;font-weight:500;}
+.val.dim{color:var(--color-text-secondary);}
+.val.free{color:#1D9E75;font-weight:500;}
+.val.paid{color:#854F0B;font-weight:500;}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;}
+.pill{display:inline-block;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:500;}
+.pk{background:#EAF3DE;color:#27500A;}
+.pw{background:#FAEEDA;color:#633806;}
+.pb{background:#E6F1FB;color:#0C447C;}
+.pg{background:#F1EFE8;color:#5F5E5A;}
+.pe{background:#FCEBEB;color:#791F1F;}
+.matrix{width:100%;border-collapse:collapse;font-size:11px;margin-bottom:10px;}
+.matrix th{padding:6px 10px;text-align:left;background:var(--color-background-secondary);border-bottom:0.5px solid var(--color-border-tertiary);color:var(--color-text-secondary);font-weight:500;font-size:10px;}
+.matrix td{padding:7px 10px;border-bottom:0.5px solid var(--color-border-tertiary);color:var(--color-text-primary);vertical-align:top;}
+.matrix tr:last-child td{border-bottom:none;}
+.matrix tr:hover td{background:var(--color-background-secondary);}
+.step-num{width:22px;height:22px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;flex-shrink:0;}
+.phase-box{border-radius:10px;padding:12px 14px;border:1px solid;margin-bottom:8px;}
+.total-box{background:var(--color-background-secondary);border:1.5px solid var(--color-border-secondary);border-radius:10px;padding:14px 18px;margin-bottom:10px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;}
+.tb-label{font-size:11px;color:var(--color-text-secondary);}
+.tb-num{font-size:20px;font-weight:500;color:var(--color-text-primary);}
+</style>
+
+<div class="wrap">
+<div class="snav" id="nav"></div>
+<div id="area"></div>
+</div>
+
+<script>
+const S=[
+
+{label:'01 전체 로드맵',bc:'b-gray',
+render:()=>`
+<div class="note n-blue"><b>MVP 목표</b> — Android 앱 1개, 로컬 DB 암호화, 관계 연결 기본 기능. iOS는 MVP 이후. 개발 기간 약 3~4개월 (1인 기준).</div>
+<div class="card">
+  <div class="ch"><div class="dot" style="background:#185FA5;"></div>단계별 로드맵</div>
+  <table class="matrix">
+    <thead><tr><th>단계</th><th>내용</th><th>기간</th><th>비용</th></tr></thead>
+    <tbody>
+      <tr><td><span class="pill pb">Phase 0</span></td><td><b>개발 환경 셋업</b> — 도구 설치·계정 생성</td><td>1~2일</td><td>대부분 무료</td></tr>
+      <tr><td><span class="pill pk">Phase 1</span></td><td><b>로컬 DB + 스키마</b> — SQLCipher + Drizzle</td><td>1~2주</td><td>무료</td></tr>
+      <tr><td><span class="pill pk">Phase 2</span></td><td><b>앱 UI 기본</b> — 프로필·족보 트리 화면</td><td>2~3주</td><td>무료</td></tr>
+      <tr><td><span class="pill pw">Phase 3</span></td><td><b>관계 연결 로직</b> — 승인·거절 플로우</td><td>2~3주</td><td>소액</td></tr>
+      <tr><td><span class="pill pw">Phase 4</span></td><td><b>서버 연동</b> — API + PostgreSQL</td><td>3~4주</td><td>월 5~10만원</td></tr>
+      <tr><td><span class="pill pe">Phase 5</span></td><td><b>테스트·배포</b> — APK 빌드 + 스토어</td><td>1~2주</td><td>$25 일회성</td></tr>
+    </tbody>
+  </table>
+</div>
+<div class="note n-amber"><b>전략</b> — Phase 1~2는 완전 무료로 진행 가능. 서버 비용은 Phase 4부터만 발생. MVP는 Android 먼저, iOS는 이후에 추가.</div>
+`},
+
+{label:'02 필수 도구 설치',bc:'b-blue',
+render:()=>`
+<div class="note n-blue"><b>설치 순서가 중요합니다.</b> 순서대로 진행하세요. 모두 무료입니다.</div>
+
+<div class="card">
+  <div class="ch"><div class="dot" style="background:#185FA5;"></div>① Node.js (이미 설치됨 — Claude Code 설치 시 완료)</div>
+  <div class="row" style="grid-template-columns:1fr;"><span class="val dim">확인: PowerShell에서 <b>node --version</b> → v18 이상이면 OK</span></div>
+</div>
+
+<div class="card">
+  <div class="ch"><div class="dot" style="background:#1D9E75;"></div>② Git (이미 설치됨 — Claude Code 설치 시 완료)</div>
+  <div class="row" style="grid-template-columns:1fr;"><span class="val dim">확인: <b>git --version</b></span></div>
+</div>
+
+<div class="card">
+  <div class="ch"><div class="dot" style="background:#EF9F27;"></div>③ Android Studio <span class="pill pw">필수</span></div>
+  <div class="row" style="grid-template-columns:80px 1fr;"><span class="val">다운로드</span><span class="val dim">developer.android.com/studio → 무료</span></div>
+  <div class="row" style="grid-template-columns:80px 1fr;"><span class="val">설치 시</span><span class="val dim">Android SDK, Android Emulator 포함 설치 (기본 옵션)</span></div>
+  <div class="row" style="grid-template-columns:80px 1fr;"><span class="val">용량</span><span class="val dim">약 8GB 필요</span></div>
+  <div class="row" style="grid-template-columns:80px 1fr;"><span class="val">목적</span><span class="val dim">Android 에뮬레이터 실행 + APK 빌드</span></div>
+</div>
+
+<div class="card">
+  <div class="ch"><div class="dot" style="background:#7F77DD;"></div>④ React Native CLI</div>
+  <div class="row" style="grid-template-columns:1fr;"><span class="val dim">PowerShell에서:</span></div>
+  <div class="row" style="grid-template-columns:1fr;"><span class="val" style="font-family:monospace;font-size:10px;">npm install -g react-native-community/cli</span></div>
+</div>
+
+<div class="card">
+  <div class="ch"><div class="dot" style="background:#185FA5;"></div>⑤ Java JDK 17</div>
+  <div class="row" style="grid-template-columns:80px 1fr;"><span class="val">다운로드</span><span class="val dim">adoptium.net → Temurin 17 LTS → 무료</span></div>
+  <div class="row" style="grid-template-columns:80px 1fr;"><span class="val">이유</span><span class="val dim">Android 빌드에 필수. Android Studio 설치 시 자동 포함되기도 함</span></div>
+</div>
+
+<div class="card">
+  <div class="ch"><div class="dot" style="background:#E24B4A;"></div>⑥ VS Code 확장 (선택이지만 추천)</div>
+  <div class="row" style="grid-template-columns:1fr;"><span class="val dim">Extensions에서 검색·설치:</span></div>
+  <div class="row" style="grid-template-columns:1fr;"><span class="val">• ESLint &nbsp;• Prettier &nbsp;• TypeScript &nbsp;• React Native Tools</span></div>
+</div>
+`},
+
+{label:'03 계정 가입',bc:'b-green',
+render:()=>`
+<div class="note n-green"><b>MVP 단계에서 필요한 계정</b> — 유료는 최대한 나중으로 미룹니다.</div>
+
+<div class="card">
+  <div class="ch"><div class="dot" style="background:#1D9E75;"></div>무료 계정 (지금 바로 만들 것)</div>
+  <table class="matrix">
+    <thead><tr><th>서비스</th><th>용도</th><th>가입 주소</th></tr></thead>
+    <tbody>
+      <tr><td><b>GitHub</b></td><td>코드 버전 관리·백업</td><td>github.com</td></tr>
+      <tr><td><b>Expo (선택)</b></td><td>RN 앱 빠른 테스트</td><td>expo.dev</td></tr>
+      <tr><td><b>Supabase</b></td><td>MVP용 무료 PostgreSQL 서버</td><td>supabase.com</td></tr>
+      <tr><td><b>Railway (선택)</b></td><td>무료 서버 호스팅</td><td>railway.app</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<div class="card">
+  <div class="ch"><div class="dot" style="background:#EF9F27;"></div>유료 계정 (Phase 4~5에서 필요)</div>
+  <table class="matrix">
+    <thead><tr><th>서비스</th><th>용도</th><th>비용</th><th>시점</th></tr></thead>
+    <tbody>
+      <tr><td><b>Google Play Console</b></td><td>Android 앱 배포</td><td>$25 일회성</td><td>Phase 5</td></tr>
+      <tr><td><b>AWS</b></td><td>실제 서버 운영</td><td>월 5~10만원</td><td>Phase 4</td></tr>
+      <tr><td><b>Apple Developer</b></td><td>iOS 배포</td><td>$99/년</td><td>MVP 이후</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<div class="note n-amber"><b>Supabase 추천 이유</b> — 무료 플랜에서 PostgreSQL 500MB, API 자동 생성, 인증 기능 포함. MVP 단계에서 AWS 없이도 서버 기능 구현 가능.</div>
+`},
+
+{label:'04 비용 총정리',bc:'b-amber',
+render:()=>`
+<div class="note n-amber"><b>MVP까지 최소 비용으로 진행 가능합니다.</b> Phase 1~2는 완전 무료.</div>
+
+<div class="card">
+  <div class="ch"><div class="dot" style="background:#854F0B;"></div>단계별 실제 비용</div>
+  <table class="matrix">
+    <thead><tr><th>단계</th><th>항목</th><th>비용</th><th>비고</th></tr></thead>
+    <tbody>
+      <tr><td>Phase 0~2</td><td>개발 환경 + 로컬 개발</td><td><span class="pill pk">무료</span></td><td>모든 도구 무료</td></tr>
+      <tr><td>Phase 3</td><td>푸시 알림 (Firebase)</td><td><span class="pill pk">무료</span></td><td>월 100만건 무료</td></tr>
+      <tr><td>Phase 4</td><td>Supabase (MVP 서버)</td><td><span class="pill pk">무료</span></td><td>500MB, 월 5만row</td></tr>
+      <tr><td>Phase 4</td><td>AWS (실제 운영 전환 시)</td><td><span class="pill pw">월 5~10만원</span></td><td>선택사항</td></tr>
+      <tr><td>Phase 5</td><td>Google Play 등록</td><td><span class="pill pw">$25 일회성</span></td><td>약 3만5천원</td></tr>
+      <tr><td>MVP 이후</td><td>Apple Developer</td><td><span class="pill pw">$99/년</span></td><td>약 14만원/년</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<div class="two">
+  <div class="card">
+    <div class="ch"><div class="dot" style="background:#1D9E75;"></div>MVP까지 최소 비용</div>
+    <div class="row" style="grid-template-columns:1fr;"><span class="val free" style="font-size:18px;">$25 (약 3만5천원)</span></div>
+    <div class="row" style="grid-template-columns:1fr;"><span class="val dim">Google Play 등록비만 발생<br>나머지 전부 무료</span></div>
+  </div>
+  <div class="card">
+    <div class="ch"><div class="dot" style="background:#EF9F27;"></div>Claude 사용 비용</div>
+    <div class="row" style="grid-template-columns:1fr;"><span class="val warn">Pro: $20/월 (약 2만8천원)</span></div>
+    <div class="row" style="grid-template-columns:1fr;"><span class="val dim">Claude Code는 채팅창 아닌<br>실제 코딩 작업에만 사용<br>→ 세션 낭비 최소화</span></div>
+  </div>
+</div>
+
+<div class="note n-red"><b>비용 절약 핵심 전략</b> — 기획·논의·문서는 이 채팅창에서. 실제 코드 작성만 Claude Code에서. Supabase로 AWS 비용 Phase 4까지 제로.</div>
+`},
+
+{label:'05 첫 시작 명령어',bc:'b-purple',
+render:()=>`
+<div class="note n-blue"><b>Phase 0 완료 후 Phase 1 시작.</b> VS Code 터미널(일반 터미널, Claude Code 아님)에서 실행.</div>
+
+<div class="card">
+  <div class="ch"><div class="dot" style="background:#7F77DD;"></div>Step 1 — React Native 프로젝트 생성</div>
+  <div class="row" style="grid-template-columns:1fr;">
+    <span class="val" style="font-family:monospace;font-size:10px;line-height:2;">
+      cd D:\AI_PROJECTS\claude_prj\prj_01_familytree\active<br>
+      npx react-native init JokboApp --template react-native-template-typescript<br>
+      cd JokboApp
+    </span>
+  </div>
+</div>
+
+<div class="card">
+  <div class="ch"><div class="dot" style="background:#7F77DD;"></div>Step 2 — 핵심 패키지 설치</div>
+  <div class="row" style="grid-template-columns:1fr;">
+    <span class="val" style="font-family:monospace;font-size:10px;line-height:2;">
+      npm install drizzle-orm<br>
+      npm install @op-engineering/op-sqlite<br>
+      npm install react-native-keychain<br>
+      npm install react-native-biometrics<br>
+      npm install @react-navigation/native<br>
+      npm install react-native-screens react-native-safe-area-context
+    </span>
+  </div>
+</div>
+
+<div class="card">
+  <div class="ch"><div class="dot" style="background:#7F77DD;"></div>Step 3 — Android 에뮬레이터 실행 확인</div>
+  <div class="row" style="grid-template-columns:1fr;">
+    <span class="val" style="font-family:monospace;font-size:10px;line-height:2;">
+      npx react-native run-android
+    </span>
+  </div>
+  <div class="row" style="grid-template-columns:1fr;"><span class="val dim">에뮬레이터에 기본 앱이 뜨면 환경 셋업 완료</span></div>
+</div>
+
+<div class="card">
+  <div class="ch"><div class="dot" style="background:#1D9E75;"></div>Step 4 — Claude Code에서 스키마 작업 시작</div>
+  <div class="row" style="grid-template-columns:1fr;">
+    <span class="val" style="font-family:monospace;font-size:10px;line-height:2;">
+      # Claude Code 터미널에서:<br>
+      "active/JokboApp/src/db/schema.ts 파일을 만들고<br>
+      CLAUDE.md의 PERSON, RELATIONSHIP 스키마를<br>
+      Drizzle ORM TypeScript 코드로 작성해줘"
+    </span>
+  </div>
+</div>
+
+<div class="note n-green"><b>이 순서로 진행하면</b> — Android Studio 설치(하루) → 프로젝트 생성(1시간) → 에뮬레이터 실행(30분) → 스키마 작성(Claude Code, 30분) 순으로 하루 안에 Phase 1 시작 가능합니다.</div>
+`},
+];
+
+let cur=0;
+const labels=['01 전체 로드맵','02 필수 도구 설치','03 계정 가입','04 비용 총정리','05 첫 시작 명령어'];
+function rNav(){document.getElementById('nav').innerHTML=S.map((s,i)=>`<button class="sp${i===cur?' on':''}" onclick="go(${i})">${labels[i]}</button>`).join('');}
+function rScene(){document.getElementById('area').innerHTML=`<div class="scene">${S[cur].render()}</div>`;}
+function go(i){cur=i;rNav();rScene();}
+go(0);
+</script>
