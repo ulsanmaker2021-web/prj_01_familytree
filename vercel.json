@@ -1,0 +1,8 @@
+﻿{
+  "buildCommand": "cd JokboApp && npm install && npx expo export -p web",
+  "outputDirectory": "JokboApp/dist",
+  "framework": null,
+  "rewrites": [
+    { "source": "/(.*)", "destination": "/index.html" }
+  ]
+}
