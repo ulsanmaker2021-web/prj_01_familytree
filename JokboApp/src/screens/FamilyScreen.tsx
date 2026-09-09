@@ -2,14 +2,14 @@
 import { StyleSheet, Text, View } from 'react-native';
 import { inkTheme } from '../theme/inkTheme';
 
-export default function HomeScreen() {
+export default function FamilyScreen() {
   return (
     <View style={styles.container}>
       <View style={styles.badge}>
-        <Text style={styles.badgeText}>族譜</Text>
+        <Text style={styles.badgeText}>家族</Text>
       </View>
-      <Text style={styles.title}>족보 트리</Text>
-      <Text style={styles.subtitle}>가계의 뿌리와 계보를 확인하는 공간입니다.</Text>
+      <Text style={styles.title}>구성원 목록</Text>
+      <Text style={styles.subtitle}>등록된 가족 및 일가 친척 명부입니다.</Text>
     </View>
   );
 }
@@ -26,7 +26,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 4,
     borderRadius: 4,
-    backgroundColor: inkTheme.seal,
+    backgroundColor: inkTheme.accentPine,
     marginBottom: 16,
   },
   badgeText: {

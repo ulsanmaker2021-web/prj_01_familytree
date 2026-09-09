@@ -2,14 +2,14 @@
 import { StyleSheet, Text, View } from 'react-native';
 import { inkTheme } from '../theme/inkTheme';
 
-export default function HomeScreen() {
+export default function PataScreen() {
   return (
     <View style={styles.container}>
       <View style={styles.badge}>
-        <Text style={styles.badgeText}>族譜</Text>
+        <Text style={styles.badgeText}>破打破</Text>
       </View>
-      <Text style={styles.title}>족보 트리</Text>
-      <Text style={styles.subtitle}>가계의 뿌리와 계보를 확인하는 공간입니다.</Text>
+      <Text style={styles.title}>무관심 파타</Text>
+      <Text style={styles.subtitle}>소원해진 친족과의 인연을 잇고 안부를 챙기는 공간입니다.</Text>
     </View>
   );
 }
@@ -26,7 +26,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 4,
     borderRadius: 4,
-    backgroundColor: inkTheme.seal,
+    backgroundColor: inkTheme.accentGold,
     marginBottom: 16,
   },
   badgeText: {
