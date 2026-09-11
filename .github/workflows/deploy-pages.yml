@@ -1,4 +1,4 @@
-﻿name: Deploy JokboApp to GitHub Pages
+name: Deploy JokboApp to GitHub Pages
 
 on:
   push:
@@ -34,7 +34,9 @@ jobs:
 
       - name: Export Web Bundle
         working-directory: JokboApp
-        run: npx expo export -p web
+        run: |
+          npx expo export -p web
+          touch dist/.nojekyll
 
       - name: Upload Pages Artifact
         uses: actions/upload-pages-artifact@v3
