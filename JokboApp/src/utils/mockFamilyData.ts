@@ -20,7 +20,7 @@ export const LINEAGES: Record<LineageType, LineageInfo> = {
     label: '부친쪽 (친가)',
     shortLabel: '친가',
     clan: '경주 김씨 (慶州 金氏)',
-    badgeColor: '#8b2020', // inkTheme.accentRed
+    badgeColor: '#dc2626', // 친가: 선명한 붉은색
     description: '본인 직계 친족 가계',
   },
   maternal: {
@@ -28,7 +28,7 @@ export const LINEAGES: Record<LineageType, LineageInfo> = {
     label: '모친쪽 (외가)',
     shortLabel: '외가',
     clan: '전주 이씨 (全州 李氏)',
-    badgeColor: '#1a3d2e', // inkTheme.accentPine
+    badgeColor: '#2563eb', // 외가: 선명한 푸른색
     description: '어머니 본가 가계',
   },
   inlaw_paternal: {
@@ -36,7 +36,7 @@ export const LINEAGES: Record<LineageType, LineageInfo> = {
     label: '사돈댁 부친쪽 (처가 친가)',
     shortLabel: '사돈(친가)',
     clan: '동래 정씨 (東萊 鄭氏)',
-    badgeColor: '#7a5c1e', // inkTheme.accentGold
+    badgeColor: '#d97706', // 사돈 친가: 앰버 골드
     description: '배우자 아버지 본가 가계',
   },
   inlaw_maternal: {
@@ -44,7 +44,7 @@ export const LINEAGES: Record<LineageType, LineageInfo> = {
     label: '사돈댁 모친쪽 (처가 외가)',
     shortLabel: '사돈(외가)',
     clan: '남원 양씨 (南原 梁氏)',
-    badgeColor: '#4a4a44', // inkTheme.ink3
+    badgeColor: '#7c3aed', // 사돈 외가: 바이올렛
     description: '배우자 어머니 본가 가계',
   },
 };
@@ -59,7 +59,7 @@ export const DEVICE_PROFILES: Record<DeviceId, DeviceProfile> = {
     title: '스마트폰 A (김준혁 본인)',
     desc: '본인 직계 중심 (부모, 형제, 자녀) 족보 보유',
     avatarText: '준혁',
-    color: '#8b2020',
+    color: '#dc2626', // 친가: 선명한 붉은색
     initialMemberIds: ['pat-3-1', 'pat-2-2', 'mat-2-1', 'pat-3-2', 'pat-3-3', 'pat-4-1', 'pat-4-2', 'inlaw-pat-3-1'],
   },
   device_B: {
@@ -70,7 +70,7 @@ export const DEVICE_PROFILES: Record<DeviceId, DeviceProfile> = {
     title: '스마트폰 B (정서연 처가)',
     desc: '처가쪽 친정 가족 (장인, 장모, 처남) 족보 보유',
     avatarText: '서연',
-    color: '#7a5c1e',
+    color: '#d97706',
     initialMemberIds: ['inlaw-pat-3-1', 'pat-3-1', 'inlaw-pat-2-1', 'inlaw-mat-2-1', 'inlaw-pat-3-2', 'pat-4-1', 'pat-4-2'],
   },
   device_C: {
@@ -92,7 +92,7 @@ export const DEVICE_PROFILES: Record<DeviceId, DeviceProfile> = {
     title: '스마트폰 D (외숙 이은철 외가)',
     desc: '외조부모, 이모, 외사촌, 외당숙 등 외가 가계 보유',
     avatarText: '은철',
-    color: '#1a3d2e',
+    color: '#2563eb', // 외가: 선명한 푸른색
     initialMemberIds: ['mat-2-2', 'mat-1-1', 'mat-1-2', 'mat-2-1', 'mat-2-3', 'mat-3-1', 'mat-2-4'],
   },
 };

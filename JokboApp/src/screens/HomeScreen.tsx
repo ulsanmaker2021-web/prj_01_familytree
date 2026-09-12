@@ -11,6 +11,7 @@ import { LINEAGES, getLifeStatus, getKinshipRelation } from '../utils/mockFamily
 import { useFamilyStore } from '../hooks/useFamilyStore';
 import { DeviceSimulatorBar } from '../components/DeviceSimulatorBar';
 import { MemberDetailModal } from '../components/MemberDetailModal';
+import { ObsidianGraphView } from '../components/ObsidianGraphView';
 import { inkTheme } from '../theme/inkTheme';
 
 // Scope filter by kinship degree
@@ -218,7 +219,7 @@ export default function HomeScreen() {
               )}
             </View>
 
-            {/* View Mode Toggle (Radial vs Generation) */}
+            {/* View Mode Toggle (Obsidian Radial vs Generation) */}
             <View style={styles.viewModeToggle}>
               <TouchableOpacity
                 style={[
@@ -233,7 +234,7 @@ export default function HomeScreen() {
                     viewMode === 'radial' && styles.modeBtnTextActive,
                   ]}
                 >
-                  방사형 뷰
+                  🌐 옵시디언 방사형
                 </Text>
               </TouchableOpacity>
               <TouchableOpacity
@@ -249,7 +250,7 @@ export default function HomeScreen() {
                     viewMode === 'generation' && styles.modeBtnTextActive,
                   ]}
                 >
-                  계통 뷰
+                  📜 세대별 계통
                 </Text>
               </TouchableOpacity>
             </View>
@@ -409,8 +410,15 @@ export default function HomeScreen() {
 
         {/* 3. Main Tree Presentation */}
         {viewMode === 'radial' ? (
-          /* ================== RADIAL VIEW (방사형 뷰) ================== */
+          /* ================== RADIAL VIEW (옵시디언 방사형 뷰) ================== */
           <View style={styles.radialContainer}>
+            {/* 1. Obsidian-Style Interactive Graph Network */}
+            <ObsidianGraphView
+              members={filteredMembers}
+              centerPerson={centerPerson}
+              onSelectMember={setSelectedMember}
+            />
+
             {/* Upper Tier: Grandparents (조부모 세대) */}
             {grandparents.length > 0 && (
               <View style={styles.tierSection}>
