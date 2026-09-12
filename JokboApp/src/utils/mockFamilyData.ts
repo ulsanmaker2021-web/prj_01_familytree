@@ -679,45 +679,74 @@ export function getLifeStatus(member: FamilyMember): {
   }
 }
 
+export interface KinshipResult {
+  title: string;
+  chonText?: string;
+}
+
 // Compute kinship relationship from the perspective of centerId
-export function getKinshipRelation(target: FamilyMember, centerId: string): string {
-  if (target.id === centerId) return '본인 (중심)';
+export function getKinshipRelation(centerId: string, targetId: string): KinshipResult {
+  if (targetId === centerId) {
+    return { title: '본인 (중심)' };
+  }
 
   // Known relation lookups for main personas
   if (centerId === 'pat-3-1') {
     // Kim Jun-hyeok's perspective
-    return target.relationship;
+    if (targetId === 'inlaw-pat-3-1') return { title: '배우자 (아내)', chonText: '0촌' };
+    if (targetId === 'pat-2-2') return { title: '아버지 (부친)', chonText: '1촌' };
+    if (targetId === 'mat-2-1') return { title: '어머니 (모친)', chonText: '1촌' };
+    if (targetId === 'pat-3-2') return { title: '남동생', chonText: '2촌' };
+    if (targetId === 'pat-3-3') return { title: '여동생', chonText: '2촌' };
+    if (targetId === 'pat-4-1') return { title: '장남 (아들)', chonText: '1촌' };
+    if (targetId === 'pat-4-2') return { title: '장녀 (딸)', chonText: '1촌' };
+    if (targetId === 'pat-1-1') return { title: '친조부 (할아버지)', chonText: '2촌' };
+    if (targetId === 'pat-1-2') return { title: '친조모 (할머니)', chonText: '2촌' };
+    if (targetId === 'mat-1-1') return { title: '외조부 (외할아버지)', chonText: '2촌' };
+    if (targetId === 'mat-1-2') return { title: '외조모 (외할머니)', chonText: '2촌' };
+    if (targetId === 'pat-2-1') return { title: '큰아버지 (백부)', chonText: '3촌' };
+    if (targetId === 'pat-2-3') return { title: '고모', chonText: '3촌' };
+    if (targetId === 'pat-3-4') return { title: '사촌형 (종형)', chonText: '4촌' };
+    if (targetId === 'pat-2-4') return { title: '당숙 (5촌 당숙)', chonText: '5촌' };
+    if (targetId === 'mat-2-2') return { title: '외삼촌 (외숙)', chonText: '3촌' };
+    if (targetId === 'mat-2-3') return { title: '이모', chonText: '3촌' };
+    if (targetId === 'mat-3-1') return { title: '외사촌 (이종사촌)', chonText: '4촌' };
+    if (targetId === 'mat-2-4') return { title: '외당숙 (5촌)', chonText: '5촌' };
+    if (targetId === 'inlaw-pat-2-1') return { title: '장인어른', chonText: '인척' };
+    if (targetId === 'inlaw-mat-2-1') return { title: '장모님', chonText: '인척' };
+    if (targetId === 'inlaw-pat-3-2') return { title: '처남', chonText: '인척' };
   } else if (centerId === 'inlaw-pat-3-1') {
     // Jeong Seo-yeon's perspective
-    if (target.id === 'pat-3-1') return '남편';
-    if (target.id === 'inlaw-pat-2-1') return '아버지 (친정)';
-    if (target.id === 'inlaw-mat-2-1') return '어머니 (친정)';
-    if (target.id === 'inlaw-pat-3-2') return '남동생';
-    if (target.id === 'pat-2-2') return '시아버지';
-    if (target.id === 'mat-2-1') return '시어머니';
-    if (target.id === 'pat-4-1') return '장남 (아들)';
-    if (target.id === 'pat-4-2') return '장녀 (딸)';
-    return `${target.name} (${target.relationship})`;
+    if (targetId === 'pat-3-1') return { title: '남편', chonText: '0촌' };
+    if (targetId === 'inlaw-pat-2-1') return { title: '아버지 (친정)', chonText: '1촌' };
+    if (targetId === 'inlaw-mat-2-1') return { title: '어머니 (친정)', chonText: '1촌' };
+    if (targetId === 'inlaw-pat-3-2') return { title: '남동생', chonText: '2촌' };
+    if (targetId === 'pat-2-2') return { title: '시아버지', chonText: '인척' };
+    if (targetId === 'mat-2-1') return { title: '시어머니', chonText: '인척' };
+    if (targetId === 'pat-4-1') return { title: '장남 (아들)', chonText: '1촌' };
+    if (targetId === 'pat-4-2') return { title: '장녀 (딸)', chonText: '1촌' };
+    if (targetId === 'inlaw-pat-2-2') return { title: '큰아버지 (백부)', chonText: '3촌' };
+    if (targetId === 'inlaw-mat-2-2') return { title: '외삼촌', chonText: '3촌' };
+    if (targetId === 'inlaw-mat-2-3') return { title: '이모', chonText: '3촌' };
   } else if (centerId === 'pat-2-1') {
-    // Kim Yeong-ho (Uncle/Eldest son)'s perspective
-    if (target.id === 'pat-1-1') return '선친 (부친)';
-    if (target.id === 'pat-1-2') return '어머님 (모친)';
-    if (target.id === 'pat-2-2') return '아우 (남동생)';
-    if (target.id === 'pat-2-3') return '여동생';
-    if (target.id === 'pat-3-1') return '조카 (조카/차종손)';
-    if (target.id === 'pat-3-4') return '장남 (아들)';
-    if (target.id === 'pat-2-4') return '당숙 (5촌)';
-    return `${target.name} (${target.relationship})`;
+    // Kim Yeong-ho's perspective
+    if (targetId === 'pat-1-1') return { title: '선친 (부친)', chonText: '1촌' };
+    if (targetId === 'pat-1-2') return { title: '어머님 (모친)', chonText: '1촌' };
+    if (targetId === 'pat-2-2') return { title: '아우 (남동생)', chonText: '2촌' };
+    if (targetId === 'pat-2-3') return { title: '여동생', chonText: '2촌' };
+    if (targetId === 'pat-3-1') return { title: '조카 (준혁)', chonText: '3촌' };
+    if (targetId === 'pat-3-4') return { title: '장남 (태혁)', chonText: '1촌' };
+    if (targetId === 'pat-2-4') return { title: '사촌형제 (당숙)', chonText: '4촌' };
   } else if (centerId === 'mat-2-2') {
-    // Lee Eun-cheol (Maternal uncle)'s perspective
-    if (target.id === 'mat-1-1') return '선친/부친';
-    if (target.id === 'mat-1-2') return '어머님/모친';
-    if (target.id === 'mat-2-1') return '누님 (누나)';
-    if (target.id === 'mat-2-3') return '여동생';
-    if (target.id === 'pat-3-1') return '생질 (조카)';
-    if (target.id === 'mat-3-1') return '장남 (아들)';
-    return `${target.name} (${target.relationship})`;
+    // Lee Eun-cheol's perspective
+    if (targetId === 'mat-1-1') return { title: '선친 (부친)', chonText: '1촌' };
+    if (targetId === 'mat-1-2') return { title: '어머님 (모친)', chonText: '1촌' };
+    if (targetId === 'mat-2-1') return { title: '누님', chonText: '2촌' };
+    if (targetId === 'mat-2-3') return { title: '여동생', chonText: '2촌' };
+    if (targetId === 'pat-3-1') return { title: '생질 (조카)', chonText: '3촌' };
+    if (targetId === 'mat-3-1') return { title: '장남 (민호)', chonText: '1촌' };
+    if (targetId === 'mat-2-4') return { title: '사촌형제 (성국)', chonText: '4촌' };
   }
 
-  return target.relationship;
+  return { title: '친족' };
 }
