@@ -73,24 +73,24 @@ export default function App() {
             name="Home"
             component={HomeScreen}
             options={{
-              title: '族譜 트리 (가계도)',
-              tabBarLabel: '홈',
+              title: '가계도 (디지털 족보 트리)',
+              tabBarLabel: '가계도',
             }}
           />
           <Tab.Screen
             name="Family"
             component={FamilyScreen}
             options={{
-              title: '가족 구성원 명부',
-              tabBarLabel: '가족',
+              title: '친족 구성원 명부',
+              tabBarLabel: '친족 명부',
             }}
           />
           <Tab.Screen
             name="Pata"
             component={PataScreen}
             options={{
-              title: '무관심 파타 (안부 챙김)',
-              tabBarLabel: '파타',
+              title: '무관심 타파 (친족 안부 챙김)',
+              tabBarLabel: '안부 챙김',
             }}
           />
           <Tab.Screen

@@ -41,7 +41,7 @@ export default function SettingsScreen() {
       {/* Header Banner */}
       <View style={styles.banner}>
         <View style={styles.sealBadge}>
-          <Text style={styles.sealBadgeText}>設定</Text>
+          <Text style={styles.sealBadgeText}>환경 설정</Text>
         </View>
         <Text style={styles.title}>족보 환경 및 데이터 관리</Text>
         <Text style={styles.subtitle}>

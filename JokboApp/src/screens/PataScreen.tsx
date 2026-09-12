@@ -74,9 +74,9 @@ export default function PataScreen() {
         <View style={styles.heroBanner}>
           <View style={styles.badgeRow}>
             <View style={styles.heroBadge}>
-              <Text style={styles.heroBadgeText}>破打破</Text>
+              <Text style={styles.heroBadgeText}>打破 · 孝親</Text>
             </View>
-            <Text style={styles.heroSubText}>친족 무관심 타파 & 안부 챙김</Text>
+            <Text style={styles.heroSubText}>무관심 타파 (無關心 打破) · 친족 안부 챙김</Text>
           </View>
 
           <Text style={styles.heroTitle}>
