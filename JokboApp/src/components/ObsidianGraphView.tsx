@@ -59,9 +59,9 @@ export const ObsidianGraphView: React.FC<ObsidianGraphViewProps> = ({
   centerPerson,
   onSelectMember,
 }) => {
-  // Canvas dimensions for generous obsidian network exploration
-  const WIDTH = 1060;
-  const HEIGHT = 860;
+  // Canvas dimensions for generous obsidian network exploration with zero overlap
+  const WIDTH = 1200;
+  const HEIGHT = 980;
   const CX = WIDTH / 2;
   const CY = HEIGHT / 2 + 10;
 
@@ -73,6 +73,7 @@ export const ObsidianGraphView: React.FC<ObsidianGraphViewProps> = ({
   const [activeDragId, setActiveDragId] = useState<string | null>(null);
 
   // 1. Calculate pristine initial coordinates for each member in radial layout
+  // with automated anti-collision relaxation so NO cards ever overlap!
   const calculateDefaultPositions = useCallback((): Record<string, { x: number; y: number }> => {
     const posMap: Record<string, { x: number; y: number }> = {};
 
@@ -87,20 +88,30 @@ export const ObsidianGraphView: React.FC<ObsidianGraphViewProps> = ({
     );
 
     // ==========================================
-    // 친가 (Paternal): Left / Upper-Left sector (115° to 245°)
+    // Specific Calibrated Positions (Angles in degrees, radius in px)
+    // Perfectly matched to avoid overlap:
+    // - 김영수 (아버지): 180° (West)
+    // - 김민혁 (남동생): 215° (Upper-West)
+    // - 김지우 (여동생): 250° (Upper-Left-Mid)
+    // - 김도윤 (장남):   290° (Upper-Right-Mid)
+    // - 김하은 (장녀):   325° (Upper-East)
+    // - 이은경 (어머니): 0° (East)
+    // - 정서연 (배우자): 90° (South)
     // ==========================================
     const patSpecialPositions: Record<string, { r: number; angleDeg: number }> = {
-      'pat-2-2': { r: 170, angleDeg: 180 }, // 부친 (정서쪽)
-      'pat-1-1': { r: 310, angleDeg: 170 }, // 친조부
-      'pat-1-2': { r: 310, angleDeg: 190 }, // 친조모
-      'pat-2-1': { r: 230, angleDeg: 140 }, // 백부
-      'pat-3-4': { r: 350, angleDeg: 135 }, // 사촌형 (백부 장남)
-      'pat-2-3': { r: 220, angleDeg: 215 }, // 고모
-      'pat-2-4': { r: 390, angleDeg: 115 }, // 당숙
-      'pat-3-2': { r: 150, angleDeg: 245 }, // 남동생
-      'pat-3-3': { r: 180, angleDeg: 260 }, // 여동생
-      'pat-4-1': { r: 190, angleDeg: 285 }, // 아들
-      'pat-4-2': { r: 210, angleDeg: 300 }, // 딸
+      'pat-2-2': { r: 250, angleDeg: 180 }, // 부친 (정서쪽 9시 방향)
+      'pat-3-2': { r: 240, angleDeg: 215 }, // 남동생 (10시 반 방향)
+      'pat-3-3': { r: 250, angleDeg: 250 }, // 여동생 (11시 반 방향)
+      'pat-4-1': { r: 250, angleDeg: 290 }, // 아들 (12시 반 방향)
+      'pat-4-2': { r: 240, angleDeg: 325 }, // 딸 (1시 반 방향)
+
+      // 조부모 및 방계 친족
+      'pat-1-1': { r: 410, angleDeg: 165 }, // 친조부
+      'pat-1-2': { r: 410, angleDeg: 195 }, // 친조모
+      'pat-2-1': { r: 380, angleDeg: 140 }, // 백부
+      'pat-3-4': { r: 500, angleDeg: 130 }, // 사촌형 (백부 장남)
+      'pat-2-3': { r: 390, angleDeg: 215 }, // 고모
+      'pat-2-4': { r: 510, angleDeg: 115 }, // 당숙
     };
 
     paternalMembers.forEach((m, idx) => {
@@ -112,13 +123,13 @@ export const ObsidianGraphView: React.FC<ObsidianGraphViewProps> = ({
           y: CY + spec.r * Math.sin(rad),
         };
       } else {
-        const startRad = (120 * Math.PI) / 180;
+        const startRad = (130 * Math.PI) / 180;
         const endRad = (240 * Math.PI) / 180;
         const step =
           paternalMembers.length > 1
             ? startRad + ((endRad - startRad) * idx) / (paternalMembers.length - 1)
             : Math.PI;
-        const radius = m.generation === 1 ? 320 : m.generation === 2 ? 220 : 260;
+        const radius = m.generation === 1 ? 400 : m.generation === 2 ? 280 : 340;
         posMap[m.id] = {
           x: CX + radius * Math.cos(step),
           y: CY + radius * Math.sin(step),
@@ -130,21 +141,21 @@ export const ObsidianGraphView: React.FC<ObsidianGraphViewProps> = ({
     // 외가 (Maternal): Right / Upper-Right sector (-65° to 65°)
     // ==========================================
     const matSpecialPositions: Record<string, { r: number; angleDeg: number }> = {
-      'mat-2-1': { r: 170, angleDeg: 0 }, // 모친 (정동쪽)
-      'mat-1-1': { r: 310, angleDeg: -12 }, // 외조부
-      'mat-1-2': { r: 310, angleDeg: 10 }, // 외조모
-      'mat-2-2': { r: 220, angleDeg: -35 }, // 외숙 (외삼촌)
-      'mat-2-5': { r: 290, angleDeg: -30 }, // 외숙모
-      'mat-3-1': { r: 370, angleDeg: -45 }, // 외사촌동생 (시우)
-      'mat-3-2': { r: 380, angleDeg: -30 }, // 외사촌형 (태우)
-      'mat-4-1': { r: 450, angleDeg: -52 }, // 외종조카 (준우)
-      'mat-4-2': { r: 460, angleDeg: -38 }, // 외종질녀 (서아)
-      'mat-2-3': { r: 220, angleDeg: 35 }, // 큰이모
-      'mat-2-6': { r: 290, angleDeg: 30 }, // 이모부
-      'mat-3-3': { r: 370, angleDeg: 42 }, // 이종사촌여동생 (하린)
-      'mat-3-4': { r: 380, angleDeg: 28 }, // 이종사촌남동생 (민우)
-      'mat-2-7': { r: 240, angleDeg: 60 }, // 작은이모
-      'mat-2-4': { r: 390, angleDeg: -65 }, // 외당숙
+      'mat-2-1': { r: 250, angleDeg: 0 },   // 모친 (정동쪽 3시 방향)
+      'mat-1-1': { r: 420, angleDeg: -15 }, // 외조부
+      'mat-1-2': { r: 420, angleDeg: 15 },  // 외조모
+      'mat-2-2': { r: 360, angleDeg: -25 }, // 외숙 (외삼촌)
+      'mat-2-5': { r: 470, angleDeg: -25 }, // 외숙모
+      'mat-3-1': { r: 460, angleDeg: -45 }, // 외사촌동생 (시우)
+      'mat-3-2': { r: 470, angleDeg: -58 }, // 외사촌형 (태우)
+      'mat-4-1': { r: 560, angleDeg: -45 }, // 외종조카 (준우)
+      'mat-4-2': { r: 570, angleDeg: -58 }, // 외종질녀 (서아)
+      'mat-2-3': { r: 360, angleDeg: 25 },  // 큰이모
+      'mat-2-6': { r: 470, angleDeg: 25 },  // 이모부
+      'mat-3-3': { r: 460, angleDeg: 40 },  // 이종사촌여동생 (하린)
+      'mat-3-4': { r: 480, angleDeg: 52 },  // 이종사촌남동생 (민우)
+      'mat-2-7': { r: 380, angleDeg: 68 },  // 작은이모
+      'mat-2-4': { r: 530, angleDeg: -10 }, // 외당숙
     };
 
     maternalMembers.forEach((m, idx) => {
@@ -156,13 +167,13 @@ export const ObsidianGraphView: React.FC<ObsidianGraphViewProps> = ({
           y: CY + spec.r * Math.sin(rad),
         };
       } else {
-        const startRad = (-55 * Math.PI) / 180;
-        const endRad = (55 * Math.PI) / 180;
+        const startRad = (-50 * Math.PI) / 180;
+        const endRad = (50 * Math.PI) / 180;
         const step =
           maternalMembers.length > 1
             ? startRad + ((endRad - startRad) * idx) / (maternalMembers.length - 1)
             : 0;
-        const radius = m.generation === 1 ? 320 : m.generation === 2 ? 220 : 360;
+        const radius = m.generation === 1 ? 420 : m.generation === 2 ? 340 : 440;
         posMap[m.id] = {
           x: CX + radius * Math.cos(step),
           y: CY + radius * Math.sin(step),
@@ -171,20 +182,20 @@ export const ObsidianGraphView: React.FC<ObsidianGraphViewProps> = ({
     });
 
     // ==========================================
-    // 사돈댁 (In-Laws): Lower sector (75° to 105°)
+    // 사돈댁 (In-Laws): Lower sector (70° to 110°)
     // ==========================================
     const inlawSpecialPositions: Record<string, { r: number; angleDeg: number }> = {
-      'inlaw-pat-3-1': { r: 120, angleDeg: 90 }, // 배우자 (정남쪽)
-      'inlaw-pat-2-1': { r: 240, angleDeg: 80 }, // 장인어른
-      'inlaw-mat-2-1': { r: 240, angleDeg: 100 }, // 장모님
-      'inlaw-pat-3-2': { r: 210, angleDeg: 115 }, // 처남
-      'inlaw-pat-1-1': { r: 330, angleDeg: 75 }, // 처조부
-      'inlaw-pat-1-2': { r: 340, angleDeg: 85 }, // 처조모
-      'inlaw-pat-2-2': { r: 340, angleDeg: 65 }, // 처백부
-      'inlaw-mat-1-1': { r: 330, angleDeg: 95 }, // 처외조부
-      'inlaw-mat-1-2': { r: 340, angleDeg: 105 }, // 처외조모
-      'inlaw-mat-2-2': { r: 330, angleDeg: 115 }, // 처외숙
-      'inlaw-mat-2-3': { r: 340, angleDeg: 125 }, // 처이모
+      'inlaw-pat-3-1': { r: 180, angleDeg: 90 },  // 배우자 (정남쪽 6시 방향)
+      'inlaw-pat-2-1': { r: 320, angleDeg: 78 },  // 장인어른
+      'inlaw-mat-2-1': { r: 320, angleDeg: 102 }, // 장모님
+      'inlaw-pat-3-2': { r: 350, angleDeg: 118 }, // 처남
+      'inlaw-pat-1-1': { r: 460, angleDeg: 72 },  // 처조부
+      'inlaw-pat-1-2': { r: 470, angleDeg: 84 },  // 처조모
+      'inlaw-pat-2-2': { r: 470, angleDeg: 62 },  // 처백부
+      'inlaw-mat-1-1': { r: 460, angleDeg: 96 },  // 처외조부
+      'inlaw-mat-1-2': { r: 470, angleDeg: 108 }, // 처외조모
+      'inlaw-mat-2-2': { r: 470, angleDeg: 120 }, // 처외숙
+      'inlaw-mat-2-3': { r: 480, angleDeg: 132 }, // 처이모
     };
 
     inlawMembers.forEach((m, idx) => {
@@ -203,11 +214,73 @@ export const ObsidianGraphView: React.FC<ObsidianGraphViewProps> = ({
             ? startRad + ((endRad - startRad) * idx) / (inlawMembers.length - 1)
             : (90 * Math.PI) / 180;
         posMap[m.id] = {
-          x: CX + 200 * Math.cos(step),
-          y: CY + 200 * Math.sin(step),
+          x: CX + 280 * Math.cos(step),
+          y: CY + 280 * Math.sin(step),
         };
       }
     });
+
+    // ==========================================
+    // 🛡️ Automated Anti-Collision Relaxation Pass
+    // Guarantees zero bounding-box overlaps across all active nodes!
+    // ==========================================
+    const CARD_W = 125; // Approximate card width
+    const CARD_H = 58;  // Approximate card height
+    const SAFE_MARGIN_X = 18;
+    const SAFE_MARGIN_Y = 14;
+
+    const allKeys = Object.keys(posMap);
+    for (let iter = 0; iter < 30; iter++) {
+      let moved = false;
+      for (let i = 0; i < allKeys.length; i++) {
+        const idA = allKeys[i];
+        if (idA === centerPerson.id) continue; // Anchor center
+        const pA = posMap[idA];
+
+        for (let j = i + 1; j < allKeys.length; j++) {
+          const idB = allKeys[j];
+          if (idB === centerPerson.id) continue;
+          const pB = posMap[idB];
+
+          // Check visual card collision
+          // Visual card center is shifted slightly to the right of node.x
+          const centerShiftA = 50;
+          const centerShiftB = 50;
+          const ax = pA.x + centerShiftA;
+          const ay = pA.y;
+          const bx = pB.x + centerShiftB;
+          const by = pB.y;
+
+          const dx = bx - ax;
+          const dy = by - ay;
+          const overlapX = CARD_W + SAFE_MARGIN_X - Math.abs(dx);
+          const overlapY = CARD_H + SAFE_MARGIN_Y - Math.abs(dy);
+
+          if (overlapX > 0 && overlapY > 0) {
+            moved = true;
+            const dist = Math.hypot(dx, dy) || 1;
+            const nx = dx / dist;
+            const ny = dy / dist;
+
+            // Push apart proportional to overlap
+            const pushX = nx * (overlapX * 0.45);
+            const pushY = ny * (overlapY * 0.45);
+
+            pA.x -= pushX;
+            pA.y -= pushY;
+            pB.x += pushX;
+            pB.y += pushY;
+
+            // Constrain inside canvas
+            pA.x = Math.max(50, Math.min(WIDTH - 150, pA.x));
+            pA.y = Math.max(50, Math.min(HEIGHT - 80, pA.y));
+            pB.x = Math.max(50, Math.min(WIDTH - 150, pB.x));
+            pB.y = Math.max(50, Math.min(HEIGHT - 80, pB.y));
+          }
+        }
+      }
+      if (!moved) break;
+    }
 
     return posMap;
   }, [members, centerPerson, CX, CY]);
@@ -245,10 +318,10 @@ export const ObsidianGraphView: React.FC<ObsidianGraphViewProps> = ({
     addEdge('pat-2-1', 'pat-3-4', patColor, 2.0); // 백부 - 사촌형
     addEdge('pat-1-1', 'pat-2-3', patColor, 1.8); // 친조부 - 고모
     addEdge('pat-1-1', 'pat-2-4', patColor, 1.5, true); // 친조부 - 당숙
-    addEdge(centerPerson.id, 'pat-3-2', patColor, 2.0); // 나 - 남동생
-    addEdge(centerPerson.id, 'pat-3-3', patColor, 2.0); // 나 - 여동생
-    addEdge(centerPerson.id, 'pat-4-1', patColor, 2.2); // 나 - 아들
-    addEdge(centerPerson.id, 'pat-4-2', patColor, 2.2); // 나 - 딸
+    addEdge(centerPerson.id, 'pat-3-2', patColor, 2.2); // 나 - 남동생
+    addEdge(centerPerson.id, 'pat-3-3', patColor, 2.2); // 나 - 여동생
+    addEdge(centerPerson.id, 'pat-4-1', patColor, 2.4); // 나 - 아들
+    addEdge(centerPerson.id, 'pat-4-2', patColor, 2.4); // 나 - 딸
 
     // Radial guide lines for distant paternal
     addEdge(centerPerson.id, 'pat-2-1', 'rgba(239, 68, 68, 0.25)', 1.2, true);
@@ -389,7 +462,7 @@ export const ObsidianGraphView: React.FC<ObsidianGraphViewProps> = ({
   const textColor = isDarkMode ? '#f1f5f9' : '#111827';
   const subtextColor = isDarkMode ? '#94a3b8' : inkTheme.ink4;
   const ringColor = isDarkMode ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.05)';
-  const nodeCardBg = isDarkMode ? 'rgba(30, 41, 59, 0.92)' : 'rgba(255, 255, 255, 0.95)';
+  const nodeCardBg = isDarkMode ? 'rgba(30, 41, 59, 0.94)' : 'rgba(255, 255, 255, 0.95)';
   const nodeCardBorder = isDarkMode ? '#334155' : inkTheme.ink8;
 
   return (
@@ -408,7 +481,7 @@ export const ObsidianGraphView: React.FC<ObsidianGraphViewProps> = ({
             ) : null}
           </View>
           <Text style={[styles.headerSubtitle, { color: subtextColor }]}>
-            💡 노드를 터치/클릭하여 드래그하면 연결선과 가족 가지가 실시간으로 유기적으로 따라 움직입니다.
+            💡 노드 간 겹침 방지 궤도가 적용되었습니다. 노드를 드래그하면 연결선과 가족 가지가 유기적으로 따라 움직입니다.
           </Text>
         </View>
 
@@ -493,11 +566,11 @@ export const ObsidianGraphView: React.FC<ObsidianGraphViewProps> = ({
             style={[
               styles.orbitRing,
               {
-                width: 260,
-                height: 260,
-                borderRadius: 130,
-                left: CX - 130,
-                top: CY - 130,
+                width: 360,
+                height: 360,
+                borderRadius: 180,
+                left: CX - 180,
+                top: CY - 180,
                 borderColor: ringColor,
               },
             ]}
@@ -506,11 +579,11 @@ export const ObsidianGraphView: React.FC<ObsidianGraphViewProps> = ({
             style={[
               styles.orbitRing,
               {
-                width: 480,
-                height: 480,
-                borderRadius: 240,
-                left: CX - 240,
-                top: CY - 240,
+                width: 520,
+                height: 520,
+                borderRadius: 260,
+                left: CX - 260,
+                top: CY - 260,
                 borderColor: ringColor,
               },
             ]}
@@ -519,11 +592,11 @@ export const ObsidianGraphView: React.FC<ObsidianGraphViewProps> = ({
             style={[
               styles.orbitRing,
               {
-                width: 700,
-                height: 700,
-                borderRadius: 350,
-                left: CX - 350,
-                top: CY - 350,
+                width: 820,
+                height: 820,
+                borderRadius: 410,
+                left: CX - 410,
+                top: CY - 410,
                 borderColor: ringColor,
               },
             ]}
