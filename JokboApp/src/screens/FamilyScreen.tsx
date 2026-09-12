@@ -8,7 +8,7 @@ import {
   View,
 } from 'react-native';
 import { FamilyMember, LineageType } from '../types/family';
-import { LINEAGES } from '../utils/mockFamilyData';
+import { LINEAGES, getLifeStatus } from '../utils/mockFamilyData';
 import { useFamilyStore } from '../hooks/useFamilyStore';
 import { MemberDetailModal } from '../components/MemberDetailModal';
 import { inkTheme } from '../theme/inkTheme';
@@ -16,25 +16,18 @@ import { inkTheme } from '../theme/inkTheme';
 export default function FamilyScreen() {
   const { members, logContact } = useFamilyStore();
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedLineage, setSelectedLineage] = useState<LineageType | 'all'>(
-    'all'
-  );
+  const [selectedLineage, setSelectedLineage] = useState<LineageType | 'all'>('all');
   const [aliveOnly, setAliveOnly] = useState(false);
-  const [selectedMember, setSelectedMember] = useState<FamilyMember | null>(
-    null
-  );
+  const [selectedMember, setSelectedMember] = useState<FamilyMember | null>(null);
 
   const filteredMembers = useMemo(() => {
     return members.filter((m) => {
-      // Lineage filter
       if (selectedLineage !== 'all' && m.lineage !== selectedLineage) {
         return false;
       }
-      // Alive filter
       if (aliveOnly && !m.isAlive) {
         return false;
       }
-      // Search query filter
       if (searchQuery.trim() !== '') {
         const query = searchQuery.toLowerCase().trim();
         const matchName = m.name.toLowerCase().includes(query);
@@ -86,8 +79,10 @@ export default function FamilyScreen() {
           </View>
           <View style={styles.statDivider} />
           <View style={styles.statBox}>
-            <Text style={styles.statLabel}>가계 계통</Text>
-            <Text style={[styles.statValue, { color: inkTheme.seal }]}>4계통</Text>
+            <Text style={styles.statLabel}>작고 어르신</Text>
+            <Text style={[styles.statValue, { color: inkTheme.ink3 }]}>
+              {totalCount - aliveCount}명
+            </Text>
           </View>
         </View>
 
@@ -178,6 +173,8 @@ export default function FamilyScreen() {
         ) : (
           filteredMembers.map((member) => {
             const lineage = LINEAGES[member.lineage];
+            const life = getLifeStatus(member);
+
             return (
               <TouchableOpacity
                 key={member.id}
@@ -204,11 +201,22 @@ export default function FamilyScreen() {
                       {member.hanja && (
                         <Text style={styles.memberHanja}>({member.hanja})</Text>
                       )}
-                      {!member.isAlive && (
-                        <View style={styles.deceasedBadge}>
-                          <Text style={styles.deceasedBadgeText}>作故</Text>
-                        </View>
-                      )}
+                      {/* Prominent Life Status Pill */}
+                      <View
+                        style={[
+                          styles.lifePill,
+                          { backgroundColor: life.badgeBg },
+                        ]}
+                      >
+                        <Text
+                          style={[
+                            styles.lifePillText,
+                            { color: life.badgeTextColor },
+                          ]}
+                        >
+                          {member.isAlive ? `🌿 생존 (${life.ageText})` : `🕯️ 작고 (${life.ageText})`}
+                        </Text>
+                      </View>
                     </View>
 
                     <View style={styles.badgeGroup}>
@@ -243,7 +251,7 @@ export default function FamilyScreen() {
                   {/* Row 3: Phone & Birth info */}
                   <View style={styles.cardRow3}>
                     <Text style={styles.infoText}>
-                      생년: {member.birthDate || '미상'}
+                      생년월일: {member.birthDate || '미상'}
                       {member.deathDate ? ` ~ ${member.deathDate}` : ''}
                     </Text>
                     {member.phone ? (
@@ -396,7 +404,7 @@ const styles = StyleSheet.create({
   },
   cardDeceased: {
     backgroundColor: inkTheme.paperDark,
-    opacity: 0.8,
+    opacity: 0.85,
   },
   sideBar: {
     width: 5,
@@ -415,6 +423,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
+    flexWrap: 'wrap',
   },
   memberName: {
     fontSize: 17,
@@ -425,16 +434,14 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: inkTheme.ink4,
   },
-  deceasedBadge: {
-    backgroundColor: inkTheme.ink4,
-    paddingHorizontal: 5,
-    paddingVertical: 1,
-    borderRadius: 3,
+  lifePill: {
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
   },
-  deceasedBadgeText: {
-    color: inkTheme.paper,
+  lifePillText: {
     fontSize: 10,
-    fontWeight: '700',
+    fontWeight: '800',
   },
   badgeGroup: {
     flexDirection: 'row',

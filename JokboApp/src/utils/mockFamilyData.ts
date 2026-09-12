@@ -1,5 +1,19 @@
 import { FamilyMember, LineageInfo, LineageType } from '../types/family';
 
+export type DeviceId = 'device_A' | 'device_B' | 'device_C' | 'device_D';
+
+export interface DeviceProfile {
+  id: DeviceId;
+  ownerId: string;
+  ownerName: string;
+  ownerRelation: string;
+  title: string;
+  desc: string;
+  avatarText: string;
+  color: string;
+  initialMemberIds: string[];
+}
+
 export const LINEAGES: Record<LineageType, LineageInfo> = {
   paternal: {
     key: 'paternal',
@@ -35,6 +49,54 @@ export const LINEAGES: Record<LineageType, LineageInfo> = {
   },
 };
 
+// 4 Virtual Devices (Different relatives starting with disconnected trees)
+export const DEVICE_PROFILES: Record<DeviceId, DeviceProfile> = {
+  device_A: {
+    id: 'device_A',
+    ownerId: 'pat-3-1',
+    ownerName: '김준혁',
+    ownerRelation: '본인 (30대)',
+    title: '스마트폰 A (김준혁 본인)',
+    desc: '본인 직계 중심 (부모, 형제, 자녀) 족보 보유',
+    avatarText: '준혁',
+    color: '#8b2020',
+    initialMemberIds: ['pat-3-1', 'pat-2-2', 'mat-2-1', 'pat-3-2', 'pat-3-3', 'pat-4-1', 'pat-4-2', 'inlaw-pat-3-1'],
+  },
+  device_B: {
+    id: 'device_B',
+    ownerId: 'inlaw-pat-3-1',
+    ownerName: '정서연',
+    ownerRelation: '배우자/아내 (30대)',
+    title: '스마트폰 B (정서연 처가)',
+    desc: '처가쪽 친정 가족 (장인, 장모, 처남) 족보 보유',
+    avatarText: '서연',
+    color: '#7a5c1e',
+    initialMemberIds: ['inlaw-pat-3-1', 'pat-3-1', 'inlaw-pat-2-1', 'inlaw-mat-2-1', 'inlaw-pat-3-2', 'pat-4-1', 'pat-4-2'],
+  },
+  device_C: {
+    id: 'device_C',
+    ownerId: 'pat-2-1',
+    ownerName: '김영호',
+    ownerRelation: '백부/종손 (60대)',
+    title: '스마트폰 C (백부 김영호 종친)',
+    desc: '친가 윗대 조부모, 당숙, 4촌·5촌 방계 종친 대거 보유',
+    avatarText: '영호',
+    color: '#1a1a18',
+    initialMemberIds: ['pat-2-1', 'pat-1-1', 'pat-1-2', 'pat-2-2', 'pat-2-3', 'pat-3-1', 'pat-3-4', 'pat-2-4'],
+  },
+  device_D: {
+    id: 'device_D',
+    ownerId: 'mat-2-2',
+    ownerName: '이은철',
+    ownerRelation: '외숙/외삼촌 (50대)',
+    title: '스마트폰 D (외숙 이은철 외가)',
+    desc: '외조부모, 이모, 외사촌, 외당숙 등 외가 가계 보유',
+    avatarText: '은철',
+    color: '#1a3d2e',
+    initialMemberIds: ['mat-2-2', 'mat-1-1', 'mat-1-2', 'mat-2-1', 'mat-2-3', 'mat-3-1', 'mat-2-4'],
+  },
+};
+
 export const INITIAL_FAMILY_DATA: FamilyMember[] = [
   // ==========================================
   // 1. 부친쪽 (친가 - 경주 김씨)
@@ -48,12 +110,12 @@ export const INITIAL_FAMILY_DATA: FamilyMember[] = [
     generation: 1,
     lineage: 'paternal',
     relationship: '조부 (친할아버지)',
-    clan: '경주 김씨',
+    clan: '경주 김씨 판도판서공파 27세손',
     birthDate: '1935-03-15',
     deathDate: '2018-11-20',
     isAlive: false,
     spouseId: 'pat-1-2',
-    memo: '경주 김씨 판도판서공파 27세손. 교직 35년 퇴임.',
+    memo: '교직 35년 퇴임. 안동 선영 안장.',
   },
   {
     id: 'pat-1-2',
@@ -72,7 +134,7 @@ export const INITIAL_FAMILY_DATA: FamilyMember[] = [
     contactCycleDays: 14,
     memo: '현재 안동 본가 거주. 건강 양호.',
   },
-  // 2대: 부친 및 백부/고모
+  // 2대: 부친, 백부, 고모, 5촌 당숙
   {
     id: 'pat-2-1',
     name: '김영호',
@@ -80,15 +142,15 @@ export const INITIAL_FAMILY_DATA: FamilyMember[] = [
     gender: 'M',
     generation: 2,
     lineage: 'paternal',
-    relationship: '큰아버지 (백부)',
-    clan: '경주 김씨',
+    relationship: '큰아버지 (백부/종손)',
+    clan: '경주 김씨 28세손',
     birthDate: '1959-05-10',
     isAlive: true,
     parentIds: ['pat-1-1', 'pat-1-2'],
     phone: '010-9182-4411',
     lastContactDate: '2026-07-15',
     contactCycleDays: 30,
-    memo: '대구 거주. 종친회 총무 역임.',
+    memo: '스마트폰 C 보유자. 대구 거주. 종친회 총무 역임.',
   },
   {
     id: 'pat-2-2',
@@ -98,7 +160,7 @@ export const INITIAL_FAMILY_DATA: FamilyMember[] = [
     generation: 2,
     lineage: 'paternal',
     relationship: '아버지 (부친)',
-    clan: '경주 김씨',
+    clan: '경주 김씨 28세손',
     birthDate: '1962-02-18',
     isAlive: true,
     parentIds: ['pat-1-1', 'pat-1-2'],
@@ -116,7 +178,7 @@ export const INITIAL_FAMILY_DATA: FamilyMember[] = [
     generation: 2,
     lineage: 'paternal',
     relationship: '고모',
-    clan: '경주 김씨',
+    clan: '경주 김씨 28세손',
     birthDate: '1965-10-03',
     isAlive: true,
     parentIds: ['pat-1-1', 'pat-1-2'],
@@ -125,7 +187,23 @@ export const INITIAL_FAMILY_DATA: FamilyMember[] = [
     contactCycleDays: 45,
     memo: '부산 거주. 화훼업 종사.',
   },
-  // 3대: 본인 및 동생들
+  {
+    id: 'pat-2-4',
+    name: '김진철',
+    hanja: '金鎭澈',
+    gender: 'M',
+    generation: 2,
+    lineage: 'paternal',
+    relationship: '당숙 (5촌 어르신)',
+    clan: '경주 김씨 28세손',
+    birthDate: '1948-06-12',
+    isAlive: true,
+    phone: '010-8833-1199',
+    lastContactDate: '2026-05-18',
+    contactCycleDays: 60,
+    memo: '친가 5촌 당숙어르신. 안동 종손가 지원.',
+  },
+  // 3대: 본인, 남동생, 여동생, 4촌 사촌형
   {
     id: 'pat-3-1',
     name: '김준혁',
@@ -133,16 +211,16 @@ export const INITIAL_FAMILY_DATA: FamilyMember[] = [
     gender: 'M',
     generation: 3,
     lineage: 'paternal',
-    relationship: '본인',
+    relationship: '본인 (나)',
     clan: '경주 김씨 29세손',
     birthDate: '1990-04-25',
     isAlive: true,
     parentIds: ['pat-2-2', 'mat-2-1'],
     spouseId: 'inlaw-pat-3-1',
     phone: '010-1234-5678',
-    lastContactDate: '2026-09-11',
+    lastContactDate: '2026-09-12',
     contactCycleDays: 1,
-    memo: '족보 앱 관리자 (나)',
+    memo: '스마트폰 A 보유자. 족보 앱 관리자.',
   },
   {
     id: 'pat-3-2',
@@ -177,6 +255,23 @@ export const INITIAL_FAMILY_DATA: FamilyMember[] = [
     lastContactDate: '2026-09-02',
     contactCycleDays: 14,
     memo: '디자이너 프리랜서 활동.',
+  },
+  {
+    id: 'pat-3-4',
+    name: '김태혁',
+    hanja: '金泰赫',
+    gender: 'M',
+    generation: 3,
+    lineage: 'paternal',
+    relationship: '사촌형 (4촌 종형)',
+    clan: '경주 김씨 29세손',
+    birthDate: '1988-02-14',
+    isAlive: true,
+    parentIds: ['pat-2-1'],
+    phone: '010-6622-4499',
+    lastContactDate: '2026-06-10',
+    contactCycleDays: 45,
+    memo: '큰아버지 장남. 대구 거주.',
   },
   // 4대: 자녀
   {
@@ -220,7 +315,7 @@ export const INITIAL_FAMILY_DATA: FamilyMember[] = [
     generation: 1,
     lineage: 'maternal',
     relationship: '외할아버지 (외조부)',
-    clan: '전주 이씨',
+    clan: '전주 이씨 효령대군파',
     birthDate: '1937-01-19',
     isAlive: true,
     spouseId: 'mat-1-2',
@@ -246,7 +341,7 @@ export const INITIAL_FAMILY_DATA: FamilyMember[] = [
     contactCycleDays: 21,
     memo: '전주 본가 거주.',
   },
-  // 2대: 모친 및 외숙/이모
+  // 2대: 모친, 외숙, 이모, 외당숙
   {
     id: 'mat-2-1',
     name: '이은경',
@@ -280,7 +375,7 @@ export const INITIAL_FAMILY_DATA: FamilyMember[] = [
     phone: '010-7822-1980',
     lastContactDate: '2026-07-10',
     contactCycleDays: 45,
-    memo: '대전 거주. 연구원 재직.',
+    memo: '스마트폰 D 보유자. 대전 거주. 연구원 재직.',
   },
   {
     id: 'mat-2-3',
@@ -299,6 +394,22 @@ export const INITIAL_FAMILY_DATA: FamilyMember[] = [
     contactCycleDays: 30,
     memo: '수원 거주.',
   },
+  {
+    id: 'mat-2-4',
+    name: '이성국',
+    hanja: '李成國',
+    gender: 'M',
+    generation: 2,
+    lineage: 'maternal',
+    relationship: '외당숙 (외가 5촌)',
+    clan: '전주 이씨',
+    birthDate: '1945-10-08',
+    isAlive: true,
+    phone: '010-5544-7711',
+    lastContactDate: '2026-04-05',
+    contactCycleDays: 60,
+    memo: '외조부 사촌동생 (외당숙). 전주 거주.',
+  },
   // 3대: 외사촌
   {
     id: 'mat-3-1',
@@ -307,7 +418,7 @@ export const INITIAL_FAMILY_DATA: FamilyMember[] = [
     gender: 'M',
     generation: 3,
     lineage: 'maternal',
-    relationship: '외사촌동생',
+    relationship: '외사촌동생 (4촌)',
     clan: '전주 이씨',
     birthDate: '1995-03-21',
     isAlive: true,
@@ -315,7 +426,7 @@ export const INITIAL_FAMILY_DATA: FamilyMember[] = [
     phone: '010-9901-2244',
     lastContactDate: '2026-08-20',
     contactCycleDays: 60,
-    memo: '대학원 박사과정.',
+    memo: '외숙 이은철 장남. 대학원 박사과정.',
   },
 
   // ==========================================
@@ -330,12 +441,12 @@ export const INITIAL_FAMILY_DATA: FamilyMember[] = [
     generation: 1,
     lineage: 'inlaw_paternal',
     relationship: '처조부 (사돈할아버지)',
-    clan: '동래 정씨',
+    clan: '동래 정씨 직제학공파',
     birthDate: '1934-02-10',
     deathDate: '2020-03-18',
     isAlive: false,
     spouseId: 'inlaw-pat-1-2',
-    memo: '동래 정씨 직제학공파.',
+    memo: '부산 동래 선영 안장.',
   },
   {
     id: 'inlaw-pat-1-2',
@@ -354,7 +465,7 @@ export const INITIAL_FAMILY_DATA: FamilyMember[] = [
     contactCycleDays: 30,
     memo: '부산 거주. 명절에 인사드림.',
   },
-  // 2대: 장인 및 처백부
+  // 2대: 장인, 처백부
   {
     id: 'inlaw-pat-2-1',
     name: '정우진',
@@ -390,7 +501,7 @@ export const INITIAL_FAMILY_DATA: FamilyMember[] = [
     contactCycleDays: 60,
     memo: '울산 거주. 사업 경영.',
   },
-  // 3대: 배우자 및 처남
+  // 3대: 배우자, 처남
   {
     id: 'inlaw-pat-3-1',
     name: '정서연',
@@ -407,7 +518,7 @@ export const INITIAL_FAMILY_DATA: FamilyMember[] = [
     phone: '010-9988-7766',
     lastContactDate: '2026-09-12',
     contactCycleDays: 1,
-    memo: '아내. 초등학교 교사.',
+    memo: '스마트폰 B 보유자. 초등학교 교사.',
   },
   {
     id: 'inlaw-pat-3-2',
@@ -416,7 +527,7 @@ export const INITIAL_FAMILY_DATA: FamilyMember[] = [
     gender: 'M',
     generation: 3,
     lineage: 'inlaw_paternal',
-    relationship: '처남',
+    relationship: '처남 (처가 4촌격 동기)',
     clan: '동래 정씨',
     birthDate: '1995-12-03',
     isAlive: true,
@@ -465,7 +576,7 @@ export const INITIAL_FAMILY_DATA: FamilyMember[] = [
     contactCycleDays: 45,
     memo: '강릉 본가 거주.',
   },
-  // 2대: 장모 및 처외숙/처이모
+  // 2대: 장모, 처외숙, 처이모
   {
     id: 'inlaw-mat-2-1',
     name: '양혜정',
@@ -524,22 +635,89 @@ export const INITIAL_FAMILY_DATA: FamilyMember[] = [
 export function getDaysSinceContact(dateStr?: string): number {
   if (!dateStr) return 999;
   const target = new Date(dateStr);
-  const now = new Date('2026-09-12'); // 기준 현재 시각
+  const now = new Date('2026-09-13');
   const diffTime = Math.abs(now.getTime() - target.getTime());
   return Math.floor(diffTime / (1000 * 60 * 60 * 24));
 }
 
-export function getUrgentCareMembers(members: FamilyMember[] = INITIAL_FAMILY_DATA): Array<FamilyMember & { daysPassed: number; isOverdue: boolean }> {
-  return members
-    .filter((m) => m.isAlive && m.id !== 'pat-3-1' && m.id !== 'inlaw-pat-3-1') // 본인/배우자 제외
-    .map((m) => {
-      const daysPassed = getDaysSinceContact(m.lastContactDate);
-      const cycle = m.contactCycleDays || 30;
-      return {
-        ...m,
-        daysPassed,
-        isOverdue: daysPassed >= cycle,
-      };
-    })
-    .sort((a, b) => b.daysPassed - a.daysPassed);
+export function getLifeStatus(member: FamilyMember): {
+  isAlive: boolean;
+  statusText: string;
+  ageText: string;
+  badgeBg: string;
+  badgeTextColor: string;
+  fullDesc: string;
+} {
+  const currentYear = 2026;
+  const birthYear = member.birthDate ? parseInt(member.birthDate.substring(0, 4), 10) : 0;
+  const deathYear = member.deathDate ? parseInt(member.deathDate.substring(0, 4), 10) : 0;
+
+  if (member.isAlive) {
+    const age = birthYear ? currentYear - birthYear : 0;
+    const ageStr = age > 0 ? `만 ${age}세` : '';
+    return {
+      isAlive: true,
+      statusText: '생존',
+      ageText: ageStr,
+      badgeBg: '#eaf3de',
+      badgeTextColor: '#27500a',
+      fullDesc: `🌿 생존 (${ageStr})`,
+    };
+  } else {
+    const passedAge = birthYear && deathYear ? deathYear - birthYear + 1 : 0;
+    const desc = passedAge > 0 && deathYear
+      ? `향년 ${passedAge}세 (${deathYear}년 별세)`
+      : deathYear ? `${deathYear}년 별세` : '작고';
+    return {
+      isAlive: false,
+      statusText: '작고',
+      ageText: desc,
+      badgeBg: '#2e2e2a',
+      badgeTextColor: '#faf8f0',
+      fullDesc: `🕯️ 작고 (${desc})`,
+    };
+  }
+}
+
+// Compute kinship relationship from the perspective of centerId
+export function getKinshipRelation(target: FamilyMember, centerId: string): string {
+  if (target.id === centerId) return '본인 (중심)';
+
+  // Known relation lookups for main personas
+  if (centerId === 'pat-3-1') {
+    // Kim Jun-hyeok's perspective
+    return target.relationship;
+  } else if (centerId === 'inlaw-pat-3-1') {
+    // Jeong Seo-yeon's perspective
+    if (target.id === 'pat-3-1') return '남편';
+    if (target.id === 'inlaw-pat-2-1') return '아버지 (친정)';
+    if (target.id === 'inlaw-mat-2-1') return '어머니 (친정)';
+    if (target.id === 'inlaw-pat-3-2') return '남동생';
+    if (target.id === 'pat-2-2') return '시아버지';
+    if (target.id === 'mat-2-1') return '시어머니';
+    if (target.id === 'pat-4-1') return '장남 (아들)';
+    if (target.id === 'pat-4-2') return '장녀 (딸)';
+    return `${target.name} (${target.relationship})`;
+  } else if (centerId === 'pat-2-1') {
+    // Kim Yeong-ho (Uncle/Eldest son)'s perspective
+    if (target.id === 'pat-1-1') return '선친 (부친)';
+    if (target.id === 'pat-1-2') return '어머님 (모친)';
+    if (target.id === 'pat-2-2') return '아우 (남동생)';
+    if (target.id === 'pat-2-3') return '여동생';
+    if (target.id === 'pat-3-1') return '조카 (조카/차종손)';
+    if (target.id === 'pat-3-4') return '장남 (아들)';
+    if (target.id === 'pat-2-4') return '당숙 (5촌)';
+    return `${target.name} (${target.relationship})`;
+  } else if (centerId === 'mat-2-2') {
+    // Lee Eun-cheol (Maternal uncle)'s perspective
+    if (target.id === 'mat-1-1') return '선친/부친';
+    if (target.id === 'mat-1-2') return '어머님/모친';
+    if (target.id === 'mat-2-1') return '누님 (누나)';
+    if (target.id === 'mat-2-3') return '여동생';
+    if (target.id === 'pat-3-1') return '생질 (조카)';
+    if (target.id === 'mat-3-1') return '장남 (아들)';
+    return `${target.name} (${target.relationship})`;
+  }
+
+  return target.relationship;
 }
