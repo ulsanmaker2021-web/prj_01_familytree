@@ -1,10 +1,11 @@
-import React, { useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import {
   ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
   View,
+  Platform,
 } from 'react-native';
 import { FamilyMember } from '../types/family';
 import { getLifeStatus, getKinshipRelation } from '../utils/mockFamilyData';
@@ -16,26 +17,41 @@ interface ObsidianGraphViewProps {
   onSelectMember: (member: FamilyMember) => void;
 }
 
-interface GraphNode {
-  member: FamilyMember;
-  x: number;
-  y: number;
-  color: string;
-  isCenter: boolean;
-  relTitle: string;
-  chonText?: string;
-  isAlive: boolean;
-  ageText: string;
-}
-
-interface GraphEdge {
-  fromX: number;
-  fromY: number;
-  toX: number;
-  toY: number;
+interface EdgeDefinition {
+  fromId: string;
+  toId: string;
   color: string;
   width: number;
   dashed?: boolean;
+}
+
+// Hierarchical cluster map: dragging parent drags its dependent sub-tree
+const CLUSTER_HIERARCHY: Record<string, string[]> = {
+  'pat-2-2': ['pat-1-1', 'pat-1-2', 'pat-2-3'],
+  'pat-2-1': ['pat-3-4'],
+  'mat-2-1': ['mat-1-1', 'mat-1-2'],
+  'mat-2-2': ['mat-2-5', 'mat-3-1', 'mat-3-2', 'mat-4-1', 'mat-4-2'],
+  'mat-3-1': ['mat-4-1', 'mat-4-2'],
+  'mat-2-3': ['mat-2-6', 'mat-3-3', 'mat-3-4'],
+  'inlaw-pat-3-1': ['inlaw-pat-2-1', 'inlaw-mat-2-1', 'inlaw-pat-3-2'],
+  'inlaw-pat-2-1': ['inlaw-pat-1-1', 'inlaw-pat-1-2', 'inlaw-pat-2-2'],
+  'inlaw-mat-2-1': ['inlaw-mat-1-1', 'inlaw-mat-1-2', 'inlaw-mat-2-2', 'inlaw-mat-2-3'],
+};
+
+// Recursively collect all descendants in the cluster
+function getClusterDescendants(nodeId: string): string[] {
+  const result = new Set<string>([nodeId]);
+  function traverse(current: string) {
+    const children = CLUSTER_HIERARCHY[current] || [];
+    for (const child of children) {
+      if (!result.has(child)) {
+        result.add(child);
+        traverse(child);
+      }
+    }
+  }
+  traverse(nodeId);
+  return Array.from(result);
 }
 
 export const ObsidianGraphView: React.FC<ObsidianGraphViewProps> = ({
@@ -43,223 +59,477 @@ export const ObsidianGraphView: React.FC<ObsidianGraphViewProps> = ({
   centerPerson,
   onSelectMember,
 }) => {
-  // Canvas dimensions for generous panning & obsidian aesthetic
-  const WIDTH = 860;
-  const HEIGHT = 760;
+  // Canvas dimensions for generous obsidian network exploration
+  const WIDTH = 1060;
+  const HEIGHT = 860;
   const CX = WIDTH / 2;
   const CY = HEIGHT / 2 + 10;
 
-  // Compute node positions and edges mathematically
-  const { nodes, edges } = useMemo(() => {
-    const calculatedNodes: GraphNode[] = [];
-    const calculatedEdges: GraphEdge[] = [];
+  // Obsidian theme toggle: dark graphite (classic Obsidian) vs light ink
+  const [isDarkMode, setIsDarkMode] = useState(true);
+  // Cluster move toggle: moving a branch head drags its family branch together
+  const [enableClusterDrag, setEnableClusterDrag] = useState(true);
+  // Active dragging node ID for visual feedback
+  const [activeDragId, setActiveDragId] = useState<string | null>(null);
 
-    // 1. Center Node
-    const centerLife = getLifeStatus(centerPerson);
-    calculatedNodes.push({
-      member: centerPerson,
-      x: CX,
-      y: CY,
-      color: '#111827',
-      isCenter: true,
-      relTitle: '중심 (나/기준)',
-      isAlive: centerPerson.isAlive,
-      ageText: centerLife.ageText,
-    });
+  // 1. Calculate pristine initial coordinates for each member in radial layout
+  const calculateDefaultPositions = useCallback((): Record<string, { x: number; y: number }> => {
+    const posMap: Record<string, { x: number; y: number }> = {};
 
-    // Partition remaining members into groups
+    // Center Person at Canvas Center
+    posMap[centerPerson.id] = { x: CX, y: CY };
+
     const otherMembers = members.filter((m) => m.id !== centerPerson.id);
-
     const paternalMembers = otherMembers.filter((m) => m.lineage === 'paternal');
     const maternalMembers = otherMembers.filter((m) => m.lineage === 'maternal');
     const inlawMembers = otherMembers.filter(
       (m) => m.lineage === 'inlaw_paternal' || m.lineage === 'inlaw_maternal'
     );
 
-    // Paternal (친가 - 붉은색): Left / Upper-Left sector (120° to 240°)
-    const patCount = paternalMembers.length;
+    // ==========================================
+    // 친가 (Paternal): Left / Upper-Left sector (115° to 245°)
+    // ==========================================
+    const patSpecialPositions: Record<string, { r: number; angleDeg: number }> = {
+      'pat-2-2': { r: 170, angleDeg: 180 }, // 부친 (정서쪽)
+      'pat-1-1': { r: 310, angleDeg: 170 }, // 친조부
+      'pat-1-2': { r: 310, angleDeg: 190 }, // 친조모
+      'pat-2-1': { r: 230, angleDeg: 140 }, // 백부
+      'pat-3-4': { r: 350, angleDeg: 135 }, // 사촌형 (백부 장남)
+      'pat-2-3': { r: 220, angleDeg: 215 }, // 고모
+      'pat-2-4': { r: 390, angleDeg: 115 }, // 당숙
+      'pat-3-2': { r: 150, angleDeg: 245 }, // 남동생
+      'pat-3-3': { r: 180, angleDeg: 260 }, // 여동생
+      'pat-4-1': { r: 190, angleDeg: 285 }, // 아들
+      'pat-4-2': { r: 210, angleDeg: 300 }, // 딸
+    };
+
     paternalMembers.forEach((m, idx) => {
-      const life = getLifeStatus(m);
-      const rel = getKinshipRelation(centerPerson.id, m.id);
-
-      let radius = 180;
-      if (m.generation === 1) radius = 300; // 조부모
-      else if (m.id === 'pat-3-4' || m.id === 'pat-2-4') radius = 320; // 4촌, 5촌 종친
-      else if (m.generation === 2) radius = 200; // 부모, 백부
-      else if (m.generation === 3) radius = 140; // 형제
-      else if (m.generation === 4) radius = 220; // 자녀
-
-      const startAngle = (125 * Math.PI) / 180;
-      const endAngle = (240 * Math.PI) / 180;
-      const angle =
-        patCount > 1
-          ? startAngle + ((endAngle - startAngle) * idx) / (patCount - 1)
-          : (180 * Math.PI) / 180;
-
-      const jitterX = Math.sin(idx * 2.3) * 10;
-      const jitterY = Math.cos(idx * 1.7) * 10;
-
-      const x = CX + radius * Math.cos(angle) + jitterX;
-      const y = CY + radius * Math.sin(angle) + jitterY;
-
-      calculatedNodes.push({
-        member: m,
-        x,
-        y,
-        color: '#dc2626', // 친가: 선명한 붉은색
-        isCenter: false,
-        relTitle: rel.title,
-        chonText: rel.chonText,
-        isAlive: m.isAlive,
-        ageText: life.ageText,
-      });
-
-      // Edge from Center to Paternal member (RED)
-      calculatedEdges.push({
-        fromX: CX,
-        fromY: CY,
-        toX: x,
-        toY: y,
-        color: 'rgba(220, 38, 38, 0.7)', // 붉은색 친가 연결선
-        width: m.generation === 2 ? 2.5 : 1.8,
-      });
+      if (patSpecialPositions[m.id]) {
+        const spec = patSpecialPositions[m.id];
+        const rad = (spec.angleDeg * Math.PI) / 180;
+        posMap[m.id] = {
+          x: CX + spec.r * Math.cos(rad),
+          y: CY + spec.r * Math.sin(rad),
+        };
+      } else {
+        const startRad = (120 * Math.PI) / 180;
+        const endRad = (240 * Math.PI) / 180;
+        const step =
+          paternalMembers.length > 1
+            ? startRad + ((endRad - startRad) * idx) / (paternalMembers.length - 1)
+            : Math.PI;
+        const radius = m.generation === 1 ? 320 : m.generation === 2 ? 220 : 260;
+        posMap[m.id] = {
+          x: CX + radius * Math.cos(step),
+          y: CY + radius * Math.sin(step),
+        };
+      }
     });
 
-    // Maternal (외가 - 푸른색): Right / Upper-Right sector (-55° to 35°)
-    const matCount = maternalMembers.length;
+    // ==========================================
+    // 외가 (Maternal): Right / Upper-Right sector (-65° to 65°)
+    // ==========================================
+    const matSpecialPositions: Record<string, { r: number; angleDeg: number }> = {
+      'mat-2-1': { r: 170, angleDeg: 0 }, // 모친 (정동쪽)
+      'mat-1-1': { r: 310, angleDeg: -12 }, // 외조부
+      'mat-1-2': { r: 310, angleDeg: 10 }, // 외조모
+      'mat-2-2': { r: 220, angleDeg: -35 }, // 외숙 (외삼촌)
+      'mat-2-5': { r: 290, angleDeg: -30 }, // 외숙모
+      'mat-3-1': { r: 370, angleDeg: -45 }, // 외사촌동생 (시우)
+      'mat-3-2': { r: 380, angleDeg: -30 }, // 외사촌형 (태우)
+      'mat-4-1': { r: 450, angleDeg: -52 }, // 외종조카 (준우)
+      'mat-4-2': { r: 460, angleDeg: -38 }, // 외종질녀 (서아)
+      'mat-2-3': { r: 220, angleDeg: 35 }, // 큰이모
+      'mat-2-6': { r: 290, angleDeg: 30 }, // 이모부
+      'mat-3-3': { r: 370, angleDeg: 42 }, // 이종사촌여동생 (하린)
+      'mat-3-4': { r: 380, angleDeg: 28 }, // 이종사촌남동생 (민우)
+      'mat-2-7': { r: 240, angleDeg: 60 }, // 작은이모
+      'mat-2-4': { r: 390, angleDeg: -65 }, // 외당숙
+    };
+
     maternalMembers.forEach((m, idx) => {
-      const life = getLifeStatus(m);
-      const rel = getKinshipRelation(centerPerson.id, m.id);
-
-      let radius = 190;
-      if (m.generation === 1) radius = 310; // 외조부모
-      else if (m.id === 'mat-3-1' || m.id === 'mat-2-4') radius = 320; // 외사촌, 외당숙
-      else if (m.generation === 2) radius = 210; // 모친, 외숙, 이모
-
-      const startAngle = (-55 * Math.PI) / 180;
-      const endAngle = (35 * Math.PI) / 180;
-      const angle =
-        matCount > 1
-          ? startAngle + ((endAngle - startAngle) * idx) / (matCount - 1)
-          : (-10 * Math.PI) / 180;
-
-      const jitterX = Math.cos(idx * 2.1) * 10;
-      const jitterY = Math.sin(idx * 1.9) * 10;
-
-      const x = CX + radius * Math.cos(angle) + jitterX;
-      const y = CY + radius * Math.sin(angle) + jitterY;
-
-      calculatedNodes.push({
-        member: m,
-        x,
-        y,
-        color: '#2563eb', // 외가: 선명한 푸른색
-        isCenter: false,
-        relTitle: rel.title,
-        chonText: rel.chonText,
-        isAlive: m.isAlive,
-        ageText: life.ageText,
-      });
-
-      // Edge from Center to Maternal member (BLUE)
-      calculatedEdges.push({
-        fromX: CX,
-        fromY: CY,
-        toX: x,
-        toY: y,
-        color: 'rgba(37, 99, 235, 0.7)', // 푸른색 외가 연결선
-        width: m.id === 'mat-2-1' ? 2.5 : 1.8,
-      });
+      if (matSpecialPositions[m.id]) {
+        const spec = matSpecialPositions[m.id];
+        const rad = (spec.angleDeg * Math.PI) / 180;
+        posMap[m.id] = {
+          x: CX + spec.r * Math.cos(rad),
+          y: CY + spec.r * Math.sin(rad),
+        };
+      } else {
+        const startRad = (-55 * Math.PI) / 180;
+        const endRad = (55 * Math.PI) / 180;
+        const step =
+          maternalMembers.length > 1
+            ? startRad + ((endRad - startRad) * idx) / (maternalMembers.length - 1)
+            : 0;
+        const radius = m.generation === 1 ? 320 : m.generation === 2 ? 220 : 360;
+        posMap[m.id] = {
+          x: CX + radius * Math.cos(step),
+          y: CY + radius * Math.sin(step),
+        };
+      }
     });
 
-    // In-laws (사돈댁 - 황금빛): Lower sector (50° to 110°)
-    const inlawCount = inlawMembers.length;
+    // ==========================================
+    // 사돈댁 (In-Laws): Lower sector (75° to 105°)
+    // ==========================================
+    const inlawSpecialPositions: Record<string, { r: number; angleDeg: number }> = {
+      'inlaw-pat-3-1': { r: 120, angleDeg: 90 }, // 배우자 (정남쪽)
+      'inlaw-pat-2-1': { r: 240, angleDeg: 80 }, // 장인어른
+      'inlaw-mat-2-1': { r: 240, angleDeg: 100 }, // 장모님
+      'inlaw-pat-3-2': { r: 210, angleDeg: 115 }, // 처남
+      'inlaw-pat-1-1': { r: 330, angleDeg: 75 }, // 처조부
+      'inlaw-pat-1-2': { r: 340, angleDeg: 85 }, // 처조모
+      'inlaw-pat-2-2': { r: 340, angleDeg: 65 }, // 처백부
+      'inlaw-mat-1-1': { r: 330, angleDeg: 95 }, // 처외조부
+      'inlaw-mat-1-2': { r: 340, angleDeg: 105 }, // 처외조모
+      'inlaw-mat-2-2': { r: 330, angleDeg: 115 }, // 처외숙
+      'inlaw-mat-2-3': { r: 340, angleDeg: 125 }, // 처이모
+    };
+
     inlawMembers.forEach((m, idx) => {
-      const life = getLifeStatus(m);
-      const rel = getKinshipRelation(centerPerson.id, m.id);
-
-      let radius = 180;
-      if (m.id === 'inlaw-pat-3-1') radius = 100; // 배우자
-      else if (m.generation === 1) radius = 290;
-      else if (m.generation === 2) radius = 210;
-      else radius = 170;
-
-      const startAngle = (45 * Math.PI) / 180;
-      const endAngle = (115 * Math.PI) / 180;
-      const angle =
-        inlawCount > 1
-          ? startAngle + ((endAngle - startAngle) * idx) / (inlawCount - 1)
-          : (80 * Math.PI) / 180;
-
-      const x = CX + radius * Math.cos(angle);
-      const y = CY + radius * Math.sin(angle);
-
-      calculatedNodes.push({
-        member: m,
-        x,
-        y,
-        color: '#d97706',
-        isCenter: false,
-        relTitle: rel.title,
-        chonText: rel.chonText,
-        isAlive: m.isAlive,
-        ageText: life.ageText,
-      });
-
-      calculatedEdges.push({
-        fromX: CX,
-        fromY: CY,
-        toX: x,
-        toY: y,
-        color: 'rgba(217, 119, 6, 0.55)',
-        width: m.id === 'inlaw-pat-3-1' ? 2.8 : 1.5,
-        dashed: m.id !== 'inlaw-pat-3-1',
-      });
+      if (inlawSpecialPositions[m.id]) {
+        const spec = inlawSpecialPositions[m.id];
+        const rad = (spec.angleDeg * Math.PI) / 180;
+        posMap[m.id] = {
+          x: CX + spec.r * Math.cos(rad),
+          y: CY + spec.r * Math.sin(rad),
+        };
+      } else {
+        const startRad = (75 * Math.PI) / 180;
+        const endRad = (105 * Math.PI) / 180;
+        const step =
+          inlawMembers.length > 1
+            ? startRad + ((endRad - startRad) * idx) / (inlawMembers.length - 1)
+            : (90 * Math.PI) / 180;
+        posMap[m.id] = {
+          x: CX + 200 * Math.cos(step),
+          y: CY + 200 * Math.sin(step),
+        };
+      }
     });
 
-    return { nodes: calculatedNodes, edges: calculatedEdges };
-  }, [members, centerPerson]);
+    return posMap;
+  }, [members, centerPerson, CX, CY]);
+
+  // Positions state
+  const [positions, setPositions] = useState<Record<string, { x: number; y: number }>>(
+    calculateDefaultPositions
+  );
+
+  // Sync positions whenever centerPerson or member list changes
+  useEffect(() => {
+    setPositions(calculateDefaultPositions());
+  }, [calculateDefaultPositions]);
+
+  // 2. Compute structured Edge definitions (Lines connecting nodes)
+  const edgeDefinitions = useMemo<EdgeDefinition[]>(() => {
+    const memberIdSet = new Set(members.map((m) => m.id));
+    const edges: EdgeDefinition[] = [];
+
+    const addEdge = (fromId: string, toId: string, color: string, width = 1.8, dashed = false) => {
+      if (memberIdSet.has(fromId) && memberIdSet.has(toId)) {
+        edges.push({ fromId, toId, color, width, dashed });
+      }
+    };
+
+    const patColor = isDarkMode ? 'rgba(239, 68, 68, 0.75)' : 'rgba(220, 38, 38, 0.75)'; // 친가 붉은색
+    const matColor = isDarkMode ? 'rgba(59, 130, 246, 0.75)' : 'rgba(37, 99, 235, 0.75)'; // 외가 푸른색
+    const inlawColor = isDarkMode ? 'rgba(245, 158, 11, 0.75)' : 'rgba(217, 119, 6, 0.75)'; // 사돈 황금색
+
+    // --- Paternal Tree Edges (친가 붉은색) ---
+    addEdge(centerPerson.id, 'pat-2-2', patColor, 3.0); // 나 - 아버지
+    addEdge('pat-2-2', 'pat-1-1', patColor, 2.2); // 아버지 - 친조부
+    addEdge('pat-2-2', 'pat-1-2', patColor, 2.2); // 아버지 - 친조모
+    addEdge('pat-1-1', 'pat-2-1', patColor, 2.0); // 친조부 - 백부
+    addEdge('pat-2-1', 'pat-3-4', patColor, 2.0); // 백부 - 사촌형
+    addEdge('pat-1-1', 'pat-2-3', patColor, 1.8); // 친조부 - 고모
+    addEdge('pat-1-1', 'pat-2-4', patColor, 1.5, true); // 친조부 - 당숙
+    addEdge(centerPerson.id, 'pat-3-2', patColor, 2.0); // 나 - 남동생
+    addEdge(centerPerson.id, 'pat-3-3', patColor, 2.0); // 나 - 여동생
+    addEdge(centerPerson.id, 'pat-4-1', patColor, 2.2); // 나 - 아들
+    addEdge(centerPerson.id, 'pat-4-2', patColor, 2.2); // 나 - 딸
+
+    // Radial guide lines for distant paternal
+    addEdge(centerPerson.id, 'pat-2-1', 'rgba(239, 68, 68, 0.25)', 1.2, true);
+    addEdge(centerPerson.id, 'pat-3-4', 'rgba(239, 68, 68, 0.25)', 1.2, true);
+
+    // --- Maternal Tree Edges (외가 푸른색) ---
+    addEdge(centerPerson.id, 'mat-2-1', matColor, 3.0); // 나 - 어머니
+    addEdge('mat-2-1', 'mat-1-1', matColor, 2.2); // 어머니 - 외조부
+    addEdge('mat-2-1', 'mat-1-2', matColor, 2.2); // 어머니 - 외조모
+    addEdge('mat-2-1', 'mat-2-2', matColor, 2.2); // 어머니 - 외숙 (외삼촌)
+    addEdge('mat-2-2', 'mat-2-5', matColor, 1.8, true); // 외숙 - 외숙모
+    addEdge('mat-2-2', 'mat-3-1', matColor, 2.0); // 외숙 - 외사촌동생 (이시우)
+    addEdge('mat-2-2', 'mat-3-2', matColor, 2.0); // 외숙 - 외사촌형 (이태우)
+    addEdge('mat-3-1', 'mat-4-1', matColor, 1.8); // 외사촌 - 외종조카 (이준우)
+    addEdge('mat-3-1', 'mat-4-2', matColor, 1.8); // 외사촌 - 외종질녀 (이서아)
+
+    addEdge('mat-2-1', 'mat-2-3', matColor, 2.2); // 어머니 - 큰이모
+    addEdge('mat-2-3', 'mat-2-6', matColor, 1.8, true); // 큰이모 - 이모부
+    addEdge('mat-2-3', 'mat-3-3', matColor, 2.0); // 큰이모 - 이종사촌여동생 (최하린)
+    addEdge('mat-2-3', 'mat-3-4', matColor, 2.0); // 큰이모 - 이종사촌남동생 (최민우)
+    addEdge('mat-2-1', 'mat-2-7', matColor, 2.0); // 어머니 - 작은이모
+    addEdge('mat-1-1', 'mat-2-4', matColor, 1.5, true); // 외조부 - 외당숙
+
+    // Radial guide lines for maternal cousins
+    addEdge(centerPerson.id, 'mat-2-2', 'rgba(59, 130, 246, 0.25)', 1.2, true);
+    addEdge(centerPerson.id, 'mat-2-3', 'rgba(59, 130, 246, 0.25)', 1.2, true);
+    addEdge(centerPerson.id, 'mat-3-1', 'rgba(59, 130, 246, 0.25)', 1.2, true);
+
+    // --- In-Laws Tree Edges (사돈댁 황금색) ---
+    addEdge(centerPerson.id, 'inlaw-pat-3-1', inlawColor, 3.2); // 나 - 아내
+    addEdge('inlaw-pat-3-1', 'inlaw-pat-2-1', inlawColor, 2.0); // 아내 - 장인
+    addEdge('inlaw-pat-3-1', 'inlaw-mat-2-1', inlawColor, 2.0); // 아내 - 장모
+    addEdge('inlaw-pat-3-1', 'inlaw-pat-3-2', inlawColor, 1.8); // 아내 - 처남
+    addEdge('inlaw-pat-2-1', 'inlaw-pat-1-1', inlawColor, 1.6); // 장인 - 처조부
+    addEdge('inlaw-pat-2-1', 'inlaw-pat-1-2', inlawColor, 1.6); // 장인 - 처조모
+    addEdge('inlaw-pat-2-1', 'inlaw-pat-2-2', inlawColor, 1.5, true); // 장인 - 처백부
+    addEdge('inlaw-mat-2-1', 'inlaw-mat-1-1', inlawColor, 1.6); // 장모 - 처외조부
+    addEdge('inlaw-mat-2-1', 'inlaw-mat-1-2', inlawColor, 1.6); // 장모 - 처외조모
+    addEdge('inlaw-mat-2-1', 'inlaw-mat-2-2', inlawColor, 1.5, true); // 장모 - 처외숙
+    addEdge('inlaw-mat-2-1', 'inlaw-mat-2-3', inlawColor, 1.5, true); // 장모 - 처이모
+
+    return edges;
+  }, [members, centerPerson, isDarkMode]);
+
+  // 3. Drag Tracking Ref for Smooth 60fps Dragging
+  const dragRef = useRef<{
+    activeId: string | null;
+    startX: number;
+    startY: number;
+    initialPositions: Record<string, { x: number; y: number }>;
+    clusterIds: string[];
+    hasMoved: boolean;
+  }>({
+    activeId: null,
+    startX: 0,
+    startY: 0,
+    initialPositions: {},
+    clusterIds: [],
+    hasMoved: false,
+  });
+
+  // Attach global window pointer handlers on web so dragging outside node never drops
+  useEffect(() => {
+    if (Platform.OS !== 'web' || typeof window === 'undefined') return;
+
+    const onPointerMove = (e: MouseEvent | TouchEvent) => {
+      if (!dragRef.current.activeId) return;
+
+      let clientX = 0;
+      let clientY = 0;
+      if ('touches' in e && e.touches.length > 0) {
+        clientX = e.touches[0].clientX;
+        clientY = e.touches[0].clientY;
+      } else if ('clientX' in e) {
+        clientX = (e as MouseEvent).clientX;
+        clientY = (e as MouseEvent).clientY;
+      }
+
+      const dx = clientX - dragRef.current.startX;
+      const dy = clientY - dragRef.current.startY;
+
+      if (Math.hypot(dx, dy) > 4) {
+        dragRef.current.hasMoved = true;
+      }
+
+      const updated = { ...dragRef.current.initialPositions };
+      dragRef.current.clusterIds.forEach((id) => {
+        const init = dragRef.current.initialPositions[id];
+        if (init) {
+          updated[id] = {
+            x: Math.max(35, Math.min(WIDTH - 35, init.x + dx)),
+            y: Math.max(35, Math.min(HEIGHT - 35, init.y + dy)),
+          };
+        }
+      });
+      setPositions(updated);
+    };
+
+    const onPointerUp = () => {
+      if (dragRef.current.activeId) {
+        dragRef.current.activeId = null;
+        setActiveDragId(null);
+      }
+    };
+
+    window.addEventListener('mousemove', onPointerMove, { passive: true });
+    window.addEventListener('mouseup', onPointerUp);
+    window.addEventListener('touchmove', onPointerMove, { passive: true });
+    window.addEventListener('touchend', onPointerUp);
+
+    return () => {
+      window.removeEventListener('mousemove', onPointerMove);
+      window.removeEventListener('mouseup', onPointerUp);
+      window.removeEventListener('touchmove', onPointerMove);
+      window.removeEventListener('touchend', onPointerUp);
+    };
+  }, [WIDTH, HEIGHT]);
+
+  // Handle Drag Start
+  const handleDragStart = (memberId: string, pageX: number, pageY: number) => {
+    const cluster = enableClusterDrag ? getClusterDescendants(memberId) : [memberId];
+    dragRef.current = {
+      activeId: memberId,
+      startX: pageX,
+      startY: pageY,
+      initialPositions: { ...positions },
+      clusterIds: cluster,
+      hasMoved: false,
+    };
+    setActiveDragId(memberId);
+  };
+
+  // Theme-dependent color tokens
+  const bgColor = isDarkMode ? '#0f172a' : '#fafaf9';
+  const canvasBg = isDarkMode ? '#090d16' : '#fbfbfa';
+  const bannerBg = isDarkMode ? '#1e293b' : '#ffffff';
+  const bannerBorder = isDarkMode ? '#334155' : inkTheme.ink8;
+  const textColor = isDarkMode ? '#f1f5f9' : '#111827';
+  const subtextColor = isDarkMode ? '#94a3b8' : inkTheme.ink4;
+  const ringColor = isDarkMode ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.05)';
+  const nodeCardBg = isDarkMode ? 'rgba(30, 41, 59, 0.92)' : 'rgba(255, 255, 255, 0.95)';
+  const nodeCardBorder = isDarkMode ? '#334155' : inkTheme.ink8;
 
   return (
-    <View style={styles.outerContainer}>
-      {/* Obsidian-Style Legend Banner */}
-      <View style={styles.legendBanner}>
-        <View style={styles.legendLeft}>
-          <Text style={styles.legendTitle}>🌐 옵시디언 스타일 방사형 네트워크 가계도</Text>
-          <Text style={styles.legendSubtitle}>
-            노드를 탭하면 상세 정보 및 '중심 인물로 재배치'가 가능합니다.
+    <View style={[styles.outerContainer, { backgroundColor: bgColor }]}>
+      {/* Obsidian-Style Control & Legend Bar */}
+      <View style={[styles.controlBar, { backgroundColor: bannerBg, borderColor: bannerBorder }]}>
+        <View style={styles.titleArea}>
+          <View style={styles.titleRow}>
+            <Text style={[styles.headerTitle, { color: textColor }]}>
+              🌐 옵시디언 동적 가계도 네트워크 (Obsidian Dynamic Graph)
+            </Text>
+            {activeDragId ? (
+              <View style={styles.draggingNotice}>
+                <Text style={styles.draggingNoticeText}>✨ 실시간 연쇄 이동 중</Text>
+              </View>
+            ) : null}
+          </View>
+          <Text style={[styles.headerSubtitle, { color: subtextColor }]}>
+            💡 노드를 터치/클릭하여 드래그하면 연결선과 가족 가지가 실시간으로 유기적으로 따라 움직입니다.
           </Text>
         </View>
 
-        <View style={styles.legendItems}>
+        {/* Action Buttons: Reset, Cluster Move Toggle, Dark/Light Mode */}
+        <View style={styles.actionButtonsRow}>
+          <TouchableOpacity
+            style={[
+              styles.actionBtn,
+              enableClusterDrag && styles.actionBtnActive,
+              { borderColor: isDarkMode ? '#475569' : inkTheme.ink7 },
+            ]}
+            onPress={() => setEnableClusterDrag(!enableClusterDrag)}
+            activeOpacity={0.8}
+          >
+            <Text
+              style={[
+                styles.actionBtnText,
+                { color: enableClusterDrag ? '#38bdf8' : subtextColor },
+              ]}
+            >
+              {enableClusterDrag ? '🔗 가계 가지 함께 이동 ON' : '📍 개별 노드만 이동'}
+            </Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[
+              styles.actionBtn,
+              { borderColor: isDarkMode ? '#475569' : inkTheme.ink7 },
+            ]}
+            onPress={() => setPositions(calculateDefaultPositions())}
+            activeOpacity={0.8}
+          >
+            <Text style={[styles.actionBtnText, { color: isDarkMode ? '#cbd5e1' : inkTheme.ink2 }]}>
+              🔄 초기 위치로 정렬
+            </Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[
+              styles.actionBtn,
+              { borderColor: isDarkMode ? '#475569' : inkTheme.ink7 },
+            ]}
+            onPress={() => setIsDarkMode(!isDarkMode)}
+            activeOpacity={0.8}
+          >
+            <Text style={[styles.actionBtnText, { color: isDarkMode ? '#fde047' : '#0284c7' }]}>
+              {isDarkMode ? '🌙 옵시디언 다크' : '☀️ 라이트 한지'}
+            </Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* Legend color keys */}
+        <View style={styles.legendRow}>
           <View style={styles.legendItem}>
-            <View style={[styles.legendLine, { backgroundColor: '#dc2626' }]} />
-            <Text style={[styles.legendText, { color: '#dc2626' }]}>친가 (부친쪽 붉은선)</Text>
+            <View style={[styles.legendDot, { backgroundColor: '#ef4444' }]} />
+            <Text style={[styles.legendLabel, { color: '#ef4444' }]}>친가 (부친 계통 · 붉은선)</Text>
           </View>
           <View style={styles.legendItem}>
-            <View style={[styles.legendLine, { backgroundColor: '#2563eb' }]} />
-            <Text style={[styles.legendText, { color: '#2563eb' }]}>외가 (모친쪽 푸른선)</Text>
+            <View style={[styles.legendDot, { backgroundColor: '#3b82f6' }]} />
+            <Text style={[styles.legendLabel, { color: '#3b82f6' }]}>외가 (모친 계통 · 푸른선)</Text>
           </View>
           <View style={styles.legendItem}>
-            <View style={[styles.legendLine, { backgroundColor: '#d97706' }]} />
-            <Text style={[styles.legendText, { color: '#d97706' }]}>사돈댁 (처가)</Text>
+            <View style={[styles.legendDot, { backgroundColor: '#f59e0b' }]} />
+            <Text style={[styles.legendLabel, { color: '#f59e0b' }]}>사돈댁 (처가 계통 · 황금선)</Text>
+          </View>
+          <View style={styles.legendItem}>
+            <View style={[styles.legendDot, { backgroundColor: '#10b981' }]} />
+            <Text style={[styles.legendLabel, { color: '#10b981' }]}>중심 인물 (기준)</Text>
           </View>
         </View>
       </View>
 
-      {/* Interactive Graph Canvas Area */}
+      {/* Interactive 2D Graph Canvas Area */}
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
         contentContainerStyle={styles.canvasScroll}
       >
-        <View style={[styles.canvas, { width: WIDTH, height: HEIGHT }]}>
+        <View style={[styles.canvas, { width: WIDTH, height: HEIGHT, backgroundColor: canvasBg }]}>
           {/* Subtle concentric orbit rings for obsidian aesthetics */}
-          <View style={[styles.orbitRing, { width: 220, height: 220, borderRadius: 110, left: CX - 110, top: CY - 110 }]} />
-          <View style={[styles.orbitRing, { width: 420, height: 420, borderRadius: 210, left: CX - 210, top: CY - 210 }]} />
-          <View style={[styles.orbitRing, { width: 620, height: 620, borderRadius: 310, left: CX - 310, top: CY - 310 }]} />
+          <View
+            style={[
+              styles.orbitRing,
+              {
+                width: 260,
+                height: 260,
+                borderRadius: 130,
+                left: CX - 130,
+                top: CY - 130,
+                borderColor: ringColor,
+              },
+            ]}
+          />
+          <View
+            style={[
+              styles.orbitRing,
+              {
+                width: 480,
+                height: 480,
+                borderRadius: 240,
+                left: CX - 240,
+                top: CY - 240,
+                borderColor: ringColor,
+              },
+            ]}
+          />
+          <View
+            style={[
+              styles.orbitRing,
+              {
+                width: 700,
+                height: 700,
+                borderRadius: 350,
+                left: CX - 350,
+                top: CY - 350,
+                borderColor: ringColor,
+              },
+            ]}
+          />
 
-          {/* 1. EDGES LAYER: Native SVG lines for web */}
+          {/* 1. EDGES LAYER: Native SVG connecting lines dynamically anchored to node positions */}
           {/* @ts-ignore: React Native Web supports native svg element */}
           <svg
             style={{
@@ -269,42 +539,108 @@ export const ObsidianGraphView: React.FC<ObsidianGraphViewProps> = ({
               width: WIDTH,
               height: HEIGHT,
               pointerEvents: 'none',
+              zIndex: 1,
             }}
           >
-            {edges.map((edge, i) => (
-              <line
-                key={`edge-${i}`}
-                x1={edge.fromX}
-                y1={edge.fromY}
-                x2={edge.toX}
-                y2={edge.toY}
-                stroke={edge.color}
-                strokeWidth={edge.width}
-                strokeDasharray={edge.dashed ? '4,4' : undefined}
-              />
-            ))}
+            {edgeDefinitions.map((edge, i) => {
+              const fromPos = positions[edge.fromId];
+              const toPos = positions[edge.toId];
+              if (!fromPos || !toPos) return null;
+
+              const isHighlighted =
+                activeDragId === edge.fromId || activeDragId === edge.toId;
+
+              return (
+                <line
+                  key={`edge-${edge.fromId}-${edge.toId}-${i}`}
+                  x1={fromPos.x}
+                  y1={fromPos.y}
+                  x2={toPos.x}
+                  y2={toPos.y}
+                  stroke={isHighlighted ? '#38bdf8' : edge.color}
+                  strokeWidth={isHighlighted ? edge.width + 1.5 : edge.width}
+                  strokeDasharray={edge.dashed ? '5,5' : undefined}
+                  strokeLinecap="round"
+                />
+              );
+            })}
           </svg>
 
-          {/* 2. NODES LAYER: Touchable interactive obsidian nodes */}
-          {nodes.map((node) => {
-            const isCenter = node.isCenter;
+          {/* 2. NODES LAYER: Interactive draggable obsidian nodes */}
+          {members.map((member) => {
+            const isCenter = member.id === centerPerson.id;
+            const pos = positions[member.id] || { x: CX, y: CY };
+            const life = getLifeStatus(member);
+            const rel = getKinshipRelation(centerPerson.id, member.id);
+
+            // Node color depending on lineage
+            let nodeColor = '#ef4444'; // 친가 붉은색
+            if (isCenter) {
+              nodeColor = '#10b981'; // 중심 녹색
+            } else if (member.lineage === 'maternal') {
+              nodeColor = '#3b82f6'; // 외가 푸른색
+            } else if (
+              member.lineage === 'inlaw_paternal' ||
+              member.lineage === 'inlaw_maternal'
+            ) {
+              nodeColor = '#f59e0b'; // 사돈 황금색
+            }
+
             const nodeSize = isCenter ? 44 : 28;
             const halfSize = nodeSize / 2;
+            const isDraggingThis = activeDragId === member.id;
 
             return (
-              <TouchableOpacity
-                key={node.member.id}
+              <View
+                key={member.id}
                 style={[
                   styles.nodeWrapper,
                   {
-                    left: node.x - halfSize,
-                    top: node.y - halfSize,
+                    left: pos.x - halfSize,
+                    top: pos.y - halfSize,
+                    zIndex: isDraggingThis ? 99 : isCenter ? 50 : 20,
                   },
                 ]}
-                activeOpacity={0.8}
-                onPress={() => onSelectMember(node.member)}
+                // React Native Responder System handles mobile & desktop pointer dragging
+                onStartShouldSetResponder={() => true}
+                onMoveShouldSetResponder={() => true}
+                onResponderGrant={(evt) => {
+                  const ne = evt.nativeEvent;
+                  const pageX = ne.pageX || 0;
+                  const pageY = ne.pageY || 0;
+                  handleDragStart(member.id, pageX, pageY);
+                }}
+                onResponderMove={(evt) => {
+                  if (Platform.OS !== 'web') {
+                    // Mobile React Native native move fallback
+                    const ne = evt.nativeEvent;
+                    const pageX = ne.pageX;
+                    const pageY = ne.pageY;
+                    const dx = pageX - dragRef.current.startX;
+                    const dy = pageY - dragRef.current.startY;
+                    if (Math.hypot(dx, dy) > 4) dragRef.current.hasMoved = true;
+                    const updated = { ...dragRef.current.initialPositions };
+                    dragRef.current.clusterIds.forEach((id) => {
+                      const init = dragRef.current.initialPositions[id];
+                      if (init) {
+                        updated[id] = {
+                          x: Math.max(35, Math.min(WIDTH - 35, init.x + dx)),
+                          y: Math.max(35, Math.min(HEIGHT - 35, init.y + dy)),
+                        };
+                      }
+                    });
+                    setPositions(updated);
+                  }
+                }}
+                onResponderRelease={() => {
+                  if (!dragRef.current.hasMoved) {
+                    onSelectMember(member);
+                  }
+                  dragRef.current.activeId = null;
+                  setActiveDragId(null);
+                }}
               >
-                {/* Visual Circle Node Dot */}
+                {/* Node Circle Orb */}
                 <View
                   style={[
                     styles.nodeDot,
@@ -312,59 +648,74 @@ export const ObsidianGraphView: React.FC<ObsidianGraphViewProps> = ({
                       width: nodeSize,
                       height: nodeSize,
                       borderRadius: halfSize,
-                      backgroundColor: isCenter ? '#111827' : node.color,
-                      borderColor: isCenter ? inkTheme.accentGold : '#ffffff',
+                      backgroundColor: isCenter ? '#10b981' : nodeColor,
+                      borderColor: isCenter
+                        ? '#34d399'
+                        : isDraggingThis
+                        ? '#38bdf8'
+                        : '#ffffff',
                       borderWidth: isCenter ? 3 : 2,
                     },
                     isCenter && styles.centerPulseRing,
-                    !node.isAlive && styles.deceasedNode,
+                    isDraggingThis && styles.draggingNodePulse,
+                    !member.isAlive && styles.deceasedNodeDot,
                   ]}
                 >
                   <Text style={styles.nodeInitials}>
-                    {isCenter ? '★' : node.member.name.charAt(0)}
+                    {isCenter ? '★' : member.name.charAt(0)}
                   </Text>
                 </View>
 
-                {/* Obsidian-style typography label */}
+                {/* Obsidian-Style Info Chip Tag */}
                 <View
                   style={[
-                    styles.nodeLabelBox,
-                    isCenter && styles.centerLabelBox,
-                    { left: halfSize + 6, top: -4 },
+                    styles.nodeCardChip,
+                    {
+                      backgroundColor: nodeCardBg,
+                      borderColor: isDraggingThis ? '#38bdf8' : nodeCardBorder,
+                      left: halfSize + 6,
+                    },
+                    isCenter && styles.centerCardChip,
                   ]}
                 >
-                  <View style={styles.labelHeader}>
+                  <View style={styles.chipHeaderRow}>
                     <Text
                       style={[
                         styles.nodeNameText,
-                        isCenter && styles.centerNameText,
-                        { color: isCenter ? '#111827' : node.color },
+                        { color: isCenter ? '#10b981' : isDarkMode ? '#f8fafc' : '#1e293b' },
                       ]}
                       numberOfLines={1}
                     >
-                      {node.member.name}
+                      {member.name}
                     </Text>
-                    {node.chonText ? (
-                      <View style={[styles.chonBadge, { backgroundColor: node.color }]}>
-                        <Text style={styles.chonBadgeText}>{node.chonText}</Text>
+
+                    {rel.chonText ? (
+                      <View style={[styles.chonBadge, { backgroundColor: nodeColor }]}>
+                        <Text style={styles.chonBadgeText}>{rel.chonText}</Text>
                       </View>
                     ) : null}
                   </View>
 
-                  <Text style={styles.relTitleText} numberOfLines={1}>
-                    {node.relTitle}
+                  <Text
+                    style={[
+                      styles.relTitleText,
+                      { color: isDarkMode ? '#94a3b8' : inkTheme.ink3 },
+                    ]}
+                    numberOfLines={1}
+                  >
+                    {rel.title}
                   </Text>
 
                   <Text
                     style={[
                       styles.lifeStatusText,
-                      { color: node.isAlive ? '#059669' : '#6b7280' },
+                      { color: member.isAlive ? '#10b981' : '#94a3b8' },
                     ]}
                   >
-                    {node.isAlive ? `🌿 생존 (${node.ageText})` : `🕯️ 작고 (${node.ageText})`}
+                    {member.isAlive ? `🌿 ${life.ageText}` : `🕯️ 작고`}
                   </Text>
                 </View>
-              </TouchableOpacity>
+              </View>
             );
           })}
         </View>
@@ -375,71 +726,100 @@ export const ObsidianGraphView: React.FC<ObsidianGraphViewProps> = ({
 
 const styles = StyleSheet.create({
   outerContainer: {
-    backgroundColor: '#fafaf9',
     borderRadius: 14,
     borderWidth: 1.5,
-    borderColor: inkTheme.ink7,
+    borderColor: '#334155',
     overflow: 'hidden',
     marginVertical: 12,
   },
-  legendBanner: {
-    backgroundColor: '#ffffff',
+  controlBar: {
     paddingHorizontal: 16,
     paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: inkTheme.ink8,
+  },
+  titleArea: {
+    marginBottom: 10,
+  },
+  titleRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
+    gap: 8,
     flexWrap: 'wrap',
-    gap: 10,
   },
-  legendLeft: {
-    flex: 1,
-    minWidth: 240,
-  },
-  legendTitle: {
+  headerTitle: {
     fontSize: 14,
     fontWeight: '900',
-    color: '#111827',
     letterSpacing: 0.3,
   },
-  legendSubtitle: {
-    fontSize: 11,
-    color: inkTheme.ink4,
-    marginTop: 2,
+  draggingNotice: {
+    backgroundColor: '#0369a1',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 6,
   },
-  legendItems: {
+  draggingNoticeText: {
+    fontSize: 11,
+    color: '#e0f2fe',
+    fontWeight: '700',
+  },
+  headerSubtitle: {
+    fontSize: 11,
+    marginTop: 3,
+  },
+  actionButtonsRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    gap: 8,
     flexWrap: 'wrap',
+    marginBottom: 10,
+  },
+  actionBtn: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+    borderWidth: 1,
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+  },
+  actionBtnActive: {
+    backgroundColor: 'rgba(56, 189, 248, 0.15)',
+    borderColor: '#38bdf8',
+  },
+  actionBtnText: {
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  legendRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
+    flexWrap: 'wrap',
+    paddingTop: 4,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255, 255, 255, 0.07)',
   },
   legendItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 5,
+    gap: 6,
   },
-  legendLine: {
-    width: 16,
-    height: 3,
-    borderRadius: 2,
+  legendDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
   },
-  legendText: {
+  legendLabel: {
     fontSize: 11,
-    fontWeight: '800',
+    fontWeight: '700',
   },
   canvasScroll: {
     padding: 10,
   },
   canvas: {
     position: 'relative',
-    backgroundColor: '#fbfbfa',
   },
   orbitRing: {
     position: 'absolute',
     borderWidth: 1,
-    borderColor: 'rgba(0, 0, 0, 0.05)',
     borderStyle: 'dashed',
     pointerEvents: 'none',
   },
@@ -447,68 +827,68 @@ const styles = StyleSheet.create({
     position: 'absolute',
     flexDirection: 'row',
     alignItems: 'center',
-    zIndex: 10,
   },
   nodeDot: {
     justifyContent: 'center',
     alignItems: 'center',
-    shadowColor: '#000000',
+    shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.15,
+    shadowOpacity: 0.35,
     shadowRadius: 4,
-    elevation: 3,
-  },
-  centerPulseRing: {
-    shadowColor: inkTheme.accentGold,
-    shadowOpacity: 0.4,
-    shadowRadius: 8,
-    elevation: 6,
-  },
-  deceasedNode: {
-    opacity: 0.75,
+    elevation: 4,
   },
   nodeInitials: {
     color: '#ffffff',
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: '900',
   },
-  nodeLabelBox: {
+  centerPulseRing: {
+    borderWidth: 3,
+    shadowColor: '#10b981',
+    shadowOpacity: 0.8,
+    shadowRadius: 10,
+    elevation: 8,
+  },
+  draggingNodePulse: {
+    transform: [{ scale: 1.15 }],
+    shadowColor: '#38bdf8',
+    shadowOpacity: 0.9,
+    shadowRadius: 12,
+    elevation: 10,
+  },
+  deceasedNodeDot: {
+    opacity: 0.7,
+  },
+  nodeCardChip: {
     position: 'absolute',
-    backgroundColor: 'rgba(255, 255, 255, 0.94)',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 6,
+    paddingHorizontal: 7,
+    paddingVertical: 5,
+    borderRadius: 8,
     borderWidth: 1,
-    borderColor: inkTheme.ink8,
     minWidth: 95,
-    shadowColor: '#000000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.08,
-    shadowRadius: 3,
-    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 3,
   },
-  centerLabelBox: {
-    backgroundColor: '#ffffff',
-    borderColor: inkTheme.accentGold,
+  centerCardChip: {
     borderWidth: 1.5,
-    minWidth: 110,
+    borderColor: '#10b981',
   },
-  labelHeader: {
+  chipHeaderRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
   },
   nodeNameText: {
     fontSize: 12,
-    fontWeight: '900',
-  },
-  centerNameText: {
-    fontSize: 13,
+    fontWeight: '800',
   },
   chonBadge: {
     paddingHorizontal: 4,
     paddingVertical: 1,
-    borderRadius: 3,
+    borderRadius: 4,
   },
   chonBadgeText: {
     color: '#ffffff',
@@ -517,14 +897,12 @@ const styles = StyleSheet.create({
   },
   relTitleText: {
     fontSize: 10,
-    fontWeight: '700',
-    color: inkTheme.ink2,
+    fontWeight: '600',
     marginTop: 1,
   },
   lifeStatusText: {
     fontSize: 9,
-    fontWeight: '700',
+    fontWeight: '600',
     marginTop: 1,
   },
 });
-

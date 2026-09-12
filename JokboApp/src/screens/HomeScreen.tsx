@@ -65,13 +65,24 @@ export default function HomeScreen() {
         return false;
     }
 
-    // 2. Kinship Scope filter
+    // 2. Kinship Scope filter (직계 / 4촌 이내 / 5·6촌 방계)
+    const cousin4Ids = [
+      'pat-3-4',
+      'mat-3-1',
+      'mat-3-2',
+      'mat-3-3',
+      'mat-3-4',
+      'mat-2-5',
+      'mat-2-6',
+    ];
+    const distant5Ids = ['pat-2-4', 'mat-2-4', 'mat-4-1', 'mat-4-2'];
+
     if (kinshipScope === 'direct') {
-      if (m.id === 'pat-3-4' || m.id === 'mat-3-1' || m.id === 'pat-2-4' || m.id === 'mat-2-4') {
+      if (cousin4Ids.includes(m.id) || distant5Ids.includes(m.id)) {
         return false;
       }
     } else if (kinshipScope === 'cousin4') {
-      if (m.id === 'pat-2-4' || m.id === 'mat-2-4') {
+      if (distant5Ids.includes(m.id)) {
         return false;
       }
     }

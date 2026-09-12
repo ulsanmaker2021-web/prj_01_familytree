@@ -90,10 +90,26 @@ export const DEVICE_PROFILES: Record<DeviceId, DeviceProfile> = {
     ownerName: '이은철',
     ownerRelation: '외숙/외삼촌 (50대)',
     title: '스마트폰 D (외숙 이은철 외가)',
-    desc: '외조부모, 이모, 외사촌, 외당숙 등 외가 가계 보유',
+    desc: '외조부모, 외숙/숙모, 이모/이모부, 외사촌, 외종조카 등 외가 4촌·5촌 보유',
     avatarText: '은철',
     color: '#2563eb', // 외가: 선명한 푸른색
-    initialMemberIds: ['mat-2-2', 'mat-1-1', 'mat-1-2', 'mat-2-1', 'mat-2-3', 'mat-3-1', 'mat-2-4'],
+    initialMemberIds: [
+      'mat-2-2',
+      'mat-1-1',
+      'mat-1-2',
+      'mat-2-1',
+      'mat-2-3',
+      'mat-2-5',
+      'mat-2-6',
+      'mat-2-7',
+      'mat-3-1',
+      'mat-3-2',
+      'mat-3-3',
+      'mat-3-4',
+      'mat-4-1',
+      'mat-4-2',
+      'mat-2-4',
+    ],
   },
 };
 
@@ -304,7 +320,7 @@ export const INITIAL_FAMILY_DATA: FamilyMember[] = [
   },
 
   // ==========================================
-  // 2. 모친쪽 (외가 - 전주 이씨)
+  // 2. 모친쪽 (외가 - 전주 이씨 계통)
   // ==========================================
   // 1대: 외조부모
   {
@@ -322,7 +338,7 @@ export const INITIAL_FAMILY_DATA: FamilyMember[] = [
     phone: '010-6712-3344',
     lastContactDate: '2026-07-28',
     contactCycleDays: 21,
-    memo: '전주 본가 거주. 서예 취미.',
+    memo: '전주 본가 거주. 명절 및 생신 때 온 가족 방문.',
   },
   {
     id: 'mat-1-2',
@@ -339,9 +355,10 @@ export const INITIAL_FAMILY_DATA: FamilyMember[] = [
     phone: '010-6712-3345',
     lastContactDate: '2026-07-28',
     contactCycleDays: 21,
-    memo: '전주 본가 거주.',
+    memo: '전주 본가 거주. 손주들 안부 각별히 챙기심.',
   },
-  // 2대: 모친, 외숙, 이모, 외당숙
+
+  // 2대: 모친, 외숙(외삼촌), 외숙모, 이모, 이모부
   {
     id: 'mat-2-1',
     name: '이은경',
@@ -358,7 +375,7 @@ export const INITIAL_FAMILY_DATA: FamilyMember[] = [
     phone: '010-5231-7789',
     lastContactDate: '2026-09-09',
     contactCycleDays: 7,
-    memo: '서울 거주.',
+    memo: '서울 거주. 외가 모임 주도.',
   },
   {
     id: 'mat-2-2',
@@ -372,10 +389,28 @@ export const INITIAL_FAMILY_DATA: FamilyMember[] = [
     birthDate: '1967-09-15',
     isAlive: true,
     parentIds: ['mat-1-1', 'mat-1-2'],
+    spouseId: 'mat-2-5',
     phone: '010-7822-1980',
     lastContactDate: '2026-07-10',
     contactCycleDays: 45,
-    memo: '스마트폰 D 보유자. 대전 거주. 연구원 재직.',
+    memo: '스마트폰 D 보유자. 대전 연구단지 재직. 자주 안부 교류.',
+  },
+  {
+    id: 'mat-2-5',
+    name: '박선영',
+    hanja: '朴善英',
+    gender: 'F',
+    generation: 2,
+    lineage: 'maternal',
+    relationship: '외숙모 (외삼촌댁)',
+    clan: '밀양 박씨',
+    birthDate: '1970-02-18',
+    isAlive: true,
+    spouseId: 'mat-2-2',
+    phone: '010-7822-1981',
+    lastContactDate: '2026-08-01',
+    contactCycleDays: 60,
+    memo: '대전 거주. 명절 때 음식 정갈하게 준비해주심.',
   },
   {
     id: 'mat-2-3',
@@ -384,15 +419,50 @@ export const INITIAL_FAMILY_DATA: FamilyMember[] = [
     gender: 'F',
     generation: 2,
     lineage: 'maternal',
-    relationship: '이모',
+    relationship: '이모 (큰이모)',
     clan: '전주 이씨',
     birthDate: '1971-12-05',
     isAlive: true,
     parentIds: ['mat-1-1', 'mat-1-2'],
+    spouseId: 'mat-2-6',
     phone: '010-4491-0023',
     lastContactDate: '2026-08-15',
     contactCycleDays: 30,
-    memo: '수원 거주.',
+    memo: '수원 거주. 조카들 각별히 아끼심.',
+  },
+  {
+    id: 'mat-2-6',
+    name: '최진우',
+    hanja: '崔鎭宇',
+    gender: 'M',
+    generation: 2,
+    lineage: 'maternal',
+    relationship: '이모부',
+    clan: '경주 최씨',
+    birthDate: '1968-05-11',
+    isAlive: true,
+    spouseId: 'mat-2-3',
+    phone: '010-4491-0024',
+    lastContactDate: '2026-08-15',
+    contactCycleDays: 60,
+    memo: '수원 거주. 주말마다 가족 모임 참여.',
+  },
+  {
+    id: 'mat-2-7',
+    name: '이은정',
+    hanja: '李恩貞',
+    gender: 'F',
+    generation: 2,
+    lineage: 'maternal',
+    relationship: '작은이모',
+    clan: '전주 이씨',
+    birthDate: '1976-08-22',
+    isAlive: true,
+    parentIds: ['mat-1-1', 'mat-1-2'],
+    phone: '010-3388-1290',
+    lastContactDate: '2026-08-10',
+    contactCycleDays: 45,
+    memo: '분당 거주. 초등학교 교사.',
   },
   {
     id: 'mat-2-4',
@@ -408,9 +478,10 @@ export const INITIAL_FAMILY_DATA: FamilyMember[] = [
     phone: '010-5544-7711',
     lastContactDate: '2026-04-05',
     contactCycleDays: 60,
-    memo: '외조부 사촌동생 (외당숙). 전주 거주.',
+    memo: '외조부 사촌동생. 전주 종친회 활동.',
   },
-  // 3대: 외사촌
+
+  // 3대: 본인 세대의 외사촌 및 이종사촌 형제자매
   {
     id: 'mat-3-1',
     name: '이시우',
@@ -422,11 +493,92 @@ export const INITIAL_FAMILY_DATA: FamilyMember[] = [
     clan: '전주 이씨',
     birthDate: '1995-03-21',
     isAlive: true,
-    parentIds: ['mat-2-2'],
+    parentIds: ['mat-2-2', 'mat-2-5'],
     phone: '010-9901-2244',
     lastContactDate: '2026-08-20',
     contactCycleDays: 60,
     memo: '외숙 이은철 장남. 대학원 박사과정.',
+  },
+  {
+    id: 'mat-3-2',
+    name: '이태우',
+    hanja: '李泰宇',
+    gender: 'M',
+    generation: 3,
+    lineage: 'maternal',
+    relationship: '외사촌형 (4촌)',
+    clan: '전주 이씨',
+    birthDate: '1992-11-14',
+    isAlive: true,
+    parentIds: ['mat-2-2', 'mat-2-5'],
+    phone: '010-9901-2245',
+    lastContactDate: '2026-08-18',
+    contactCycleDays: 45,
+    memo: '외숙 이은철 차남. IT 기업 개발자.',
+  },
+  {
+    id: 'mat-3-3',
+    name: '최하린',
+    hanja: '崔夏璘',
+    gender: 'F',
+    generation: 3,
+    lineage: 'maternal',
+    relationship: '이종사촌여동생 (4촌)',
+    clan: '경주 최씨',
+    birthDate: '1998-07-03',
+    isAlive: true,
+    parentIds: ['mat-2-6', 'mat-2-3'],
+    phone: '010-4491-1188',
+    lastContactDate: '2026-08-25',
+    contactCycleDays: 60,
+    memo: '큰이모 장녀. 디자인 스튜디오 근무.',
+  },
+  {
+    id: 'mat-3-4',
+    name: '최민우',
+    hanja: '崔珉宇',
+    gender: 'M',
+    generation: 3,
+    lineage: 'maternal',
+    relationship: '이종사촌남동생 (4촌)',
+    clan: '경주 최씨',
+    birthDate: '2001-09-29',
+    isAlive: true,
+    parentIds: ['mat-2-6', 'mat-2-3'],
+    phone: '010-4491-1199',
+    lastContactDate: '2026-09-01',
+    contactCycleDays: 60,
+    memo: '큰이모 차남. 대학생.',
+  },
+
+  // 4대: 외가 쪽 조카들 (외사촌의 자녀들)
+  {
+    id: 'mat-4-1',
+    name: '이준우',
+    hanja: '李俊宇',
+    gender: 'M',
+    generation: 4,
+    lineage: 'maternal',
+    relationship: '외종조카 (5촌 조카)',
+    clan: '전주 이씨',
+    birthDate: '2022-04-15',
+    isAlive: true,
+    parentIds: ['mat-3-1'],
+    memo: '외사촌 이시우 아들. 재롱둥이.',
+  },
+  {
+    id: 'mat-4-2',
+    name: '이서아',
+    hanja: '李瑞娥',
+    gender: 'F',
+    generation: 4,
+    lineage: 'maternal',
+    relationship: '외종질녀 (5촌 조카)',
+    clan: '전주 이씨',
+    birthDate: '2024-08-10',
+    isAlive: true,
+    parentIds: ['mat-3-1'],
+    memo: '외사촌 이시우 딸. 돌 지난 귀여운 아기.',
   },
 
   // ==========================================
@@ -709,8 +861,16 @@ export function getKinshipRelation(centerId: string, targetId: string): KinshipR
     if (targetId === 'pat-3-4') return { title: '사촌형 (종형)', chonText: '4촌' };
     if (targetId === 'pat-2-4') return { title: '당숙 (5촌 당숙)', chonText: '5촌' };
     if (targetId === 'mat-2-2') return { title: '외삼촌 (외숙)', chonText: '3촌' };
-    if (targetId === 'mat-2-3') return { title: '이모', chonText: '3촌' };
-    if (targetId === 'mat-3-1') return { title: '외사촌 (이종사촌)', chonText: '4촌' };
+    if (targetId === 'mat-2-5') return { title: '외숙모 (외삼촌댁)', chonText: '인척' };
+    if (targetId === 'mat-2-3') return { title: '큰이모', chonText: '3촌' };
+    if (targetId === 'mat-2-6') return { title: '이모부', chonText: '인척' };
+    if (targetId === 'mat-2-7') return { title: '작은이모', chonText: '3촌' };
+    if (targetId === 'mat-3-1') return { title: '외사촌동생 (이시우)', chonText: '4촌' };
+    if (targetId === 'mat-3-2') return { title: '외사촌형 (이태우)', chonText: '4촌' };
+    if (targetId === 'mat-3-3') return { title: '이종사촌여동생 (최하린)', chonText: '4촌' };
+    if (targetId === 'mat-3-4') return { title: '이종사촌남동생 (최민우)', chonText: '4촌' };
+    if (targetId === 'mat-4-1') return { title: '외종조카 (이준우)', chonText: '5촌' };
+    if (targetId === 'mat-4-2') return { title: '외종질녀 (이서아)', chonText: '5촌' };
     if (targetId === 'mat-2-4') return { title: '외당숙 (5촌)', chonText: '5촌' };
     if (targetId === 'inlaw-pat-2-1') return { title: '장인어른', chonText: '인척' };
     if (targetId === 'inlaw-mat-2-1') return { title: '장모님', chonText: '인척' };
@@ -742,11 +902,23 @@ export function getKinshipRelation(centerId: string, targetId: string): KinshipR
     if (targetId === 'mat-1-1') return { title: '선친 (부친)', chonText: '1촌' };
     if (targetId === 'mat-1-2') return { title: '어머님 (모친)', chonText: '1촌' };
     if (targetId === 'mat-2-1') return { title: '누님', chonText: '2촌' };
-    if (targetId === 'mat-2-3') return { title: '여동생', chonText: '2촌' };
+    if (targetId === 'mat-2-3') return { title: '큰여동생 (이모)', chonText: '2촌' };
+    if (targetId === 'mat-2-5') return { title: '배우자 (아내)', chonText: '0촌' };
+    if (targetId === 'mat-2-6') return { title: '매제 (이모부)', chonText: '인척' };
+    if (targetId === 'mat-2-7') return { title: '작은여동생', chonText: '2촌' };
     if (targetId === 'pat-3-1') return { title: '생질 (조카)', chonText: '3촌' };
-    if (targetId === 'mat-3-1') return { title: '장남 (민호)', chonText: '1촌' };
+    if (targetId === 'mat-3-1') return { title: '차남 (시우)', chonText: '1촌' };
+    if (targetId === 'mat-3-2') return { title: '장남 (태우)', chonText: '1촌' };
+    if (targetId === 'mat-3-3') return { title: '생질녀 (최하린)', chonText: '3촌' };
+    if (targetId === 'mat-3-4') return { title: '생질 (최민우)', chonText: '3촌' };
+    if (targetId === 'mat-4-1') return { title: '손자 (이준우)', chonText: '2촌' };
+    if (targetId === 'mat-4-2') return { title: '손녀 (이서아)', chonText: '2촌' };
     if (targetId === 'mat-2-4') return { title: '사촌형제 (성국)', chonText: '4촌' };
   }
 
+  const targetMember = INITIAL_FAMILY_DATA.find((m) => m.id === targetId);
+  if (targetMember) {
+    return { title: targetMember.relationship };
+  }
   return { title: '친족' };
 }
