@@ -12,6 +12,7 @@ import { useFamilyStore } from '../hooks/useFamilyStore';
 import { DeviceSimulatorBar } from '../components/DeviceSimulatorBar';
 import { MemberDetailModal } from '../components/MemberDetailModal';
 import { ObsidianGraphView } from '../components/ObsidianGraphView';
+import { RelationshipStudioModal } from '../components/RelationshipStudioModal';
 import { inkTheme } from '../theme/inkTheme';
 
 // Scope filter by kinship degree
@@ -25,6 +26,11 @@ export default function HomeScreen() {
   const {
     members,
     allMembers,
+    unconnectedMembers,
+    establishedLinks,
+    connectMembers,
+    disconnectLink,
+    resetEstablishedLinks,
     currentDevice,
     centerPersonId,
     setCenterPerson,
@@ -37,6 +43,8 @@ export default function HomeScreen() {
   const [focusLineage, setFocusLineage] = useState<FocusLineage>('all');
   const [viewMode, setViewMode] = useState<ViewMode>('radial');
   const [selectedMember, setSelectedMember] = useState<FamilyMember | null>(null);
+  const [studioVisible, setStudioVisible] = useState(false);
+  const [studioPreselectedPersonAId, setStudioPreselectedPersonAId] = useState<string | undefined>(undefined);
 
   // Get central person (fallback to current device owner or first member)
   const centerPerson =
@@ -419,6 +427,42 @@ export default function HomeScreen() {
           </View>
         </View>
 
+        {/* Relationship Linkage Studio Launcher Banner */}
+        <View style={styles.studioLauncherBanner}>
+          <View style={styles.studioLauncherLeft}>
+            <View style={styles.studioBadgeRow}>
+              <Text style={styles.studioBadge}>🤝 결연 스튜디오</Text>
+              {establishedLinks.length > 0 && (
+                <Text style={styles.establishedBadge}>
+                  ✨ {establishedLinks.length}건 결연 활성
+                </Text>
+              )}
+              {unconnectedMembers.length > 0 && (
+                <Text style={styles.unconnectedBadge}>
+                  미연결 친족 {unconnectedMembers.length}명 대기
+                </Text>
+              )}
+            </View>
+            <Text style={styles.studioBannerTitle}>
+              관계 미형성 인물 결연 & 족보 확장 시뮬레이터
+            </Text>
+            <Text style={styles.studioBannerDesc}>
+              미등록 종친(김태성), 외가 사촌(최소율), 예비신부(박지민) 등과 1초 퀵 결연 테스트를 진행해보세요.
+            </Text>
+          </View>
+
+          <TouchableOpacity
+            style={styles.studioOpenBtn}
+            onPress={() => {
+              setStudioPreselectedPersonAId(undefined);
+              setStudioVisible(true);
+            }}
+            activeOpacity={0.8}
+          >
+            <Text style={styles.studioOpenBtnText}>🚀 관계 형성 스튜디오 열기</Text>
+          </TouchableOpacity>
+        </View>
+
         {/* 3. Main Tree Presentation */}
         {viewMode === 'radial' ? (
           /* ================== RADIAL VIEW (옵시디언 방사형 뷰) ================== */
@@ -428,6 +472,11 @@ export default function HomeScreen() {
               members={filteredMembers}
               centerPerson={centerPerson}
               onSelectMember={setSelectedMember}
+              establishedLinks={establishedLinks}
+              onOpenRelationshipStudio={() => {
+                setStudioPreselectedPersonAId(undefined);
+                setStudioVisible(true);
+              }}
             />
 
             {/* Upper Tier: Grandparents (조부모 세대) */}
@@ -551,6 +600,23 @@ export default function HomeScreen() {
         onSelectAsCenter={(memberId) => {
           setCenterPerson(memberId);
         }}
+        onOpenRelationshipStudio={(memberId) => {
+          setStudioPreselectedPersonAId(memberId);
+          setStudioVisible(true);
+        }}
+      />
+
+      {/* Relationship Linkage Studio Modal */}
+      <RelationshipStudioModal
+        visible={studioVisible}
+        onClose={() => setStudioVisible(false)}
+        allMembers={allMembers}
+        unconnectedMembers={unconnectedMembers}
+        establishedLinks={establishedLinks}
+        onConnect={connectMembers}
+        onDisconnect={disconnectLink}
+        onResetAll={resetEstablishedLinks}
+        initialPersonAId={studioPreselectedPersonAId}
       />
     </View>
   );
@@ -974,5 +1040,85 @@ const styles = StyleSheet.create({
   genCountText: {
     fontSize: 11,
     color: inkTheme.ink4,
+  },
+  studioLauncherBanner: {
+    backgroundColor: '#ffffff',
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderColor: '#059669',
+    padding: 14,
+    marginHorizontal: 16,
+    marginTop: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+    flexWrap: 'wrap',
+    shadowColor: '#059669',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 6,
+    elevation: 3,
+  },
+  studioLauncherLeft: {
+    flex: 1,
+    minWidth: 240,
+  },
+  studioBadgeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 4,
+    flexWrap: 'wrap',
+  },
+  studioBadge: {
+    backgroundColor: '#059669',
+    color: '#ffffff',
+    fontSize: 11,
+    fontWeight: '800',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  establishedBadge: {
+    backgroundColor: '#d1fae5',
+    color: '#065f46',
+    fontSize: 11,
+    fontWeight: '800',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  unconnectedBadge: {
+    backgroundColor: '#fef3c7',
+    color: '#92400e',
+    fontSize: 11,
+    fontWeight: '800',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  studioBannerTitle: {
+    fontSize: 14,
+    fontWeight: '900',
+    color: '#0f172a',
+    marginTop: 2,
+  },
+  studioBannerDesc: {
+    fontSize: 11,
+    color: '#64748b',
+    marginTop: 3,
+    lineHeight: 16,
+  },
+  studioOpenBtn: {
+    backgroundColor: '#059669',
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 8,
+  },
+  studioOpenBtnText: {
+    color: '#ffffff',
+    fontSize: 13,
+    fontWeight: '800',
   },
 });

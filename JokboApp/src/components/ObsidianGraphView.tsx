@@ -7,7 +7,7 @@ import {
   View,
   Platform,
 } from 'react-native';
-import { FamilyMember } from '../types/family';
+import { FamilyMember, EstablishedLink } from '../types/family';
 import { getLifeStatus, getKinshipRelation } from '../utils/mockFamilyData';
 import { inkTheme } from '../theme/inkTheme';
 
@@ -15,6 +15,8 @@ interface ObsidianGraphViewProps {
   members: FamilyMember[];
   centerPerson: FamilyMember;
   onSelectMember: (member: FamilyMember) => void;
+  establishedLinks?: EstablishedLink[];
+  onOpenRelationshipStudio?: () => void;
 }
 
 interface EdgeDefinition {
@@ -23,16 +25,18 @@ interface EdgeDefinition {
   color: string;
   width: number;
   dashed?: boolean;
+  isDynamicLink?: boolean;
 }
 
 // Hierarchical cluster map: dragging parent drags its dependent sub-tree
 const CLUSTER_HIERARCHY: Record<string, string[]> = {
   'pat-2-2': ['pat-1-1', 'pat-1-2', 'pat-2-3'],
-  'pat-2-1': ['pat-3-4'],
+  'pat-2-1': ['pat-3-4', 'unc-1'],
   'mat-2-1': ['mat-1-1', 'mat-1-2'],
   'mat-2-2': ['mat-2-5', 'mat-3-1', 'mat-3-2', 'mat-4-1', 'mat-4-2'],
   'mat-3-1': ['mat-4-1', 'mat-4-2'],
-  'mat-2-3': ['mat-2-6', 'mat-3-3', 'mat-3-4'],
+  'mat-2-3': ['mat-2-6', 'mat-3-3', 'mat-3-4', 'unc-2'],
+  'pat-3-2': ['unc-3'],
   'inlaw-pat-3-1': ['inlaw-pat-2-1', 'inlaw-mat-2-1', 'inlaw-pat-3-2'],
   'inlaw-pat-2-1': ['inlaw-pat-1-1', 'inlaw-pat-1-2', 'inlaw-pat-2-2'],
   'inlaw-mat-2-1': ['inlaw-mat-1-1', 'inlaw-mat-1-2', 'inlaw-mat-2-2', 'inlaw-mat-2-3'],
@@ -58,6 +62,8 @@ export const ObsidianGraphView: React.FC<ObsidianGraphViewProps> = ({
   members,
   centerPerson,
   onSelectMember,
+  establishedLinks = [],
+  onOpenRelationshipStudio,
 }) => {
   // Canvas dimensions for generous obsidian network exploration with zero overlap
   const WIDTH = 1200;
@@ -87,17 +93,6 @@ export const ObsidianGraphView: React.FC<ObsidianGraphViewProps> = ({
       (m) => m.lineage === 'inlaw_paternal' || m.lineage === 'inlaw_maternal'
     );
 
-    // ==========================================
-    // Specific Calibrated Positions (Angles in degrees, radius in px)
-    // Perfectly matched to avoid overlap:
-    // - 김영수 (아버지): 180° (West)
-    // - 김민혁 (남동생): 215° (Upper-West)
-    // - 김지우 (여동생): 250° (Upper-Left-Mid)
-    // - 김도윤 (장남):   290° (Upper-Right-Mid)
-    // - 김하은 (장녀):   325° (Upper-East)
-    // - 이은경 (어머니): 0° (East)
-    // - 정서연 (배우자): 90° (South)
-    // ==========================================
     const patSpecialPositions: Record<string, { r: number; angleDeg: number }> = {
       'pat-2-2': { r: 250, angleDeg: 180 }, // 부친 (정서쪽 9시 방향)
       'pat-3-2': { r: 240, angleDeg: 215 }, // 남동생 (10시 반 방향)
@@ -112,6 +107,10 @@ export const ObsidianGraphView: React.FC<ObsidianGraphViewProps> = ({
       'pat-3-4': { r: 500, angleDeg: 130 }, // 사촌형 (백부 장남)
       'pat-2-3': { r: 390, angleDeg: 215 }, // 고모
       'pat-2-4': { r: 510, angleDeg: 115 }, // 당숙
+
+      // 신규 결연 테스트 인물 (친가)
+      'unc-1': { r: 450, angleDeg: 145 }, // 김태성 (백부 차남 결연 시)
+      'unc-3': { r: 280, angleDeg: 228 }, // 박지민 (남동생 배우자 결연 시)
     };
 
     paternalMembers.forEach((m, idx) => {
@@ -156,6 +155,9 @@ export const ObsidianGraphView: React.FC<ObsidianGraphViewProps> = ({
       'mat-3-4': { r: 480, angleDeg: 52 },  // 이종사촌남동생 (민우)
       'mat-2-7': { r: 380, angleDeg: 68 },  // 작은이모
       'mat-2-4': { r: 530, angleDeg: -10 }, // 외당숙
+
+      // 신규 결연 테스트 인물 (외가)
+      'unc-2': { r: 450, angleDeg: 32 },  // 최소율 (큰이모 차녀 결연 시)
     };
 
     maternalMembers.forEach((m, idx) => {
@@ -222,10 +224,9 @@ export const ObsidianGraphView: React.FC<ObsidianGraphViewProps> = ({
 
     // ==========================================
     // 🛡️ Automated Anti-Collision Relaxation Pass
-    // Guarantees zero bounding-box overlaps across all active nodes!
     // ==========================================
-    const CARD_W = 125; // Approximate card width
-    const CARD_H = 58;  // Approximate card height
+    const CARD_W = 125;
+    const CARD_H = 58;
     const SAFE_MARGIN_X = 18;
     const SAFE_MARGIN_Y = 14;
 
@@ -234,7 +235,7 @@ export const ObsidianGraphView: React.FC<ObsidianGraphViewProps> = ({
       let moved = false;
       for (let i = 0; i < allKeys.length; i++) {
         const idA = allKeys[i];
-        if (idA === centerPerson.id) continue; // Anchor center
+        if (idA === centerPerson.id) continue;
         const pA = posMap[idA];
 
         for (let j = i + 1; j < allKeys.length; j++) {
@@ -242,8 +243,6 @@ export const ObsidianGraphView: React.FC<ObsidianGraphViewProps> = ({
           if (idB === centerPerson.id) continue;
           const pB = posMap[idB];
 
-          // Check visual card collision
-          // Visual card center is shifted slightly to the right of node.x
           const centerShiftA = 50;
           const centerShiftB = 50;
           const ax = pA.x + centerShiftA;
@@ -262,7 +261,6 @@ export const ObsidianGraphView: React.FC<ObsidianGraphViewProps> = ({
             const nx = dx / dist;
             const ny = dy / dist;
 
-            // Push apart proportional to overlap
             const pushX = nx * (overlapX * 0.45);
             const pushY = ny * (overlapY * 0.45);
 
@@ -271,7 +269,6 @@ export const ObsidianGraphView: React.FC<ObsidianGraphViewProps> = ({
             pB.x += pushX;
             pB.y += pushY;
 
-            // Constrain inside canvas
             pA.x = Math.max(50, Math.min(WIDTH - 150, pA.x));
             pA.y = Math.max(50, Math.min(HEIGHT - 80, pA.y));
             pB.x = Math.max(50, Math.min(WIDTH - 150, pB.x));
@@ -290,7 +287,6 @@ export const ObsidianGraphView: React.FC<ObsidianGraphViewProps> = ({
     calculateDefaultPositions
   );
 
-  // Sync positions whenever centerPerson or member list changes
   useEffect(() => {
     setPositions(calculateDefaultPositions());
   }, [calculateDefaultPositions]);
@@ -300,9 +296,16 @@ export const ObsidianGraphView: React.FC<ObsidianGraphViewProps> = ({
     const memberIdSet = new Set(members.map((m) => m.id));
     const edges: EdgeDefinition[] = [];
 
-    const addEdge = (fromId: string, toId: string, color: string, width = 1.8, dashed = false) => {
+    const addEdge = (
+      fromId: string,
+      toId: string,
+      color: string,
+      width = 1.8,
+      dashed = false,
+      isDynamicLink = false
+    ) => {
       if (memberIdSet.has(fromId) && memberIdSet.has(toId)) {
-        edges.push({ fromId, toId, color, width, dashed });
+        edges.push({ fromId, toId, color, width, dashed, isDynamicLink });
       }
     };
 
@@ -363,8 +366,14 @@ export const ObsidianGraphView: React.FC<ObsidianGraphViewProps> = ({
     addEdge('inlaw-mat-2-1', 'inlaw-mat-2-2', inlawColor, 1.5, true); // 장모 - 처외숙
     addEdge('inlaw-mat-2-1', 'inlaw-mat-2-3', inlawColor, 1.5, true); // 장모 - 처이모
 
+    // --- 🤝 DYNAMIC ESTABLISHED RELATIONSHIPS (신규 형성된 결연 연결선) ---
+    (establishedLinks || []).forEach((link) => {
+      // Dynamic green glowing connection
+      addEdge(link.personAId, link.personBId, '#10b981', 3.5, false, true);
+    });
+
     return edges;
-  }, [members, centerPerson, isDarkMode]);
+  }, [members, centerPerson, isDarkMode, establishedLinks]);
 
   // 3. Drag Tracking Ref for Smooth 60fps Dragging
   const dragRef = useRef<{
@@ -383,7 +392,6 @@ export const ObsidianGraphView: React.FC<ObsidianGraphViewProps> = ({
     hasMoved: false,
   });
 
-  // Attach global window pointer handlers on web so dragging outside node never drops
   useEffect(() => {
     if (Platform.OS !== 'web' || typeof window === 'undefined') return;
 
@@ -440,7 +448,6 @@ export const ObsidianGraphView: React.FC<ObsidianGraphViewProps> = ({
     };
   }, [WIDTH, HEIGHT]);
 
-  // Handle Drag Start
   const handleDragStart = (memberId: string, pageX: number, pageY: number) => {
     const cluster = enableClusterDrag ? getClusterDescendants(memberId) : [memberId];
     dragRef.current = {
@@ -454,7 +461,6 @@ export const ObsidianGraphView: React.FC<ObsidianGraphViewProps> = ({
     setActiveDragId(memberId);
   };
 
-  // Theme-dependent color tokens
   const bgColor = isDarkMode ? '#0f172a' : '#fafaf9';
   const canvasBg = isDarkMode ? '#090d16' : '#fbfbfa';
   const bannerBg = isDarkMode ? '#1e293b' : '#ffffff';
@@ -479,14 +485,31 @@ export const ObsidianGraphView: React.FC<ObsidianGraphViewProps> = ({
                 <Text style={styles.draggingNoticeText}>✨ 실시간 연쇄 이동 중</Text>
               </View>
             ) : null}
+            {establishedLinks.length > 0 && (
+              <View style={styles.linkCountNotice}>
+                <Text style={styles.linkCountNoticeText}>🤝 새 결연 {establishedLinks.length}건 활성</Text>
+              </View>
+            )}
           </View>
           <Text style={[styles.headerSubtitle, { color: subtextColor }]}>
-            💡 노드 간 겹침 방지 궤도가 적용되었습니다. 노드를 드래그하면 연결선과 가족 가지가 유기적으로 따라 움직입니다.
+            💡 노드 간 겹침 방지 궤도가 적용되었습니다. 상단 [🤝 친족 관계 형성 스튜디오]를 통해 미연결 친족과의 결연을 형성할 수 있습니다.
           </Text>
         </View>
 
-        {/* Action Buttons: Reset, Cluster Move Toggle, Dark/Light Mode */}
+        {/* Action Buttons: Studio Launcher, Reset, Cluster Move Toggle, Dark/Light Mode */}
         <View style={styles.actionButtonsRow}>
+          {onOpenRelationshipStudio && (
+            <TouchableOpacity
+              style={styles.studioLauncherBtn}
+              onPress={onOpenRelationshipStudio}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.studioLauncherBtnText}>
+                🤝 친족 관계 형성 스튜디오 {establishedLinks.length > 0 ? `(${establishedLinks.length})` : ''}
+              </Text>
+            </TouchableOpacity>
+          )}
+
           <TouchableOpacity
             style={[
               styles.actionBtn,
@@ -549,7 +572,7 @@ export const ObsidianGraphView: React.FC<ObsidianGraphViewProps> = ({
           </View>
           <View style={styles.legendItem}>
             <View style={[styles.legendDot, { backgroundColor: '#10b981' }]} />
-            <Text style={[styles.legendLabel, { color: '#10b981' }]}>중심 인물 (기준)</Text>
+            <Text style={[styles.legendLabel, { color: '#10b981' }]}>신규 결연 (새 연결선)</Text>
           </View>
         </View>
       </View>
@@ -561,7 +584,6 @@ export const ObsidianGraphView: React.FC<ObsidianGraphViewProps> = ({
         contentContainerStyle={styles.canvasScroll}
       >
         <View style={[styles.canvas, { width: WIDTH, height: HEIGHT, backgroundColor: canvasBg }]}>
-          {/* Subtle concentric orbit rings for obsidian aesthetics */}
           <View
             style={[
               styles.orbitRing,
@@ -645,6 +667,9 @@ export const ObsidianGraphView: React.FC<ObsidianGraphViewProps> = ({
             const pos = positions[member.id] || { x: CX, y: CY };
             const life = getLifeStatus(member);
             const rel = getKinshipRelation(centerPerson.id, member.id);
+            const isNewlyLinked =
+              member.id.startsWith('unc-') ||
+              establishedLinks.some((l) => l.personAId === member.id || l.personBId === member.id);
 
             // Node color depending on lineage
             let nodeColor = '#ef4444'; // 친가 붉은색
@@ -674,7 +699,6 @@ export const ObsidianGraphView: React.FC<ObsidianGraphViewProps> = ({
                     zIndex: isDraggingThis ? 99 : isCenter ? 50 : 20,
                   },
                 ]}
-                // React Native Responder System handles mobile & desktop pointer dragging
                 onStartShouldSetResponder={() => true}
                 onMoveShouldSetResponder={() => true}
                 onResponderGrant={(evt) => {
@@ -685,7 +709,6 @@ export const ObsidianGraphView: React.FC<ObsidianGraphViewProps> = ({
                 }}
                 onResponderMove={(evt) => {
                   if (Platform.OS !== 'web') {
-                    // Mobile React Native native move fallback
                     const ne = evt.nativeEvent;
                     const pageX = ne.pageX;
                     const pageY = ne.pageY;
@@ -721,13 +744,15 @@ export const ObsidianGraphView: React.FC<ObsidianGraphViewProps> = ({
                       width: nodeSize,
                       height: nodeSize,
                       borderRadius: halfSize,
-                      backgroundColor: isCenter ? '#10b981' : nodeColor,
+                      backgroundColor: isCenter ? '#10b981' : isNewlyLinked ? '#059669' : nodeColor,
                       borderColor: isCenter
                         ? '#34d399'
+                        : isNewlyLinked
+                        ? '#10b981'
                         : isDraggingThis
                         ? '#38bdf8'
                         : '#ffffff',
-                      borderWidth: isCenter ? 3 : 2,
+                      borderWidth: isCenter ? 3 : isNewlyLinked ? 2.5 : 2,
                     },
                     isCenter && styles.centerPulseRing,
                     isDraggingThis && styles.draggingNodePulse,
@@ -735,7 +760,7 @@ export const ObsidianGraphView: React.FC<ObsidianGraphViewProps> = ({
                   ]}
                 >
                   <Text style={styles.nodeInitials}>
-                    {isCenter ? '★' : member.name.charAt(0)}
+                    {isCenter ? '★' : isNewlyLinked ? '✨' : member.name.charAt(0)}
                   </Text>
                 </View>
 
@@ -745,7 +770,8 @@ export const ObsidianGraphView: React.FC<ObsidianGraphViewProps> = ({
                     styles.nodeCardChip,
                     {
                       backgroundColor: nodeCardBg,
-                      borderColor: isDraggingThis ? '#38bdf8' : nodeCardBorder,
+                      borderColor: isNewlyLinked ? '#10b981' : isDraggingThis ? '#38bdf8' : nodeCardBorder,
+                      borderWidth: isNewlyLinked ? 1.5 : 1,
                       left: halfSize + 6,
                     },
                     isCenter && styles.centerCardChip,
@@ -762,7 +788,13 @@ export const ObsidianGraphView: React.FC<ObsidianGraphViewProps> = ({
                       {member.name}
                     </Text>
 
-                    {rel.chonText ? (
+                    {isNewlyLinked && (
+                      <View style={styles.newLinkBadge}>
+                        <Text style={styles.newLinkBadgeText}>새 결연</Text>
+                      </View>
+                    )}
+
+                    {rel.chonText && !isNewlyLinked ? (
                       <View style={[styles.chonBadge, { backgroundColor: nodeColor }]}>
                         <Text style={styles.chonBadgeText}>{rel.chonText}</Text>
                       </View>
@@ -835,6 +867,17 @@ const styles = StyleSheet.create({
     color: '#e0f2fe',
     fontWeight: '700',
   },
+  linkCountNotice: {
+    backgroundColor: '#065f46',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 6,
+  },
+  linkCountNoticeText: {
+    fontSize: 11,
+    color: '#d1fae5',
+    fontWeight: '800',
+  },
   headerSubtitle: {
     fontSize: 11,
     marginTop: 3,
@@ -845,6 +888,21 @@ const styles = StyleSheet.create({
     gap: 8,
     flexWrap: 'wrap',
     marginBottom: 10,
+  },
+  studioLauncherBtn: {
+    backgroundColor: '#059669',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 3,
+  },
+  studioLauncherBtnText: {
+    color: '#ffffff',
+    fontSize: 12,
+    fontWeight: '900',
   },
   actionBtn: {
     paddingHorizontal: 10,
@@ -964,6 +1022,17 @@ const styles = StyleSheet.create({
     borderRadius: 4,
   },
   chonBadgeText: {
+    color: '#ffffff',
+    fontSize: 9,
+    fontWeight: '800',
+  },
+  newLinkBadge: {
+    backgroundColor: '#059669',
+    paddingHorizontal: 5,
+    paddingVertical: 1,
+    borderRadius: 4,
+  },
+  newLinkBadgeText: {
     color: '#ffffff',
     fontSize: 9,
     fontWeight: '800',

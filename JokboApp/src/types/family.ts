@@ -28,3 +28,15 @@ export interface LineageInfo {
   badgeColor: string;
   description: string;
 }
+
+export type RelationType = 'parent_child' | 'child_parent' | 'spouse' | 'sibling';
+
+export interface EstablishedLink {
+  id: string;
+  personAId: string;
+  personBId: string;
+  relationType: RelationType;
+  establishedDate: string;
+  note?: string;
+  isNewlyFormed?: boolean;
+}

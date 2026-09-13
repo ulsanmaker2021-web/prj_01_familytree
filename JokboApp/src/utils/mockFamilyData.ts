@@ -922,3 +922,189 @@ export function getKinshipRelation(centerId: string, targetId: string): KinshipR
   }
   return { title: '친족' };
 }
+
+// ==========================================
+// 4. 관계 형성을 위한 미연결 가상 친족 데이터 (테스트용)
+// ==========================================
+export const UNCONNECTED_TEST_MEMBERS: FamilyMember[] = [
+  {
+    id: 'unc-1',
+    name: '김태성',
+    hanja: '金泰成',
+    gender: 'M',
+    generation: 3,
+    lineage: 'paternal',
+    relationship: '미연결 종친 후보 (30대)',
+    clan: '경주 김씨 판도판서공파 29세손',
+    birthDate: '1991-05-12',
+    isAlive: true,
+    parentIds: [], // 현재 부모 미지정 상태
+    phone: '010-4321-9988',
+    lastContactDate: '2026-09-10',
+    contactCycleDays: 30,
+    memo: '대구 거주. 족보 등록을 위해 찾아온 백부 김영호의 숨겨진 장성한 차남 후보. 아직 부자 결연이 맺어지지 않은 상태.',
+  },
+  {
+    id: 'unc-2',
+    name: '최소율',
+    hanja: '崔昭律',
+    gender: 'F',
+    generation: 3,
+    lineage: 'maternal',
+    relationship: '미연결 외가 친족 (20대)',
+    clan: '경주 최씨',
+    birthDate: '2003-08-20',
+    isAlive: true,
+    parentIds: [], // 현재 부모 미지정 상태
+    phone: '010-7788-5522',
+    lastContactDate: '2026-09-08',
+    contactCycleDays: 30,
+    memo: '수원 거주. 큰이모 이은미의 막내딸(차녀). 아직 족보 앱에 등록 및 모녀 결연이 맺어지지 않은 상태.',
+  },
+  {
+    id: 'unc-3',
+    name: '박지민',
+    hanja: '朴智敏',
+    gender: 'F',
+    generation: 3,
+    lineage: 'paternal',
+    relationship: '미연결 배우자 후보',
+    clan: '밀양 박씨',
+    birthDate: '1994-10-15',
+    isAlive: true,
+    spouseId: undefined, // 미혼
+    phone: '010-2233-8811',
+    lastContactDate: '2026-09-11',
+    contactCycleDays: 14,
+    memo: '남동생 김민혁의 예비 신부. 양가 상견례 후 가계도 혼인 결연 대기 중.',
+  },
+];
+
+export interface KinshipAnalysisResult {
+  chonText: string;
+  titleAtoB: string;
+  titleBtoA: string;
+  summary: string;
+  isDirect: boolean;
+}
+
+export function calculateKinshipBetween(
+  personAId: string,
+  personBId: string,
+  allMembers: FamilyMember[]
+): KinshipAnalysisResult {
+  if (personAId === personBId) {
+    return {
+      chonText: '본인',
+      titleAtoB: '본인',
+      titleBtoA: '본인',
+      summary: '동일 인물입니다.',
+      isDirect: true,
+    };
+  }
+
+  const pA = allMembers.find((m) => m.id === personAId);
+  const pB = allMembers.find((m) => m.id === personBId);
+
+  if (!pA || !pB) {
+    return {
+      chonText: '미상',
+      titleAtoB: '미등록',
+      titleBtoA: '미등록',
+      summary: '인물 정보를 찾을 수 없습니다.',
+      isDirect: false,
+    };
+  }
+
+  // 1. Spouses (0촌)
+  if (pA.spouseId === pB.id || pB.spouseId === pA.id) {
+    return {
+      chonText: '0촌 (부부)',
+      titleAtoB: pB.gender === 'F' ? '아내 (배우자)' : '남편 (배우자)',
+      titleBtoA: pA.gender === 'F' ? '아내 (배우자)' : '남편 (배우자)',
+      summary: '부부(夫婦) 관계 (0촌 결연)',
+      isDirect: true,
+    };
+  }
+
+  // 2. Parent-Child (1촌)
+  if (pB.parentIds && pB.parentIds.includes(pA.id)) {
+    return {
+      chonText: '1촌 (부모-자녀)',
+      titleAtoB: pB.gender === 'M' ? '아들 (자녀)' : '딸 (자녀)',
+      titleBtoA: pA.gender === 'M' ? '아버지 (부친)' : '어머니 (모친)',
+      summary: `${pA.name}님이 ${pB.name}님의 부모입니다.`,
+      isDirect: true,
+    };
+  }
+  if (pA.parentIds && pA.parentIds.includes(pB.id)) {
+    return {
+      chonText: '1촌 (부모-자녀)',
+      titleAtoB: pB.gender === 'M' ? '아버지 (부친)' : '어머니 (모친)',
+      titleBtoA: pA.gender === 'M' ? '아들 (자녀)' : '딸 (자녀)',
+      summary: `${pB.name}님이 ${pA.name}님의 부모입니다.`,
+      isDirect: true,
+    };
+  }
+
+  // 3. Siblings (2촌)
+  const sharedParents = (pA.parentIds || []).filter((pid) => (pB.parentIds || []).includes(pid));
+  if (sharedParents.length > 0) {
+    const aOlder = (pA.birthDate || '9999') < (pB.birthDate || '9999');
+    return {
+      chonText: '2촌 (동기간)',
+      titleAtoB: aOlder
+        ? pB.gender === 'M' ? '남동생' : '여동생'
+        : pB.gender === 'M' ? (pA.gender === 'M' ? '형' : '오빠') : (pA.gender === 'M' ? '누나' : '언니'),
+      titleBtoA: aOlder
+        ? pA.gender === 'M' ? (pB.gender === 'M' ? '형' : '오빠') : (pB.gender === 'M' ? '누나' : '언니')
+        : pA.gender === 'M' ? '남동생' : '여동생',
+      summary: '같은 부모를 둔 형제·자매(2촌) 관계입니다.',
+      isDirect: true,
+    };
+  }
+
+  // 4. Uncle/Aunt ↔ Nephew/Niece (3촌)
+  // Check if A is sibling of B's parents
+  const bParents = allMembers.filter((m) => (pB.parentIds || []).includes(m.id));
+  const isParentSibling = bParents.some((bp) =>
+    (bp.parentIds || []).some((bppId) => (pA.parentIds || []).includes(bppId))
+  );
+  if (isParentSibling) {
+    const title = pA.lineage === 'maternal'
+      ? (pA.gender === 'M' ? '외삼촌 (외숙)' : '이모')
+      : (pA.gender === 'M' ? '큰아버지/작은아버지' : '고모');
+    return {
+      chonText: '3촌 (숙질간)',
+      titleAtoB: pB.gender === 'M' ? '조카 (생질)' : '조카딸 (질녀)',
+      titleBtoA: title,
+      summary: `${pA.name}님과 ${pB.name}님은 3촌 숙질간입니다.`,
+      isDirect: true,
+    };
+  }
+
+  // 5. First Cousins (4촌)
+  // Check if A's parents and B's parents share grandparents
+  const aParents = allMembers.filter((m) => (pA.parentIds || []).includes(m.id));
+  const shareGrandparent = aParents.some((ap) =>
+    bParents.some((bp) => (ap.parentIds || []).some((appId) => (bp.parentIds || []).includes(appId)))
+  );
+  if (shareGrandparent) {
+    return {
+      chonText: '4촌 (사촌간)',
+      titleAtoB: pB.gender === 'M' ? '사촌형제' : '사촌자매',
+      titleBtoA: pA.gender === 'M' ? '사촌형제' : '사촌자매',
+      summary: `${pA.name}님과 ${pB.name}님은 4촌 사촌 형제자매입니다.`,
+      isDirect: true,
+    };
+  }
+
+  // Unconnected / Not established
+  return {
+    chonText: '미연결',
+    titleAtoB: '친족 후보 (미연결)',
+    titleBtoA: '친족 후보 (미연결)',
+    summary: '현재 가계도 상에 직접적인 혈연/혼인 결연이 형성되지 않은 상태입니다.',
+    isDirect: false,
+  };
+}

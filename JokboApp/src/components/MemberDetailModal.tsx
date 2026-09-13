@@ -17,6 +17,7 @@ interface MemberDetailModalProps {
   onClose: () => void;
   onContactLogged?: (memberId: string) => void;
   onSelectAsCenter?: (memberId: string) => void;
+  onOpenRelationshipStudio?: (memberId: string) => void;
 }
 
 export const MemberDetailModal: React.FC<MemberDetailModalProps> = ({
@@ -25,6 +26,7 @@ export const MemberDetailModal: React.FC<MemberDetailModalProps> = ({
   onClose,
   onContactLogged,
   onSelectAsCenter,
+  onOpenRelationshipStudio,
 }) => {
   if (!member) return null;
 
@@ -173,6 +175,20 @@ export const MemberDetailModal: React.FC<MemberDetailModalProps> = ({
                 >
                   <Text style={styles.centerActionButtonText}>
                     🎯 이 사람을 중심으로 가계도 재배치
+                  </Text>
+                </TouchableOpacity>
+              ) : null}
+
+              {onOpenRelationshipStudio ? (
+                <TouchableOpacity
+                  style={styles.connectActionButton}
+                  onPress={() => {
+                    onClose();
+                    onOpenRelationshipStudio(member.id);
+                  }}
+                >
+                  <Text style={styles.connectActionButtonText}>
+                    🤝 다른 친족과 관계 맺기 (결연 스튜디오)
                   </Text>
                 </TouchableOpacity>
               ) : null}
@@ -396,5 +412,17 @@ const styles = StyleSheet.create({
     color: '#ffffff',
     fontSize: 14,
     fontWeight: '700',
+  },
+  connectActionButton: {
+    backgroundColor: '#059669',
+    paddingVertical: 12,
+    borderRadius: 8,
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  connectActionButtonText: {
+    color: '#ffffff',
+    fontSize: 14,
+    fontWeight: '800',
   },
 });
