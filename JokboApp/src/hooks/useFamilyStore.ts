@@ -1,17 +1,28 @@
 import { useState, useEffect } from 'react';
-import { FamilyMember, LineageType, EstablishedLink, RelationType } from '../types/family';
+import {
+  FamilyMember,
+  LineageType,
+  EstablishedLink,
+  RelationType,
+  OperationMode,
+  ApprovalStatus,
+} from '../types/family';
 import {
   INITIAL_FAMILY_DATA,
   UNCONNECTED_TEST_MEMBERS,
   DeviceId,
   DEVICE_PROFILES,
   calculateKinshipBetween,
+  findElderApproverFor,
+  DESIGNATED_ELDERS,
+  ElderApproverInfo,
 } from '../utils/mockFamilyData';
 
 // Module-level shared store state
 let globalMembers: FamilyMember[] = [...INITIAL_FAMILY_DATA];
 let globalUnconnectedMembers: FamilyMember[] = [...UNCONNECTED_TEST_MEMBERS];
 let globalEstablishedLinks: EstablishedLink[] = [];
+let globalOperationMode: OperationMode = 'decentralized'; // Default: Dual-Mode with Decentralized P2P Active
 
 // 4 Virtual Devices State
 let globalCurrentDeviceId: DeviceId = 'device_A';
@@ -35,6 +46,7 @@ export function useFamilyStore() {
   const [members, setMembers] = useState<FamilyMember[]>(globalMembers);
   const [unconnectedMembers, setUnconnectedMembers] = useState<FamilyMember[]>(globalUnconnectedMembers);
   const [establishedLinks, setEstablishedLinks] = useState<EstablishedLink[]>(globalEstablishedLinks);
+  const [operationMode, setOperationModeState] = useState<OperationMode>(globalOperationMode);
   const [currentDeviceId, setCurrentDeviceId] = useState<DeviceId>(globalCurrentDeviceId);
   const [connectedDevices, setConnectedDevices] = useState<Record<DeviceId, boolean>>({ ...globalConnectedDevices });
   const [centerPersonId, setCenterPersonId] = useState<string>(globalCenterPersonId);
@@ -44,6 +56,7 @@ export function useFamilyStore() {
       setMembers([...globalMembers]);
       setUnconnectedMembers([...globalUnconnectedMembers]);
       setEstablishedLinks([...globalEstablishedLinks]);
+      setOperationModeState(globalOperationMode);
       setCurrentDeviceId(globalCurrentDeviceId);
       setConnectedDevices({ ...globalConnectedDevices });
       setCenterPersonId(globalCenterPersonId);
@@ -53,6 +66,12 @@ export function useFamilyStore() {
       listeners.delete(handleUpdate);
     };
   }, []);
+
+  // Dual Operating Mode Switcher (중앙 집중형 ↔ 분산 결연형)
+  const setOperatingMode = (mode: OperationMode) => {
+    globalOperationMode = mode;
+    notify();
+  };
 
   // Switch active virtual device
   const switchDevice = (deviceId: DeviceId) => {
@@ -110,7 +129,7 @@ export function useFamilyStore() {
   };
 
   // ==========================================
-  // 🤝 Relationship Establishment (관계 형성) Core Logic
+  // 🏛️ [모드 1] 중앙 집중형 관리자 직권 결연 (Centralized)
   // ==========================================
   const connectMembers = (
     personAId: string,
@@ -127,7 +146,6 @@ export function useFamilyStore() {
       };
     }
 
-    // Check if either person is from the unconnected pool
     const uncIdxB = globalUnconnectedMembers.findIndex((m) => m.id === personBId);
     let targetB = uncIdxB !== -1 ? globalUnconnectedMembers[uncIdxB] : globalMembers.find((m) => m.id === personBId);
     let targetA = globalMembers.find((m) => m.id === personAId);
@@ -142,13 +160,10 @@ export function useFamilyStore() {
       };
     }
 
-    // Clone objects for mutation
     let updatedA = { ...targetA };
     let updatedB = { ...targetB };
 
-    // Apply relationship wiring
     if (relationType === 'parent_child') {
-      // Person A is parent of Person B
       const existingParents = updatedB.parentIds || [];
       if (!existingParents.includes(updatedA.id)) {
         updatedB.parentIds = [...existingParents, updatedA.id];
@@ -159,14 +174,12 @@ export function useFamilyStore() {
         ? (updatedB.gender === 'M' ? '이종사촌남동생 (4촌)' : '이종사촌여동생 (4촌)')
         : (updatedB.gender === 'M' ? '사촌동생 (4촌)' : '사촌여동생 (4촌)');
     } else if (relationType === 'child_parent') {
-      // Person B is parent of Person A
       const existingParents = updatedA.parentIds || [];
       if (!existingParents.includes(updatedB.id)) {
         updatedA.parentIds = [...existingParents, updatedB.id];
       }
       updatedA.generation = updatedB.generation + 1;
     } else if (relationType === 'spouse') {
-      // Person A and Person B are spouses
       updatedA.spouseId = updatedB.id;
       updatedB.spouseId = updatedA.id;
       updatedB.generation = updatedA.generation;
@@ -176,7 +189,6 @@ export function useFamilyStore() {
         updatedB.relationship = updatedB.gender === 'F' ? '배우자 (아내)' : '남편 (배우자)';
       }
     } else if (relationType === 'sibling') {
-      // Share parents
       if (updatedA.parentIds && updatedA.parentIds.length > 0) {
         updatedB.parentIds = [...updatedA.parentIds];
       }
@@ -185,7 +197,6 @@ export function useFamilyStore() {
       updatedB.relationship = updatedB.gender === 'M' ? '남동생/형제' : '여동생/자매';
     }
 
-    // Add B into globalMembers if it was unconnected
     if (uncIdxB !== -1) {
       globalUnconnectedMembers = globalUnconnectedMembers.filter((m) => m.id !== personBId);
       if (!globalMembers.some((m) => m.id === updatedB.id)) {
@@ -194,32 +205,246 @@ export function useFamilyStore() {
     } else {
       globalMembers = globalMembers.map((m) => (m.id === updatedB.id ? updatedB : m));
     }
-
-    // Update A in globalMembers
     globalMembers = globalMembers.map((m) => (m.id === updatedA.id ? updatedA : m));
 
-    // Record established link
     const newLink: EstablishedLink = {
       id: `link-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
       personAId,
       personBId,
       relationType,
-      establishedDate: '2026-09-13',
+      establishedDate: '2026-09-14',
       isNewlyFormed: true,
+      formationMode: 'centralized',
+      status: 'approved',
+      note: '중앙 족보 편찬 관리자 직권 공인',
     };
     globalEstablishedLinks = [newLink, ...globalEstablishedLinks];
 
-    // Compute kinship result
     const kinship = calculateKinshipBetween(personAId, personBId, globalMembers);
+    notify();
+
+    return {
+      success: true,
+      message: `[중앙 편찬] ${updatedA.name}님과 ${updatedB.name}님의 ${kinship.chonText} 관계가 즉시 공인되었습니다!`,
+      chonText: kinship.chonText,
+      titleAtoB: kinship.titleAtoB,
+      titleBtoA: kinship.titleBtoA,
+    };
+  };
+
+  // ==========================================
+  // 📱 [모드 2] 분산 결연형 및 2중 윗대 승인 체계 (Decentralized P2P & Elder Verification)
+  // ==========================================
+  // 1단계: 두 사람의 스마트폰 P2P 신청 및 상호 동의 -> '2차 윗대 어르신 승인 대기' 상태 진입
+  const requestP2PKinship = (
+    personAId: string,
+    personBId: string,
+    relationType: RelationType,
+    customElderId?: string
+  ): {
+    success: boolean;
+    linkId?: string;
+    message: string;
+    elder?: ElderApproverInfo;
+    chonText: string;
+    titleAtoB: string;
+    titleBtoA: string;
+  } => {
+    if (personAId === personBId) {
+      return {
+        success: false,
+        message: '동일 인물 간에는 결연을 신청할 수 없습니다.',
+        chonText: '본인',
+        titleAtoB: '본인',
+        titleBtoA: '본인',
+      };
+    }
+
+    const uncIdxB = globalUnconnectedMembers.findIndex((m) => m.id === personBId);
+    let targetB = uncIdxB !== -1 ? globalUnconnectedMembers[uncIdxB] : globalMembers.find((m) => m.id === personBId);
+    let targetA = globalMembers.find((m) => m.id === personAId) || globalUnconnectedMembers.find((m) => m.id === personAId);
+
+    if (!targetA || !targetB) {
+      return {
+        success: false,
+        message: '결연 대상 인물을 찾을 수 없습니다.',
+        chonText: '오류',
+        titleAtoB: '미상',
+        titleBtoA: '미상',
+      };
+    }
+
+    // Determine 2nd step verifying elder (부모 또는 조부)
+    let elderInfo: ElderApproverInfo;
+    if (customElderId) {
+      elderInfo = DESIGNATED_ELDERS.find((e) => e.id === customElderId) || findElderApproverFor(personAId, personBId, globalMembers);
+    } else {
+      elderInfo = findElderApproverFor(personAId, personBId, globalMembers);
+    }
+
+    // 🌿 엄격한 생존 확인 (작고하신 선조 승인 불가 원칙)
+    const elderMember = globalMembers.find((m) => m.id === elderInfo.id);
+    if ((elderMember && !elderMember.isAlive) || !elderInfo.isAlive) {
+      return {
+        success: false,
+        message: `[승인 불가] ${elderInfo.name}님은 작고하신 선조이므로 2차 결연 승인 권한이 없습니다. 반드시 현재 생존해 계신 윗대 어르신을 선택해주세요.`,
+        chonText: '오류',
+        titleAtoB: '미상',
+        titleBtoA: '미상',
+      };
+    }
+
+    // Temporary node wiring for tentative visualization
+    let updatedA = { ...targetA };
+    let updatedB = { ...targetB };
+
+    if (relationType === 'parent_child') {
+      const existingParents = updatedB.parentIds || [];
+      if (!existingParents.includes(updatedA.id)) {
+        updatedB.parentIds = [...existingParents, updatedA.id];
+      }
+      updatedB.generation = updatedA.generation + 1;
+      updatedB.lineage = updatedA.lineage;
+      updatedB.relationship = updatedA.lineage === 'maternal'
+        ? (updatedB.gender === 'M' ? '이종사촌남동생 (4촌)' : '이종사촌여동생 (4촌)')
+        : (updatedB.gender === 'M' ? '사촌동생 (4촌)' : '사촌여동생 (4촌)');
+    } else if (relationType === 'child_parent') {
+      const existingParents = updatedA.parentIds || [];
+      if (!existingParents.includes(updatedB.id)) {
+        updatedA.parentIds = [...existingParents, updatedB.id];
+      }
+      updatedA.generation = updatedB.generation + 1;
+    } else if (relationType === 'spouse') {
+      updatedA.spouseId = updatedB.id;
+      updatedB.spouseId = updatedA.id;
+      updatedB.generation = updatedA.generation;
+      if (updatedA.id === 'pat-3-2') {
+        updatedB.relationship = '제수씨 (남동생의 아내)';
+      } else {
+        updatedB.relationship = updatedB.gender === 'F' ? '배우자 (아내)' : '남편 (배우자)';
+      }
+    } else if (relationType === 'sibling') {
+      if (updatedA.parentIds && updatedA.parentIds.length > 0) {
+        updatedB.parentIds = [...updatedA.parentIds];
+      }
+      updatedB.generation = updatedA.generation;
+      updatedB.lineage = updatedA.lineage;
+      updatedB.relationship = updatedB.gender === 'M' ? '남동생/형제' : '여동생/자매';
+    }
+
+    // Make candidate tentatively visible in graph with amber pending state
+    if (uncIdxB !== -1) {
+      if (!globalMembers.some((m) => m.id === updatedB.id)) {
+        globalMembers = [...globalMembers, updatedB];
+      }
+    }
+
+    const linkId = `p2p-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`;
+    const newLink: EstablishedLink = {
+      id: linkId,
+      personAId,
+      personBId,
+      relationType,
+      establishedDate: '2026-09-14',
+      isNewlyFormed: true,
+      formationMode: 'decentralized_p2p',
+      status: 'pending_elder',
+      requesterId: personAId,
+      receiverId: personBId,
+      approverElderId: elderInfo.id,
+      approverElderName: elderInfo.name,
+      approverElderRelation: elderInfo.relation,
+      note: `1차 스마트폰 P2P 상호 동의 완료 → 2차 윗대 어르신(${elderInfo.name} ${elderInfo.relation}) 최종 승인 대기 중`,
+    };
+
+    globalEstablishedLinks = [newLink, ...globalEstablishedLinks];
+    const kinship = calculateKinshipBetween(personAId, personBId, globalMembers);
+    notify();
+
+    return {
+      success: true,
+      linkId,
+      message: `[1단계 P2P 동의 완료] ${updatedA.name}님과 ${updatedB.name}님의 상호 결연 요청이 성사되었습니다. 허위 결연을 방지하기 위해 윗대 어르신(${elderInfo.name} ${elderInfo.relation})의 2차 승인이 필요합니다.`,
+      elder: elderInfo,
+      chonText: kinship.chonText,
+      titleAtoB: kinship.titleAtoB,
+      titleBtoA: kinship.titleBtoA,
+    };
+  };
+
+  // 2단계: 윗대 부모/조부의 최종 확인 및 공인 승인 (Official Approval)
+  const elderApproveKinship = (
+    linkId: string,
+    comment?: string
+  ): { success: boolean; message: string } => {
+    const link = globalEstablishedLinks.find((l) => l.id === linkId);
+    if (!link) {
+      return { success: false, message: '해당 결연 요청을 찾을 수 없습니다.' };
+    }
+
+    // 🌿 엄격한 생존 확인 (작고하신 어르신 명의 승인 차단)
+    const approver = globalMembers.find((m) => m.id === link.approverElderId);
+    if (approver && !approver.isAlive) {
+      return {
+        success: false,
+        message: `[승인 불가] 승인 담당 어르신(${approver.name})이 작고하신 상태이므로 승인을 진행할 수 없습니다. 생존해 계신 윗대 어르신으로 재지정해야 합니다.`,
+      };
+    }
+
+    // Permanently remove from unconnected pool
+    globalUnconnectedMembers = globalUnconnectedMembers.filter((m) => m.id !== link.personBId);
+
+    // Update link to approved
+    globalEstablishedLinks = globalEstablishedLinks.map((l) =>
+      l.id === linkId
+        ? {
+            ...l,
+            status: 'approved' as ApprovalStatus,
+            elderApprovedAt: '2026-09-14',
+            elderComment:
+              comment ||
+              `[직계 존속 공인] 윗대 어르신(${l.approverElderName || '어르신'})으로서 본 결연이 진실된 친족 혈통/인척임을 확인하고 가계도 편입을 최종 승인합니다.`,
+            note: `2중 확인 완료: ${l.approverElderName} 어르신 정식 공인`,
+          }
+        : l
+    );
+
+    const personA = globalMembers.find((m) => m.id === link.personAId);
+    const personB = globalMembers.find((m) => m.id === link.personBId);
 
     notify();
 
     return {
       success: true,
-      message: `${updatedA.name}님과 ${updatedB.name}님의 ${kinship.chonText} 관계가 성립되었습니다!`,
-      chonText: kinship.chonText,
-      titleAtoB: kinship.titleAtoB,
-      titleBtoA: kinship.titleBtoA,
+      message: `[2차 승인 완료] ${link.approverElderName} 어르신의 공인으로 ${personA?.name}님과 ${personB?.name}님의 친족 관계가 공식 족보에 정식 등록되었습니다!`,
+    };
+  };
+
+  // 2단계 반려: 윗대 부모/조부가 허위/오인 결연을 감지하여 반려 (Fake Rejection)
+  const elderRejectKinship = (
+    linkId: string,
+    reason?: string
+  ): { success: boolean; message: string } => {
+    const link = globalEstablishedLinks.find((l) => l.id === linkId);
+    if (!link) {
+      return { success: false, message: '해당 결연 요청을 찾을 수 없습니다.' };
+    }
+
+    // Revert wiring in globalMembers and restore to unconnected
+    const personB = globalMembers.find((m) => m.id === link.personBId);
+    if (personB && (personB.id.startsWith('unc-') || !INITIAL_FAMILY_DATA.some((im) => im.id === personB.id))) {
+      globalMembers = globalMembers.filter((m) => m.id !== link.personBId);
+      if (!globalUnconnectedMembers.some((m) => m.id === personB.id)) {
+        globalUnconnectedMembers = [...globalUnconnectedMembers, personB];
+      }
+    }
+
+    globalEstablishedLinks = globalEstablishedLinks.filter((l) => l.id !== linkId);
+    notify();
+
+    return {
+      success: true,
+      message: `[허위 결연 차단 완료] 윗대 어르신께서 "${reason || '친족 혈연 불일치'}" 사유로 결연을 반려하여 가계도 왜곡을 사전에 방지하였습니다.`,
     };
   };
 
@@ -282,8 +507,12 @@ export function useFamilyStore() {
   const connectedCount = Object.values(connectedDevices).filter(Boolean).length;
   const syncProgress = Math.round((connectedCount / 4) * 100);
 
+  // Grouped links for UI
+  const pendingElderLinks = establishedLinks.filter((l) => l.status === 'pending_elder');
+  const approvedLinks = establishedLinks.filter((l) => l.status === 'approved' || l.formationMode === 'centralized');
+
   const logContact = (memberId: string) => {
-    const today = '2026-09-13';
+    const today = '2026-09-14';
     globalMembers = globalMembers.map((m) =>
       m.id === memberId ? { ...m, lastContactDate: today } : m
     );
@@ -294,6 +523,7 @@ export function useFamilyStore() {
     globalMembers = [...INITIAL_FAMILY_DATA];
     globalUnconnectedMembers = [...UNCONNECTED_TEST_MEMBERS];
     globalEstablishedLinks = [];
+    globalOperationMode = 'decentralized';
     globalCurrentDeviceId = 'device_A';
     globalConnectedDevices = {
       device_A: true,
@@ -319,7 +549,15 @@ export function useFamilyStore() {
     unconnectedMembers,
     // Dynamic established links
     establishedLinks,
+    pendingElderLinks,
+    approvedLinks,
+    operationMode,
+    setOperatingMode,
+    // Connect & 2-step verification APIs
     connectMembers,
+    requestP2PKinship,
+    elderApproveKinship,
+    elderRejectKinship,
     disconnectLink,
     resetEstablishedLinks,
     // Device simulation state

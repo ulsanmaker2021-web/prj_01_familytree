@@ -28,7 +28,14 @@ export default function HomeScreen() {
     allMembers,
     unconnectedMembers,
     establishedLinks,
+    pendingElderLinks,
+    approvedLinks,
+    operationMode,
+    setOperatingMode,
     connectMembers,
+    requestP2PKinship,
+    elderApproveKinship,
+    elderRejectKinship,
     disconnectLink,
     resetEstablishedLinks,
     currentDevice,
@@ -427,39 +434,70 @@ export default function HomeScreen() {
           </View>
         </View>
 
-        {/* Relationship Linkage Studio Launcher Banner */}
+        {/* Dual Operating System Mode & Kinship Studio Banner */}
         <View style={styles.studioLauncherBanner}>
           <View style={styles.studioLauncherLeft}>
             <View style={styles.studioBadgeRow}>
-              <Text style={styles.studioBadge}>🤝 결연 스튜디오</Text>
-              {establishedLinks.length > 0 && (
+              <Text style={styles.studioBadge}>
+                {operationMode === 'decentralized' ? '📱 분산 결연형 (2중 윗대 승인)' : '🏛️ 중앙 집중 편찬형'}
+              </Text>
+              {pendingElderLinks.length > 0 && (
+                <TouchableOpacity
+                  style={{
+                    backgroundColor: '#78350f',
+                    paddingHorizontal: 8,
+                    paddingVertical: 2,
+                    borderRadius: 4,
+                  }}
+                  onPress={() => setStudioVisible(true)}
+                  activeOpacity={0.8}
+                >
+                  <Text style={{ color: '#fbbf24', fontSize: 11, fontWeight: '800' }}>
+                    🔔 윗대 승인 대기 {pendingElderLinks.length}건
+                  </Text>
+                </TouchableOpacity>
+              )}
+              {approvedLinks.length > 0 && (
                 <Text style={styles.establishedBadge}>
-                  ✨ {establishedLinks.length}건 결연 활성
+                  🛡️ 어르신 공인 {approvedLinks.length}건
                 </Text>
               )}
               {unconnectedMembers.length > 0 && (
                 <Text style={styles.unconnectedBadge}>
-                  미연결 친족 {unconnectedMembers.length}명 대기
+                  미등록 친족 {unconnectedMembers.length}명 대기
                 </Text>
               )}
             </View>
             <Text style={styles.studioBannerTitle}>
-              관계 미형성 인물 결연 & 족보 확장 시뮬레이터
+              {operationMode === 'decentralized'
+                ? '스마트폰 P2P 결연 & 직계 존속(부모/조부) 2차 승인 체계'
+                : '중앙 족보 편찬 관리자 시스템'}
             </Text>
             <Text style={styles.studioBannerDesc}>
-              미등록 종친(김태성), 외가 사촌(최소율), 예비신부(박지민) 등과 1초 퀵 결연 테스트를 진행해보세요.
+              {operationMode === 'decentralized'
+                ? '두 사람이 각자의 스마트폰으로 결연을 맺고, 윗대 부모·조부가 2차 확인 승인하여 허위 결연을 원천 차단합니다.'
+                : '중앙 관리자 사이트에서 가계도 인물 간의 관계를 직접 지정하고 즉시 족보에 편찬합니다.'}
             </Text>
           </View>
 
           <TouchableOpacity
-            style={styles.studioOpenBtn}
+            style={[
+              styles.studioOpenBtn,
+              operationMode === 'decentralized'
+                ? { backgroundColor: '#059669' }
+                : { backgroundColor: '#0284c7' },
+            ]}
             onPress={() => {
               setStudioPreselectedPersonAId(undefined);
               setStudioVisible(true);
             }}
             activeOpacity={0.8}
           >
-            <Text style={styles.studioOpenBtnText}>🚀 관계 형성 스튜디오 열기</Text>
+            <Text style={styles.studioOpenBtnText}>
+              {operationMode === 'decentralized'
+                ? '📱 분산 결연 & 어르신 승인 스튜디오 열기'
+                : '🏛️ 중앙 편찬 스튜디오 열기'}
+            </Text>
           </TouchableOpacity>
         </View>
 
@@ -606,14 +644,21 @@ export default function HomeScreen() {
         }}
       />
 
-      {/* Relationship Linkage Studio Modal */}
+      {/* Relationship Linkage Studio Modal (Dual Operating Mode & 2-Step Verification) */}
       <RelationshipStudioModal
         visible={studioVisible}
         onClose={() => setStudioVisible(false)}
         allMembers={allMembers}
         unconnectedMembers={unconnectedMembers}
         establishedLinks={establishedLinks}
+        pendingElderLinks={pendingElderLinks}
+        approvedLinks={approvedLinks}
+        operationMode={operationMode}
+        onSetOperationMode={setOperatingMode}
         onConnect={connectMembers}
+        onRequestP2P={requestP2PKinship}
+        onElderApprove={elderApproveKinship}
+        onElderReject={elderRejectKinship}
         onDisconnect={disconnectLink}
         onResetAll={resetEstablishedLinks}
         initialPersonAId={studioPreselectedPersonAId}

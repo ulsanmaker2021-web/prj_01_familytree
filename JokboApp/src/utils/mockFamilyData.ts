@@ -1108,3 +1108,137 @@ export function calculateKinshipBetween(
     isDirect: false,
   };
 }
+
+export interface ElderApproverInfo {
+  id: string;
+  name: string;
+  relation: string;
+  generation: number;
+  reason: string;
+  phone?: string;
+  badge: string;
+  isAlive: boolean;
+}
+
+// 🌿 2차 결연 승인은 반드시 현재 생존해 계신(isAlive: true) 직계 존속 및 윗대 어르신만 가능
+export const DESIGNATED_ELDERS: ElderApproverInfo[] = [
+  {
+    id: 'pat-1-2',
+    name: '박순자',
+    relation: '친할머니 (친조모, 88세)',
+    generation: 1,
+    reason: '조부(김태호) 작고로 인하여, 현재 생존해 계신 친가 직계 최고령 어르신으로서 결연을 공인합니다.',
+    phone: '010-3412-8811',
+    badge: '친가 최고 어르신 (🌿 생존)',
+    isAlive: true,
+  },
+  {
+    id: 'pat-2-1',
+    name: '김영호',
+    relation: '큰아버지 (백부 / 가문 종손, 67세)',
+    generation: 2,
+    reason: '가문의 장자이자 종손 어르신(생존)으로서 친족 혈통 및 방계 편입을 검증합니다.',
+    phone: '010-9182-4411',
+    badge: '종친회 종손 (🌿 생존)',
+    isAlive: true,
+  },
+  {
+    id: 'pat-2-2',
+    name: '김영수',
+    relation: '아버지 (직계 존속 부친, 64세)',
+    generation: 2,
+    reason: '직계 존속 부친(생존)으로서 자녀 및 형제의 결연을 확인하고 승인합니다.',
+    phone: '010-5231-7788',
+    badge: '직계 부모 (🌿 생존)',
+    isAlive: true,
+  },
+  {
+    id: 'mat-1-1',
+    name: '이성한',
+    relation: '외할아버지 (외조부, 89세)',
+    generation: 1,
+    reason: '외가 직계 최고 어르신(생존)으로서 외가 친족 결연의 진위 여부를 최종 검증합니다.',
+    phone: '010-6712-3344',
+    badge: '외가 종손 (🌿 생존)',
+    isAlive: true,
+  },
+  {
+    id: 'mat-1-2',
+    name: '권정자',
+    relation: '외할머니 (외조모, 85세)',
+    generation: 1,
+    reason: '외가 모계 어르신(생존)으로서 이모·외사촌 등 친족 관계를 보증합니다.',
+    phone: '010-4491-8899',
+    badge: '모계 어르신 (🌿 생존)',
+    isAlive: true,
+  },
+  {
+    id: 'mat-2-1',
+    name: '이정숙',
+    relation: '어머니 (직계 존속 모친, 62세)',
+    generation: 2,
+    reason: '직계 존속 모친(생존)으로서 자녀 및 외가 혈족의 결연을 확인하고 승인합니다.',
+    phone: '010-8822-1199',
+    badge: '직계 모친 (🌿 생존)',
+    isAlive: true,
+  },
+];
+
+// 🌿 생존 윗대 어르신 자동 매칭 엔진 (작고하신 선조는 승인 권한에서 자동 배제)
+export function findElderApproverFor(
+  personAId: string,
+  personBId: string,
+  allMembers: FamilyMember[]
+): ElderApproverInfo {
+  const pA = allMembers.find((m) => m.id === personAId);
+  const pB = allMembers.find((m) => m.id === personBId);
+
+  // 1. 외가 혈통 결연: 생존해 계신 외조부/외조모/모친 우선 추천
+  if (pA?.lineage === 'maternal' || pB?.lineage === 'maternal') {
+    const matGrandpa = allMembers.find((m) => m.id === 'mat-1-1' && m.isAlive);
+    if (matGrandpa) {
+      const elder = DESIGNATED_ELDERS.find((e) => e.id === 'mat-1-1');
+      if (elder) return elder;
+    }
+    const matGrandma = allMembers.find((m) => m.id === 'mat-1-2' && m.isAlive);
+    if (matGrandma) {
+      const elder = DESIGNATED_ELDERS.find((e) => e.id === 'mat-1-2');
+      if (elder) return elder;
+    }
+    const matMother = allMembers.find((m) => m.id === 'mat-2-1' && m.isAlive);
+    if (matMother) {
+      const elder = DESIGNATED_ELDERS.find((e) => e.id === 'mat-2-1');
+      if (elder) return elder;
+    }
+  }
+
+  // 2. 직계 자녀 또는 형제/인척 결연: 생존해 계신 부친(김영수) 우선 추천
+  if (
+    personAId === 'pat-3-2' ||
+    personBId === 'pat-3-2' ||
+    personAId === 'pat-3-1' ||
+    personBId === 'pat-3-1'
+  ) {
+    const father = allMembers.find((m) => m.id === 'pat-2-2' && m.isAlive);
+    if (father) {
+      const elder = DESIGNATED_ELDERS.find((e) => e.id === 'pat-2-2');
+      if (elder) return elder;
+    }
+  }
+
+  // 3. 친가 방계 결연: 조부(김태호)가 작고하셨으므로 생존해 계신 친조모(박순자) 또는 백부(김영호 종손) 매칭
+  const grandma = allMembers.find((m) => m.id === 'pat-1-2' && m.isAlive);
+  if (grandma) {
+    const elder = DESIGNATED_ELDERS.find((e) => e.id === 'pat-1-2');
+    if (elder) return elder;
+  }
+
+  const uncle = allMembers.find((m) => m.id === 'pat-2-1' && m.isAlive);
+  if (uncle) {
+    const elder = DESIGNATED_ELDERS.find((e) => e.id === 'pat-2-1');
+    if (elder) return elder;
+  }
+
+  // 4. 안전 기본값: 생존해 있는 첫 번째 어르신 반환
+  return DESIGNATED_ELDERS.find((e) => e.isAlive) || DESIGNATED_ELDERS[0];
+}

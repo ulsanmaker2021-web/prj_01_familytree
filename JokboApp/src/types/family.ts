@@ -31,6 +31,10 @@ export interface LineageInfo {
 
 export type RelationType = 'parent_child' | 'child_parent' | 'spouse' | 'sibling';
 
+export type ApprovalStatus = 'pending_peer' | 'pending_elder' | 'approved' | 'rejected';
+
+export type OperationMode = 'centralized' | 'decentralized';
+
 export interface EstablishedLink {
   id: string;
   personAId: string;
@@ -39,4 +43,14 @@ export interface EstablishedLink {
   establishedDate: string;
   note?: string;
   isNewlyFormed?: boolean;
+  formationMode?: 'centralized' | 'decentralized_p2p';
+  status?: ApprovalStatus;
+  requesterId?: string;
+  receiverId?: string;
+  approverElderId?: string;
+  approverElderName?: string;
+  approverElderRelation?: string;
+  elderApprovedAt?: string;
+  elderComment?: string;
+  rejectReason?: string;
 }

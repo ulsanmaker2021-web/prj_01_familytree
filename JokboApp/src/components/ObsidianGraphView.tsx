@@ -366,10 +366,15 @@ export const ObsidianGraphView: React.FC<ObsidianGraphViewProps> = ({
     addEdge('inlaw-mat-2-1', 'inlaw-mat-2-2', inlawColor, 1.5, true); // 장모 - 처외숙
     addEdge('inlaw-mat-2-1', 'inlaw-mat-2-3', inlawColor, 1.5, true); // 장모 - 처이모
 
-    // --- 🤝 DYNAMIC ESTABLISHED RELATIONSHIPS (신규 형성된 결연 연결선) ---
+    // --- 🤝 DYNAMIC ESTABLISHED RELATIONSHIPS (신규 형성된 결연 연결선 & 2중 승인 체계) ---
     (establishedLinks || []).forEach((link) => {
-      // Dynamic green glowing connection
-      addEdge(link.personAId, link.personBId, '#10b981', 3.5, false, true);
+      if (link.status === 'pending_elder') {
+        // 윗대 어르신 2차 승인 대기 중: 황금색 발광 점선 (Glowing Amber Dashed Line)
+        addEdge(link.personAId, link.personBId, '#f59e0b', 3.2, true, true);
+      } else {
+        // 직계 어르신 공인 완료 또는 중앙 편찬: 선명한 에메랄드 그린 실선 (Emerald Glowing Solid Line)
+        addEdge(link.personAId, link.personBId, '#10b981', 3.5, false, true);
+      }
     });
 
     return edges;
@@ -485,11 +490,32 @@ export const ObsidianGraphView: React.FC<ObsidianGraphViewProps> = ({
                 <Text style={styles.draggingNoticeText}>✨ 실시간 연쇄 이동 중</Text>
               </View>
             ) : null}
-            {establishedLinks.length > 0 && (
-              <View style={styles.linkCountNotice}>
-                <Text style={styles.linkCountNoticeText}>🤝 새 결연 {establishedLinks.length}건 활성</Text>
-              </View>
-            )}
+            {(() => {
+              const pendingCount = establishedLinks.filter((l) => l.status === 'pending_elder').length;
+              const approvedCount = establishedLinks.filter((l) => l.status === 'approved' || l.formationMode === 'centralized').length;
+              return (
+                <View style={{ flexDirection: 'row', gap: 6 }}>
+                  {pendingCount > 0 && (
+                    <TouchableOpacity
+                      style={[styles.linkCountNotice, { backgroundColor: '#78350f', borderColor: '#f59e0b' }]}
+                      onPress={onOpenRelationshipStudio}
+                      activeOpacity={0.8}
+                    >
+                      <Text style={[styles.linkCountNoticeText, { color: '#fbbf24' }]}>
+                        🔔 윗대 승인 대기 {pendingCount}건
+                      </Text>
+                    </TouchableOpacity>
+                  )}
+                  {approvedCount > 0 && (
+                    <View style={styles.linkCountNotice}>
+                      <Text style={styles.linkCountNoticeText}>
+                        🛡️ 어르신 공인 {approvedCount}건 활성
+                      </Text>
+                    </View>
+                  )}
+                </View>
+              );
+            })()}
           </View>
           <Text style={[styles.headerSubtitle, { color: subtextColor }]}>
             💡 노드 간 겹침 방지 궤도가 적용되었습니다. 상단 [🤝 친족 관계 형성 스튜디오]를 통해 미연결 친족과의 결연을 형성할 수 있습니다.
@@ -572,7 +598,11 @@ export const ObsidianGraphView: React.FC<ObsidianGraphViewProps> = ({
           </View>
           <View style={styles.legendItem}>
             <View style={[styles.legendDot, { backgroundColor: '#10b981' }]} />
-            <Text style={[styles.legendLabel, { color: '#10b981' }]}>신규 결연 (새 연결선)</Text>
+            <Text style={[styles.legendLabel, { color: '#10b981' }]}>🛡️ 어르신 공인 결연 (실선)</Text>
+          </View>
+          <View style={styles.legendItem}>
+            <View style={[styles.legendDot, { backgroundColor: '#f59e0b', borderRadius: 2 }]} />
+            <Text style={[styles.legendLabel, { color: '#f59e0b' }]}>⏳ 윗대 승인 대기 (점선)</Text>
           </View>
         </View>
       </View>
@@ -788,11 +818,30 @@ export const ObsidianGraphView: React.FC<ObsidianGraphViewProps> = ({
                       {member.name}
                     </Text>
 
-                    {isNewlyLinked && (
-                      <View style={styles.newLinkBadge}>
-                        <Text style={styles.newLinkBadgeText}>새 결연</Text>
-                      </View>
-                    )}
+                    {(() => {
+                      if (!isNewlyLinked) return null;
+                      const matchedLink = establishedLinks.find(
+                        (l) => l.personAId === member.id || l.personBId === member.id
+                      );
+                      const isPending = matchedLink?.status === 'pending_elder';
+                      return (
+                        <View
+                          style={[
+                            styles.newLinkBadge,
+                            isPending && { backgroundColor: '#b45309', borderColor: '#f59e0b' },
+                          ]}
+                        >
+                          <Text
+                            style={[
+                              styles.newLinkBadgeText,
+                              isPending && { color: '#fef3c7' },
+                            ]}
+                          >
+                            {isPending ? '⏳ 윗대 승인대기' : '🛡️ 어르신 공인'}
+                          </Text>
+                        </View>
+                      );
+                    })()}
 
                     {rel.chonText && !isNewlyLinked ? (
                       <View style={[styles.chonBadge, { backgroundColor: nodeColor }]}>
