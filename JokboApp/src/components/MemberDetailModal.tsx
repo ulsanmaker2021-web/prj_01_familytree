@@ -7,7 +7,7 @@ import {
   View,
   ScrollView,
 } from 'react-native';
-import { FamilyMember } from '../types/family';
+import { FamilyMember, EstablishedLink } from '../types/family';
 import { LINEAGES, getDaysSinceContact, getLifeStatus } from '../utils/mockFamilyData';
 import { inkTheme } from '../theme/inkTheme';
 
@@ -18,6 +18,8 @@ interface MemberDetailModalProps {
   onContactLogged?: (memberId: string) => void;
   onSelectAsCenter?: (memberId: string) => void;
   onOpenRelationshipStudio?: (memberId: string) => void;
+  establishedLinks?: EstablishedLink[];
+  onOpenCertificate?: (link: EstablishedLink) => void;
 }
 
 export const MemberDetailModal: React.FC<MemberDetailModalProps> = ({
@@ -27,6 +29,8 @@ export const MemberDetailModal: React.FC<MemberDetailModalProps> = ({
   onContactLogged,
   onSelectAsCenter,
   onOpenRelationshipStudio,
+  establishedLinks = [],
+  onOpenCertificate,
 }) => {
   if (!member) return null;
 
@@ -154,6 +158,69 @@ export const MemberDetailModal: React.FC<MemberDetailModalProps> = ({
                 </View>
               ) : null}
             </View>
+
+            {/* Living Elder Approval Kinship Information */}
+            {(() => {
+              const matchedLinks = establishedLinks.filter(
+                (l) => l.personAId === member.id || l.personBId === member.id
+              );
+              if (matchedLinks.length === 0) return null;
+
+              return (
+                <View style={styles.kinshipApprovalBox}>
+                  <View style={styles.kinshipApprovalHeader}>
+                    <Text style={styles.kinshipApprovalTitle}>🛡️ 분산 결연 및 윗대 어르신 공인 내역</Text>
+                  </View>
+                  {matchedLinks.map((link) => {
+                    const isApproved = link.status === 'approved';
+                    const isPending = link.status === 'pending_elder';
+                    return (
+                      <View key={link.id} style={styles.kinshipApprovalItem}>
+                        <View style={styles.approvalItemTop}>
+                          <Text
+                            style={[
+                              styles.approvalStatusBadge,
+                              isApproved ? styles.statusApproved : styles.statusPending,
+                            ]}
+                          >
+                            {isApproved ? '✓ 2차 윗대 어르신 승인 완료' : '⏳ 2차 어르신 승인 대기'}
+                          </Text>
+                          {link.certificateNo ? (
+                            <Text style={styles.certNoMiniText}>{link.certificateNo}</Text>
+                          ) : null}
+                        </View>
+                        <Text style={styles.approvalDescText}>
+                          {link.titleAtoB} · {link.chonText}
+                        </Text>
+                        <View style={styles.elderInfoRow}>
+                          <Text style={styles.elderInfoLabel}>확인 어르신 :</Text>
+                          <Text style={styles.elderInfoName}>
+                            {link.approverElderName || '지정 어르신'} ({link.approverElderRelation || '직계 존속'})
+                          </Text>
+                          <View style={styles.livingTag}>
+                            <Text style={styles.livingTagText}>🌿 생존 확인</Text>
+                          </View>
+                        </View>
+                        {link.elderComment ? (
+                          <Text style={styles.elderCommentText}>"{link.elderComment}"</Text>
+                        ) : null}
+                        {link.p2pInvitationCode ? (
+                          <Text style={styles.invCodeText}>보안 초대코드: {link.p2pInvitationCode}</Text>
+                        ) : null}
+                        {isApproved && onOpenCertificate ? (
+                          <TouchableOpacity
+                            style={styles.viewCertBtn}
+                            onPress={() => onOpenCertificate(link)}
+                          >
+                            <Text style={styles.viewCertBtnText}>📜 가문 공인 친족 증서 열람</Text>
+                          </TouchableOpacity>
+                        ) : null}
+                      </View>
+                    );
+                  })}
+                </View>
+              );
+            })()}
 
             {/* Memo Section */}
             {member.memo ? (
@@ -382,6 +449,120 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     borderWidth: 1,
     borderColor: inkTheme.ink8,
+  },
+  kinshipApprovalBox: {
+    backgroundColor: '#f0fdf4',
+    borderRadius: 10,
+    borderWidth: 1.5,
+    borderColor: '#86efac',
+    padding: 12,
+    marginBottom: 14,
+  },
+  kinshipApprovalHeader: {
+    marginBottom: 8,
+    paddingBottom: 6,
+    borderBottomWidth: 1,
+    borderBottomColor: '#bbf7d0',
+  },
+  kinshipApprovalTitle: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#166534',
+  },
+  kinshipApprovalItem: {
+    backgroundColor: '#ffffff',
+    borderRadius: 8,
+    padding: 10,
+    borderWidth: 1,
+    borderColor: '#dcfce7',
+    marginBottom: 6,
+  },
+  approvalItemTop: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  approvalStatusBadge: {
+    fontSize: 11,
+    fontWeight: '800',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  statusApproved: {
+    backgroundColor: '#dcfce7',
+    color: '#15803d',
+  },
+  statusPending: {
+    backgroundColor: '#fef3c7',
+    color: '#b45309',
+  },
+  certNoMiniText: {
+    fontSize: 10,
+    color: '#64748b',
+    fontWeight: '700',
+  },
+  approvalDescText: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#0f172a',
+    marginBottom: 4,
+  },
+  elderInfoRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: 4,
+    marginBottom: 4,
+  },
+  elderInfoLabel: {
+    fontSize: 11,
+    color: '#475569',
+  },
+  elderInfoName: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#047857',
+  },
+  livingTag: {
+    backgroundColor: '#d1fae5',
+    paddingHorizontal: 5,
+    paddingVertical: 1,
+    borderRadius: 3,
+  },
+  livingTagText: {
+    fontSize: 10,
+    color: '#065f46',
+    fontWeight: '800',
+  },
+  elderCommentText: {
+    fontSize: 11,
+    color: '#334155',
+    fontStyle: 'italic',
+    backgroundColor: '#f8fafc',
+    padding: 6,
+    borderRadius: 4,
+    marginVertical: 4,
+  },
+  invCodeText: {
+    fontSize: 10,
+    color: '#64748b',
+    fontWeight: '600',
+    marginBottom: 4,
+  },
+  viewCertBtn: {
+    marginTop: 6,
+    backgroundColor: '#854d0e',
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderRadius: 6,
+    alignItems: 'center',
+  },
+  viewCertBtnText: {
+    color: '#ffffff',
+    fontSize: 12,
+    fontWeight: '800',
   },
   actionContainer: {
     marginTop: 10,

@@ -244,6 +244,7 @@ export function useFamilyStore() {
   ): {
     success: boolean;
     linkId?: string;
+    invitationCode?: string;
     message: string;
     elder?: ElderApproverInfo;
     chonText: string;
@@ -340,12 +341,15 @@ export function useFamilyStore() {
     }
 
     const linkId = `p2p-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`;
+    const invitationCode = `JK-${Math.floor(1000 + Math.random() * 9000)}`;
+    const kinship = calculateKinshipBetween(personAId, personBId, globalMembers);
+
     const newLink: EstablishedLink = {
       id: linkId,
       personAId,
       personBId,
       relationType,
-      establishedDate: '2026-09-14',
+      establishedDate: '2026-09-16',
       isNewlyFormed: true,
       formationMode: 'decentralized_p2p',
       status: 'pending_elder',
@@ -354,17 +358,21 @@ export function useFamilyStore() {
       approverElderId: elderInfo.id,
       approverElderName: elderInfo.name,
       approverElderRelation: elderInfo.relation,
+      p2pInvitationCode: invitationCode,
+      titleAtoB: kinship.titleAtoB,
+      titleBtoA: kinship.titleBtoA,
+      chonText: kinship.chonText,
       note: `1차 스마트폰 P2P 상호 동의 완료 → 2차 윗대 어르신(${elderInfo.name} ${elderInfo.relation}) 최종 승인 대기 중`,
     };
 
     globalEstablishedLinks = [newLink, ...globalEstablishedLinks];
-    const kinship = calculateKinshipBetween(personAId, personBId, globalMembers);
     notify();
 
     return {
       success: true,
       linkId,
-      message: `[1단계 P2P 동의 완료] ${updatedA.name}님과 ${updatedB.name}님의 상호 결연 요청이 성사되었습니다. 허위 결연을 방지하기 위해 윗대 어르신(${elderInfo.name} ${elderInfo.relation})의 2차 승인이 필요합니다.`,
+      invitationCode,
+      message: `[1단계 P2P 동의 완료] ${updatedA.name}님과 ${updatedB.name}님의 상호 결연 요청이 성사되었습니다. (초대코드: ${invitationCode}) 윗대 어르신(${elderInfo.name} ${elderInfo.relation})의 2차 승인이 필요합니다.`,
       elder: elderInfo,
       chonText: kinship.chonText,
       titleAtoB: kinship.titleAtoB,
@@ -376,7 +384,7 @@ export function useFamilyStore() {
   const elderApproveKinship = (
     linkId: string,
     comment?: string
-  ): { success: boolean; message: string } => {
+  ): { success: boolean; certificateNo?: string; message: string } => {
     const link = globalEstablishedLinks.find((l) => l.id === linkId);
     if (!link) {
       return { success: false, message: '해당 결연 요청을 찾을 수 없습니다.' };
@@ -394,17 +402,21 @@ export function useFamilyStore() {
     // Permanently remove from unconnected pool
     globalUnconnectedMembers = globalUnconnectedMembers.filter((m) => m.id !== link.personBId);
 
+    const certificateNo = `족보공인 제 2026-${Math.floor(10000 + Math.random() * 90000)}호`;
+
     // Update link to approved
     globalEstablishedLinks = globalEstablishedLinks.map((l) =>
       l.id === linkId
         ? {
             ...l,
             status: 'approved' as ApprovalStatus,
-            elderApprovedAt: '2026-09-14',
+            elderApprovedAt: '2026-09-16',
             elderComment:
               comment ||
               `[직계 존속 공인] 윗대 어르신(${l.approverElderName || '어르신'})으로서 본 결연이 진실된 친족 혈통/인척임을 확인하고 가계도 편입을 최종 승인합니다.`,
-            note: `2중 확인 완료: ${l.approverElderName} 어르신 정식 공인`,
+            note: `2중 확인 완료: ${l.approverElderName} 어르신 정식 공인 (${certificateNo})`,
+            certificateIssued: true,
+            certificateNo,
           }
         : l
     );
@@ -416,7 +428,8 @@ export function useFamilyStore() {
 
     return {
       success: true,
-      message: `[2차 승인 완료] ${link.approverElderName} 어르신의 공인으로 ${personA?.name}님과 ${personB?.name}님의 친족 관계가 공식 족보에 정식 등록되었습니다!`,
+      certificateNo,
+      message: `[2차 승인 완료] ${link.approverElderName} 어르신의 공인으로 ${personA?.name}님과 ${personB?.name}님의 친족 관계가 공식 족보에 정식 등록되었습니다! (${certificateNo} 발급)`,
     };
   };
 
@@ -540,6 +553,37 @@ export function useFamilyStore() {
     return visibleMembers.filter((m) => m.lineage === lineage);
   };
 
+  // ➕ 신규 친족 직접 등록 (분산 P2P 결연 후보군으로 추가)
+  const addCustomUnconnectedMember = (data: {
+    name: string;
+    hanja?: string;
+    gender: 'M' | 'F';
+    birthDate?: string;
+    clan?: string;
+    relationship?: string;
+    memo?: string;
+  }): FamilyMember => {
+    const newMember: FamilyMember = {
+      id: `custom-${Date.now()}`,
+      name: data.name,
+      hanja: data.hanja,
+      gender: data.gender,
+      generation: 3,
+      lineage: 'paternal',
+      relationship: data.relationship || '미등록 친족 후보',
+      clan: data.clan || '경주 김씨',
+      birthDate: data.birthDate || '1996-05-15',
+      isAlive: true,
+      phone: '010-8822-4411',
+      lastContactDate: '2026-09-16',
+      contactCycleDays: 30,
+      memo: data.memo || '사용자가 직접 등록한 분산 결연 후보 인물',
+    };
+    globalUnconnectedMembers = [newMember, ...globalUnconnectedMembers];
+    notify();
+    return newMember;
+  };
+
   return {
     // All members in database
     allMembers: members,
@@ -560,6 +604,7 @@ export function useFamilyStore() {
     elderRejectKinship,
     disconnectLink,
     resetEstablishedLinks,
+    addCustomUnconnectedMember,
     // Device simulation state
     currentDeviceId,
     currentDevice: DEVICE_PROFILES[currentDeviceId],

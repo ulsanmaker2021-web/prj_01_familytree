@@ -38,6 +38,7 @@ export default function HomeScreen() {
     elderRejectKinship,
     disconnectLink,
     resetEstablishedLinks,
+    addCustomUnconnectedMember,
     currentDevice,
     centerPersonId,
     setCenterPerson,
@@ -661,6 +662,7 @@ export default function HomeScreen() {
         onElderReject={elderRejectKinship}
         onDisconnect={disconnectLink}
         onResetAll={resetEstablishedLinks}
+        onAddCustomMember={addCustomUnconnectedMember}
         initialPersonAId={studioPreselectedPersonAId}
       />
     </View>

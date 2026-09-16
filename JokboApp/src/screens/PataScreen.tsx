@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   ScrollView,
   StyleSheet,
@@ -9,15 +9,24 @@ import {
 import { LINEAGES, getDaysSinceContact } from '../utils/mockFamilyData';
 import { useFamilyStore } from '../hooks/useFamilyStore';
 import { MemberDetailModal } from '../components/MemberDetailModal';
-import { FamilyMember, LineageType } from '../types/family';
+import { FamilyMember, LineageType, EstablishedLink } from '../types/family';
 import { inkTheme } from '../theme/inkTheme';
 
 export default function PataScreen() {
-  const { members, logContact } = useFamilyStore();
+  const { members, establishedLinks, logContact } = useFamilyStore();
   const [selectedMember, setSelectedMember] = useState<FamilyMember | null>(
     null
   );
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+  // Compute newly established relatives
+  const newlyLinkedIds = useMemo(() => {
+    return new Set(
+      establishedLinks
+        .filter((l) => l.status === 'approved')
+        .flatMap((l) => [l.personAId, l.personBId])
+    );
+  }, [establishedLinks]);
 
   // Compute urgent care targets (alive, not me or spouse)
   const careTargets = members
@@ -25,16 +34,24 @@ export default function PataScreen() {
     .map((m) => {
       const days = getDaysSinceContact(m.lastContactDate);
       const cycle = m.contactCycleDays || 30;
+      const isNewlyLinked = newlyLinkedIds.has(m.id);
       return {
         ...m,
         daysPassed: days,
         isOverdue: days >= cycle,
         cycle,
+        isNewlyLinked,
       };
     })
-    .sort((a, b) => b.daysPassed - a.daysPassed);
+    .sort((a, b) => {
+      // Prioritize newly linked relatives first, then overdue
+      if (a.isNewlyLinked && !b.isNewlyLinked) return -1;
+      if (!a.isNewlyLinked && b.isNewlyLinked) return 1;
+      return b.daysPassed - a.daysPassed;
+    });
 
   const overdueCount = careTargets.filter((t) => t.isOverdue).length;
+  const newlyLinkedCount = careTargets.filter((t) => t.isNewlyLinked).length;
 
   const handleQuickContact = (member: FamilyMember) => {
     logContact(member.id);
@@ -154,6 +171,11 @@ export default function PataScreen() {
                       {item.hanja && (
                         <Text style={styles.hanja}>({item.hanja})</Text>
                       )}
+                      {item.isNewlyLinked && (
+                        <View style={styles.newlyLinkedBadge}>
+                          <Text style={styles.newlyLinkedBadgeText}>✨ 새 결연 친족</Text>
+                        </View>
+                      )}
                     </View>
                     <View
                       style={[
@@ -207,6 +229,7 @@ export default function PataScreen() {
         visible={selectedMember !== null}
         onClose={() => setSelectedMember(null)}
         onContactLogged={logContact}
+        establishedLinks={establishedLinks}
       />
     </View>
   );
@@ -405,6 +428,20 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
+    flexWrap: 'wrap',
+  },
+  newlyLinkedBadge: {
+    backgroundColor: '#ecfdf5',
+    borderWidth: 1,
+    borderColor: '#6ee7b7',
+    paddingHorizontal: 6,
+    paddingVertical: 1,
+    borderRadius: 4,
+  },
+  newlyLinkedBadgeText: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: '#047857',
   },
   name: {
     fontSize: 16,

@@ -53,4 +53,10 @@ export interface EstablishedLink {
   elderApprovedAt?: string;
   elderComment?: string;
   rejectReason?: string;
+  p2pInvitationCode?: string;
+  certificateNo?: string;
+  certificateIssued?: boolean;
+  titleAtoB?: string;
+  titleBtoA?: string;
+  chonText?: string;
 }

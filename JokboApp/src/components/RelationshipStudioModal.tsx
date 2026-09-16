@@ -43,16 +43,26 @@ interface RelationshipStudioModalProps {
   ) => {
     success: boolean;
     linkId?: string;
+    invitationCode?: string;
     message: string;
     elder?: ElderApproverInfo;
     chonText: string;
     titleAtoB: string;
     titleBtoA: string;
   };
-  onElderApprove: (linkId: string, comment?: string) => { success: boolean; message: string };
+  onElderApprove: (linkId: string, comment?: string) => { success: boolean; certificateNo?: string; message: string };
   onElderReject: (linkId: string, reason?: string) => { success: boolean; message: string };
   onDisconnect: (linkId: string) => void;
   onResetAll: () => void;
+  onAddCustomMember?: (data: {
+    name: string;
+    hanja?: string;
+    gender: 'M' | 'F';
+    birthDate?: string;
+    clan?: string;
+    relationship?: string;
+    memo?: string;
+  }) => FamilyMember;
   initialPersonAId?: string;
 }
 
@@ -72,21 +82,36 @@ export const RelationshipStudioModal: React.FC<RelationshipStudioModalProps> = (
   onElderReject,
   onDisconnect,
   onResetAll,
+  onAddCustomMember,
   initialPersonAId,
 }) => {
   // Navigation inside modal
-  const [subTab, setSubTab] = useState<'p2p_flow' | 'presets' | 'elder_inbox' | 'central_custom' | 'central_manage'>('p2p_flow');
+  const [subTab, setSubTab] = useState<
+    'p2p_flow' | 'presets' | 'elder_inbox' | 'register_custom' | 'central_custom' | 'central_manage'
+  >('p2p_flow');
 
   // P2P Simulator Workflow State
-  // Step 1: Request from Phone A -> Step 2: Accept on Phone B -> Step 3: Elder Phone C 2nd Verification
   const [p2pStep, setP2pStep] = useState<'step1_request' | 'step2_peer_agree' | 'step3_elder_verify' | 'completed'>('step1_request');
   const [p2pSenderId, setP2pSenderId] = useState<string>(
     unconnectedMembers.length > 0 ? unconnectedMembers[0].id : (initialPersonAId || 'pat-2-1')
   );
   const [p2pReceiverId, setP2pReceiverId] = useState<string>('pat-2-1'); // Default 백부 김영호
   const [p2pRelationType, setP2pRelationType] = useState<RelationType>('parent_child');
-  const [p2pSelectedElderId, setP2pSelectedElderId] = useState<string>('pat-1-1'); // Default 김동길 조부
+  const [p2pSelectedElderId, setP2pSelectedElderId] = useState<string>('pat-1-2'); // Default: 생존 친조모 박순자
   const [activeLinkId, setActiveLinkId] = useState<string | null>(null);
+  const [currentInvitationCode, setCurrentInvitationCode] = useState<string>('JK-8821');
+
+  // Digital Kinship Certificate Viewer State
+  const [viewingCertLink, setViewingCertLink] = useState<EstablishedLink | null>(null);
+
+  // Custom Relative Registration Form State
+  const [customName, setCustomName] = useState('');
+  const [customHanja, setCustomHanja] = useState('');
+  const [customGender, setCustomGender] = useState<'M' | 'F'>('M');
+  const [customBirthDate, setCustomBirthDate] = useState('1996-05-15');
+  const [customClan, setCustomClan] = useState('경주 김씨');
+  const [customRelName, setCustomRelName] = useState('미등록 종친');
+  const [customMemo, setCustomMemo] = useState('');
 
   // Centralized Custom Linker State
   const [selectedPersonAId, setSelectedPersonAId] = useState<string>(initialPersonAId || 'pat-2-1');
@@ -94,8 +119,6 @@ export const RelationshipStudioModal: React.FC<RelationshipStudioModalProps> = (
     unconnectedMembers.length > 0 ? unconnectedMembers[0].id : ''
   );
   const [selectedRelationType, setSelectedRelationType] = useState<RelationType>('parent_child');
-  const [filterQueryA, setFilterQueryA] = useState('');
-  const [filterQueryB, setFilterQueryB] = useState('');
 
   // Toast / Status banner
   const [toastMessage, setToastMessage] = useState<string | null>(null);
@@ -145,6 +168,7 @@ export const RelationshipStudioModal: React.FC<RelationshipStudioModalProps> = (
       const res = onRequestP2P('unc-1', 'pat-2-1', 'parent_child', 'pat-1-2');
       if (res.success && res.linkId) {
         setActiveLinkId(res.linkId);
+        setCurrentInvitationCode(res.invitationCode || 'JK-2026');
         setP2pSenderId('unc-1');
         setP2pReceiverId('pat-2-1');
         setP2pRelationType('parent_child');
@@ -160,6 +184,7 @@ export const RelationshipStudioModal: React.FC<RelationshipStudioModalProps> = (
       const res = onRequestP2P('unc-3', 'pat-3-2', 'spouse', 'pat-2-2');
       if (res.success && res.linkId) {
         setActiveLinkId(res.linkId);
+        setCurrentInvitationCode(res.invitationCode || 'JK-7744');
         setP2pSenderId('unc-3');
         setP2pReceiverId('pat-3-2');
         setP2pRelationType('spouse');
@@ -175,6 +200,7 @@ export const RelationshipStudioModal: React.FC<RelationshipStudioModalProps> = (
       const res = onRequestP2P('unc-2', 'mat-2-3', 'parent_child', 'mat-1-2');
       if (res.success && res.linkId) {
         setActiveLinkId(res.linkId);
+        setCurrentInvitationCode(res.invitationCode || 'JK-9911');
         setP2pSenderId('unc-2');
         setP2pReceiverId('mat-2-3');
         setP2pRelationType('parent_child');
@@ -199,21 +225,23 @@ export const RelationshipStudioModal: React.FC<RelationshipStudioModalProps> = (
       return;
     }
 
+    const code = `JK-${Math.floor(1000 + Math.random() * 9000)}`;
+    setCurrentInvitationCode(code);
     setP2pStep('step2_peer_agree');
     showToast(
-      `[스마트폰 A → 스마트폰 B] ${p2pSender?.name}님이 ${p2pReceiver?.name}님께 결연 요청을 전송하였습니다.`,
+      `[스마트폰 A → B 전송] 결연 초대코드(${code}) 및 QR이 발급되었습니다. 상대방 폰에서 확인하십시오.`,
       'success'
     );
   };
 
   // P2P Step 2 Peer Acceptance
   const handleP2pPeerAgree = () => {
-    const res = onRequestP2P(p2pSenderId, p2pReceiverId, p2pRelationType, p2pSelectedElderId);
+    const res = onRequestP2P(p2pSenderId, p2pReceiverId, p2pRelationType, activeElder.id);
     if (res.success && res.linkId) {
       setActiveLinkId(res.linkId);
       setP2pStep('step3_elder_verify');
       showToast(
-        `[상호 동의 완료] 거짓 결연 방지를 위해 윗대 어르신(${res.elder?.name} ${res.elder?.relation})의 2차 승인이 필요합니다.`,
+        `[상호 동의 완료] 거짓 결연 방지를 위해 생존해 계신 윗대 어르신(${res.elder?.name} ${res.elder?.relation})의 2차 승인이 필요합니다.`,
         'warning'
       );
     } else {
@@ -228,6 +256,15 @@ export const RelationshipStudioModal: React.FC<RelationshipStudioModalProps> = (
     const res = onElderApprove(targetId);
     if (res.success) {
       setP2pStep('completed');
+      const targetLink = establishedLinks.find((l) => l.id === targetId);
+      if (targetLink) {
+        setViewingCertLink({
+          ...targetLink,
+          status: 'approved',
+          certificateIssued: true,
+          certificateNo: res.certificateNo,
+        });
+      }
       showToast(res.message, 'success');
     } else {
       showToast(res.message, 'error');
@@ -238,13 +275,42 @@ export const RelationshipStudioModal: React.FC<RelationshipStudioModalProps> = (
   const handleElderReject = (linkId?: string, reason?: string) => {
     const targetId = linkId || activeLinkId;
     if (!targetId) return;
-    const res = onElderReject(targetId, reason || '친족 혈연 불일치 및 허위 기재 의심');
+    const res = onElderReject(targetId, reason || '친족 혈연 불일치 및 허위 기재 의심 (허위 차단)');
     if (res.success) {
       setP2pStep('step1_request');
       setActiveLinkId(null);
       showToast(res.message, 'error');
     } else {
       showToast(res.message, 'error');
+    }
+  };
+
+  // Handle Custom Member Registration
+  const handleRegisterCustom = () => {
+    if (!customName.trim()) {
+      showToast('성명을 입력해주세요.', 'error');
+      return;
+    }
+    if (onAddCustomMember) {
+      const created = onAddCustomMember({
+        name: customName.trim(),
+        hanja: customHanja.trim() || undefined,
+        gender: customGender,
+        birthDate: customBirthDate,
+        clan: customClan.trim() || '경주 김씨',
+        relationship: customRelName.trim() || '미등록 친족',
+        memo: customMemo.trim() || '사용자 직접 등록 친족',
+      });
+
+      setP2pSenderId(created.id);
+      setSubTab('p2p_flow');
+      setP2pStep('step1_request');
+      showToast(
+        `[등록 완료] ${created.name}님이 등록되었습니다. 스마트폰 P2P 결연을 진행하세요.`,
+        'success'
+      );
+      setCustomName('');
+      setCustomHanja('');
     }
   };
 
@@ -259,7 +325,7 @@ export const RelationshipStudioModal: React.FC<RelationshipStudioModalProps> = (
               <View>
                 <Text style={styles.mainTitle}>친족 결연 스튜디오 & 2중 운영 시스템</Text>
                 <Text style={styles.subTitle}>
-                  중앙 족보 편찬 모드 ↔ 스마트폰 분산 결연 및 2차 윗대 승인 체계
+                  중앙 족보 편찬 모드 ↔ 스마트폰 분산 결연 및 2차 생존 윗대 승인 체계
                 </Text>
               </View>
             </View>
@@ -301,7 +367,7 @@ export const RelationshipStudioModal: React.FC<RelationshipStudioModalProps> = (
                     분산 결연형 (2중 윗대 승인) [추천]
                   </Text>
                   <Text style={styles.modeButtonSub}>
-                    각자의 스마트폰 P2P 상호 결연 + 직계 존속(부모/조부) 2차 검증 공인
+                    각자의 스마트폰 P2P 상호 결연 + 직계 존속(생존 부모/조모) 2차 검증 공인
                   </Text>
                 </View>
                 {operationMode === 'decentralized' && (
@@ -372,7 +438,7 @@ export const RelationshipStudioModal: React.FC<RelationshipStudioModalProps> = (
                   <Text
                     style={[styles.subTabText, subTab === 'p2p_flow' && styles.subTabTextActive]}
                   >
-                    📱 2인 스마트폰 P2P & 윗대 승인 워크플로우
+                    📱 2인 P2P & 어르신 승인 워크플로우
                   </Text>
                 </TouchableOpacity>
 
@@ -383,7 +449,18 @@ export const RelationshipStudioModal: React.FC<RelationshipStudioModalProps> = (
                   <Text
                     style={[styles.subTabText, subTab === 'presets' && styles.subTabTextActive]}
                   >
-                    ⚡ 1초 퀵 검증 시나리오 (허위 차단 포함)
+                    ⚡ 1초 퀵 검증 시나리오
+                  </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[styles.subTabItem, subTab === 'register_custom' && styles.subTabItemActive]}
+                  onPress={() => setSubTab('register_custom')}
+                >
+                  <Text
+                    style={[styles.subTabText, subTab === 'register_custom' && styles.subTabTextActive]}
+                  >
+                    ➕ 새 친족 직접 등록
                   </Text>
                 </TouchableOpacity>
 
@@ -394,7 +471,7 @@ export const RelationshipStudioModal: React.FC<RelationshipStudioModalProps> = (
                   <Text
                     style={[styles.subTabText, subTab === 'elder_inbox' && styles.subTabTextActive]}
                   >
-                    🛡️ 어르신 결재함 ({pendingElderLinks.length}건 대기)
+                    🛡️ 어르신 결재함 ({pendingElderLinks.length}건)
                   </Text>
                 </TouchableOpacity>
               </>
@@ -434,7 +511,7 @@ export const RelationshipStudioModal: React.FC<RelationshipStudioModalProps> = (
           {/* 3. MAIN CONTENT AREA */}
           <ScrollView style={styles.scrollArea} contentContainerStyle={styles.scrollContent}>
             {/* ========================================================================= */}
-            {/* TAB: DECENTRALIZED P2P WORKFLOW (2인 스마트폰 접속 + 윗대 승인 시뮬레이터) */}
+            {/* TAB: DECENTRALIZED P2P WORKFLOW (2인 스마트폰 접속 + 생존 어르신 승인 시뮬레이터) */}
             {/* ========================================================================= */}
             {subTab === 'p2p_flow' && (
               <View style={styles.sectionBlock}>
@@ -447,8 +524,8 @@ export const RelationshipStudioModal: React.FC<RelationshipStudioModalProps> = (
                     친족 관계가 아닌 두 사람이 임의로 결연을 맺어 족보가 오염되는 것을 막기 위해,
                     [1단계: 두 사람의 스마트폰 상호 서명] 후 반드시 [2단계: 생존해 계신 직계 존속 윗대 어르신(부모·조부모)의 최종 확인 결재]를 거쳐야만 정식 가계도에 영구 편입됩니다.
                   </Text>
-                  <View style={{ marginTop: 8, padding: 8, backgroundColor: 'rgba(16, 185, 129, 0.15)', borderRadius: 6, borderWidth: 1, borderColor: '#10b981' }}>
-                    <Text style={{ fontSize: 11.5, color: '#34d399', fontWeight: '800' }}>
+                  <View style={styles.livingRuleNotice}>
+                    <Text style={styles.livingRuleNoticeText}>
                       🌿 생존 어르신 공인 필수 원칙: 2차 확인자(부모님, 조부모님, 가문 어르신)는 반드시 현재 생존하고 계신 분(isAlive: true)만 승인 권한이 유효합니다. 작고하신 선조는 승인이 불가합니다.
                     </Text>
                   </View>
@@ -497,7 +574,7 @@ export const RelationshipStudioModal: React.FC<RelationshipStudioModalProps> = (
                   >
                     <Text style={styles.stepIndicatorNum}>3</Text>
                     <Text style={styles.stepIndicatorLabel}>스마트폰 C
-(윗대 어르신 2차 승인)</Text>
+(생존 어르신 승인)</Text>
                   </View>
                 </View>
 
@@ -509,7 +586,7 @@ export const RelationshipStudioModal: React.FC<RelationshipStudioModalProps> = (
                     <View style={styles.phoneTopSpeaker} />
                     <View style={styles.phoneHeader}>
                       <Text style={styles.phoneDeviceTag}>📱 스마트폰 1: 결연 신청자 화면</Text>
-                      <Text style={styles.phoneStatusText}>P2P 연결 대기 중</Text>
+                      <Text style={styles.phoneStatusText}>P2P 무선 접속 대기 중</Text>
                     </View>
 
                     <Text style={styles.phoneScreenTitle}>새로운 친족과의 결연 신청</Text>
@@ -594,10 +671,10 @@ export const RelationshipStudioModal: React.FC<RelationshipStudioModalProps> = (
                     </View>
 
                     {/* 4. Verifying Living Elder Selector */}
-                    <Text style={styles.fieldLabel}>4. 2차 승인 담당 윗대 어르신 선택 (🌿 생존자만 승인 가능)</Text>
+                    <Text style={styles.fieldLabel}>4. 2차 승인 담당 윗대 어르신 선택 (🌿 생존자만 가능)</Text>
                     <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipsScroll}>
                       {DESIGNATED_ELDERS.map((elder) => {
-                        const isSelected = (p2pSelectedElderId || recommendedElder.id) === elder.id;
+                        const isSelected = activeElder.id === elder.id;
                         return (
                           <TouchableOpacity
                             key={elder.id}
@@ -607,7 +684,7 @@ export const RelationshipStudioModal: React.FC<RelationshipStudioModalProps> = (
                             ]}
                             onPress={() => setP2pSelectedElderId(elder.id)}
                           >
-                            <Text style={[styles.personChipBadge, { color: '#34d399' }]}>🌿 생존 (승인 가능)</Text>
+                            <Text style={[styles.personChipBadge, { color: '#34d399' }]}>🌿 생존 어르신</Text>
                             <Text style={styles.personChipName}>{elder.name} ({elder.relation})</Text>
                           </TouchableOpacity>
                         );
@@ -628,14 +705,14 @@ export const RelationshipStudioModal: React.FC<RelationshipStudioModalProps> = (
                       activeOpacity={0.8}
                     >
                       <Text style={styles.primaryActionText}>
-                        📲 스마트폰 결연 요청 발송 (1단계 시작)
+                        📲 스마트폰 결연 요청 발송 (초대코드 발급)
                       </Text>
                     </TouchableOpacity>
                   </View>
                 )}
 
                 {/* ------------------------------------------------------------- */}
-                {/* STEP 2: PHONE B (수락자 스마트폰 뷰) */}
+                {/* STEP 2: PHONE B (수락자 스마트폰 뷰 + QR & 초대코드 시뮬레이터) */}
                 {/* ------------------------------------------------------------- */}
                 {p2pStep === 'step2_peer_agree' && (
                   <View style={styles.phoneScreenCard}>
@@ -643,6 +720,18 @@ export const RelationshipStudioModal: React.FC<RelationshipStudioModalProps> = (
                     <View style={styles.phoneHeader}>
                       <Text style={styles.phoneDeviceTag}>📱 스마트폰 2: 수신인({p2pReceiver?.name}) 화면</Text>
                       <Text style={styles.phoneStatusText}>알림 도착 (🔔 1건)</Text>
+                    </View>
+
+                    {/* QR Code & Passcode Card */}
+                    <View style={styles.qrCardBox}>
+                      <View style={styles.qrBadgeRow}>
+                        <Text style={styles.qrTitle}>📲 P2P 근접 무선 접속 보안 코드</Text>
+                        <Text style={styles.qrPasscodeBadge}>{currentInvitationCode}</Text>
+                      </View>
+                      <View style={styles.qrVisualBox}>
+                        <Text style={styles.qrIconArt}>[ ⬛ ⬜ ⬛  QR Code  ⬛ ⬜ ⬛ ]</Text>
+                        <Text style={styles.qrNoticeSub}>스마트폰 1의 카메라로 스캔하여 상호 페어링 완료</Text>
+                      </View>
                     </View>
 
                     <View style={styles.requestAlertCard}>
@@ -669,13 +758,15 @@ export const RelationshipStudioModal: React.FC<RelationshipStudioModalProps> = (
                           </Text>
                         </View>
                         <View style={styles.requestDetailRow}>
-                          <Text style={styles.requestDetailLabel}>2차 승인자</Text>
-                          <Text style={styles.requestDetailValue}>{activeElder.name} {activeElder.relation}</Text>
+                          <Text style={styles.requestDetailLabel}>2차 승인 담당</Text>
+                          <Text style={[styles.requestDetailValue, { color: '#34d399' }]}>
+                            {activeElder.name} {activeElder.relation} (🌿 생존)
+                          </Text>
                         </View>
                       </View>
 
                       <Text style={styles.twoStepWarningNotice}>
-                        ⚠️ [2중 확인 규정] 본인이 동의하면 가계도에 임시 등록(승인 대기)되며, 허위 방지를 위해 윗대 어르신({activeElder.name} {activeElder.relation})의 2차 승인이 진행됩니다.
+                        ⚠️ [2중 확인 규정] 본인이 동의하면 가계도에 임시 등록(승인 대기)되며, 허위 방지를 위해 생존해 계신 윗대 어르신({activeElder.name} {activeElder.relation})의 2차 승인이 진행됩니다. (작고하신 선조 승인 배제)
                       </Text>
 
                       <View style={styles.phoneButtonsRow}>
@@ -700,14 +791,14 @@ export const RelationshipStudioModal: React.FC<RelationshipStudioModalProps> = (
                 )}
 
                 {/* ------------------------------------------------------------- */}
-                {/* STEP 3: ELDER APPROVAL SCREEN (스마트폰 3: 윗대 부모/조부 결재 화면) */}
+                {/* STEP 3: ELDER APPROVAL SCREEN (스마트폰 3: 생존 어르신 결재 화면) */}
                 {/* ------------------------------------------------------------- */}
                 {p2pStep === 'step3_elder_verify' && (
                   <View style={[styles.phoneScreenCard, styles.elderScreenCard]}>
                     <View style={styles.phoneTopSpeaker} />
                     <View style={styles.phoneHeader}>
                       <Text style={styles.elderDeviceTag}>
-                        🛡️ 스마트폰 3: 윗대 어르신({activeElder.name} {activeElder.relation}) 공인 화면
+                        🛡️ 스마트폰 3: 생존 윗대 어르신({activeElder.name} {activeElder.relation}) 공인 화면
                       </Text>
                       <Text style={styles.elderStatusTag}>2차 결재 대기 중</Text>
                     </View>
@@ -715,7 +806,7 @@ export const RelationshipStudioModal: React.FC<RelationshipStudioModalProps> = (
                     <View style={styles.elderVerificationBox}>
                       <Text style={styles.elderBoxTitle}>가문 직계 존속 친족 확인서</Text>
                       <Text style={styles.elderBoxSubtitle}>
-                        허위·부정 결연을 방지하기 위해 윗대의 엄정한 확인이 필요합니다.
+                        허위·부정 결연을 방지하기 위해 생존 윗대의 엄정한 확인이 필요합니다.
                       </Text>
 
                       <View style={styles.elderAuditCard}>
@@ -726,10 +817,13 @@ export const RelationshipStudioModal: React.FC<RelationshipStudioModalProps> = (
                           • 결연 유형: <Text style={styles.boldWhite}>{p2pRelationType === 'parent_child' ? '부자/모녀 (1촌)' : p2pRelationType === 'spouse' ? '부부 (0촌)' : '동기간 (2촌)'}</Text>
                         </Text>
                         <Text style={styles.elderAuditRow}>
+                          • 승인 어르신: <Text style={styles.boldWhite}>{activeElder.name} ({activeElder.relation})</Text> <Text style={{ color: '#34d399', fontWeight: '800' }}>[🌿 현재 생존]</Text>
+                        </Text>
+                        <Text style={styles.elderAuditRow}>
                           • 상태: <Text style={styles.amberBadge}>1차 스마트폰 상호 동의 완료 (어르신 2차 승인 대기)</Text>
                         </Text>
                         <Text style={styles.elderNoticeQuote}>
-                          "본 가문의 직계 윗대 어르신으로서, 신청인들이 실제 혈통 친족 또는 적법한 혼인 인척이 맞는지 확인 후 승인 결재하십시오."
+                          "본 가문의 생존 최고령 직계 존속 어르신으로서, 신청인들이 실제 혈통 친족 또는 적법한 혼인 인척이 맞는지 확인 후 승인 결재하십시오."
                         </Text>
                       </View>
 
@@ -741,7 +835,7 @@ export const RelationshipStudioModal: React.FC<RelationshipStudioModalProps> = (
                           activeOpacity={0.8}
                         >
                           <Text style={styles.elderApproveText}>
-                            🛡️ 직계 어르신 정식 공인 승인 (족보 영구 등재)
+                            🛡️ 직계 어르신 정식 공인 승인 (공인서 발급 & 족보 등재)
                           </Text>
                         </TouchableOpacity>
 
@@ -760,7 +854,7 @@ export const RelationshipStudioModal: React.FC<RelationshipStudioModalProps> = (
                 )}
 
                 {/* ------------------------------------------------------------- */}
-                {/* COMPLETED: DECENTRALIZED EXPANSION (연쇄 결연 안내) */}
+                {/* COMPLETED: DECENTRALIZED EXPANSION & DIGITAL CERTIFICATE */}
                 {/* ------------------------------------------------------------- */}
                 {p2pStep === 'completed' && (
                   <View style={styles.completedCard}>
@@ -769,9 +863,21 @@ export const RelationshipStudioModal: React.FC<RelationshipStudioModalProps> = (
                       2중 확인 완료: 정식 친족 족보 편입 성공!
                     </Text>
                     <Text style={styles.completedDesc}>
-                      윗대 어르신의 공인으로 {p2pSender?.name}님과 {p2pReceiver?.name}님의 관계가 가계도에 영구 반영되었습니다.
+                      생존 윗대 어르신의 공인으로 {p2pSender?.name}님과 {p2pReceiver?.name}님의 관계가 가계도에 영구 반영되었습니다.
                       옵시디언 그래프 뷰에서 선명한 에메랄드 그린 실선과 [🛡️ 어르신 공인] 배지를 확인하실 수 있습니다.
                     </Text>
+
+                    {/* View Certificate Button */}
+                    <TouchableOpacity
+                      style={styles.viewCertBtn}
+                      onPress={() => {
+                        const target = establishedLinks[0] || viewingCertLink;
+                        if (target) setViewingCertLink(target);
+                      }}
+                      activeOpacity={0.8}
+                    >
+                      <Text style={styles.viewCertBtnText}>📜 가문 공인 친족 서약서(디지털 공인서) 열람</Text>
+                    </TouchableOpacity>
 
                     {/* Decentralized Chain Expansion Button */}
                     <View style={styles.chainExpansionBox}>
@@ -894,13 +1000,104 @@ export const RelationshipStudioModal: React.FC<RelationshipStudioModalProps> = (
             )}
 
             {/* ========================================================================= */}
-            {/* TAB: ELDER INBOX (어르신 결재함 & 대기 목록) */}
+            {/* TAB: REGISTER CUSTOM RELATIVE (새 친족 직접 등록) */}
+            {/* ========================================================================= */}
+            {subTab === 'register_custom' && (
+              <View style={styles.sectionBlock}>
+                <Text style={styles.sectionHeading}>➕ 새 친족 직접 등록 및 분산 결연 신청</Text>
+                <Text style={styles.sectionSubHeading}>
+                  가상 후보 외에 실제 새로운 인물을 직접 입력하여 스마트폰 P2P 결연과 생존 어르신 승인을 진행할 수 있습니다.
+                </Text>
+
+                <View style={styles.formCard}>
+                  <Text style={styles.inputLabel}>성명 (한글) *</Text>
+                  <TextInput
+                    style={styles.textInput}
+                    placeholder="예: 김하늘"
+                    placeholderTextColor="#64748b"
+                    value={customName}
+                    onChangeText={setCustomName}
+                  />
+
+                  <Text style={styles.inputLabel}>한자 성명 (선택)</Text>
+                  <TextInput
+                    style={styles.textInput}
+                    placeholder="예: 金하늘"
+                    placeholderTextColor="#64748b"
+                    value={customHanja}
+                    onChangeText={setCustomHanja}
+                  />
+
+                  <Text style={styles.inputLabel}>성별</Text>
+                  <View style={styles.genderSelectRow}>
+                    <TouchableOpacity
+                      style={[
+                        styles.genderBtn,
+                        customGender === 'M' && styles.genderBtnActiveM,
+                      ]}
+                      onPress={() => setCustomGender('M')}
+                    >
+                      <Text style={[styles.genderBtnText, customGender === 'M' && styles.genderBtnTextActive]}>남성 (男)</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={[
+                        styles.genderBtn,
+                        customGender === 'F' && styles.genderBtnActiveF,
+                      ]}
+                      onPress={() => setCustomGender('F')}
+                    >
+                      <Text style={[styles.genderBtnText, customGender === 'F' && styles.genderBtnTextActive]}>여성 (女)</Text>
+                    </TouchableOpacity>
+                  </View>
+
+                  <Text style={styles.inputLabel}>생년월일 (YYYY-MM-DD)</Text>
+                  <TextInput
+                    style={styles.textInput}
+                    placeholder="예: 1997-08-20"
+                    placeholderTextColor="#64748b"
+                    value={customBirthDate}
+                    onChangeText={setCustomBirthDate}
+                  />
+
+                  <Text style={styles.inputLabel}>본관 (선택)</Text>
+                  <TextInput
+                    style={styles.textInput}
+                    placeholder="예: 경주 김씨"
+                    placeholderTextColor="#64748b"
+                    value={customClan}
+                    onChangeText={setCustomClan}
+                  />
+
+                  <Text style={styles.inputLabel}>희망 호칭 / 관계 메모</Text>
+                  <TextInput
+                    style={styles.textInput}
+                    placeholder="예: 사촌동생, 처조카, 종친 등"
+                    placeholderTextColor="#64748b"
+                    value={customRelName}
+                    onChangeText={setCustomRelName}
+                  />
+
+                  <TouchableOpacity
+                    style={styles.registerSubmitBtn}
+                    onPress={handleRegisterCustom}
+                    activeOpacity={0.8}
+                  >
+                    <Text style={styles.registerSubmitText}>
+                      ✨ 새 친족 등록하고 즉시 스마트폰 P2P 결연 시작
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            )}
+
+            {/* ========================================================================= */}
+            {/* TAB: ELDER INBOX (생존 어르신 결재함 & 대기 목록) */}
             {/* ========================================================================= */}
             {subTab === 'elder_inbox' && (
               <View style={styles.sectionBlock}>
                 <Text style={styles.sectionHeading}>🛡️ 윗대 직계 존속 어르신 결재함</Text>
                 <Text style={styles.sectionSubHeading}>
-                  1차 스마트폰 P2P 상호 서명이 완료되어 어르신의 2차 친족 확인을 기다리는 목록입니다.
+                  1차 스마트폰 P2P 상호 서명이 완료되어 생존 어르신의 2차 친족 확인을 기다리는 목록입니다.
                 </Text>
 
                 {pendingElderLinks.length === 0 ? (
@@ -920,12 +1117,15 @@ export const RelationshipStudioModal: React.FC<RelationshipStudioModalProps> = (
                       <View key={link.id} style={styles.pendingCard}>
                         <View style={styles.pendingCardHeader}>
                           <Text style={styles.pendingStatusBadge}>⏳ 윗대 2차 승인 대기 중</Text>
-                          <Text style={styles.pendingElderTarget}>담당 어르신: {link.approverElderName} ({link.approverElderRelation})</Text>
+                          <Text style={styles.pendingElderTarget}>담당 어르신: {link.approverElderName} (🌿 생존)</Text>
                         </View>
 
                         <Text style={styles.pendingTitle}>
                           {pA?.name} ↔ {pB?.name} ({link.relationType === 'parent_child' ? '부자/모녀 (1촌)' : link.relationType === 'spouse' ? '부부 (0촌)' : '동기간 (2촌)'})
                         </Text>
+                        {link.p2pInvitationCode && (
+                          <Text style={styles.pendingCodeText}>보안 초대코드: {link.p2pInvitationCode}</Text>
+                        )}
                         <Text style={styles.pendingNote}>{link.note}</Text>
 
                         <View style={styles.pendingButtonsRow}>
@@ -933,7 +1133,7 @@ export const RelationshipStudioModal: React.FC<RelationshipStudioModalProps> = (
                             style={styles.pendingApproveBtn}
                             onPress={() => handleElderApprove(link.id)}
                           >
-                            <Text style={styles.pendingApproveText}>🛡️ 어르신 공인 승인</Text>
+                            <Text style={styles.pendingApproveText}>🛡️ 어르신 공인 승인 (인증서 발급)</Text>
                           </TouchableOpacity>
 
                           <TouchableOpacity
@@ -951,27 +1151,40 @@ export const RelationshipStudioModal: React.FC<RelationshipStudioModalProps> = (
                 {/* Approved Links History */}
                 <View style={styles.historySection}>
                   <Text style={styles.historySectionTitle}>
-                    📜 최근 어르신 공인 완료된 친족 결연 ({approvedLinks.length}건)
+                    📜 최근 생존 어르신 공인 완료된 친족 결연 ({approvedLinks.length}건)
                   </Text>
                   {approvedLinks.map((link) => {
                     const pA = allMembers.find((m) => m.id === link.personAId);
                     const pB = allMembers.find((m) => m.id === link.personBId);
                     return (
                       <View key={link.id} style={styles.historyRow}>
-                        <View>
+                        <View style={{ flex: 1 }}>
                           <Text style={styles.historyName}>
                             {pA?.name} ↔ {pB?.name} ({link.relationType})
                           </Text>
                           <Text style={styles.historyMeta}>
                             공인 어르신: {link.approverElderName || '직계 존속'} · 일자: {link.establishedDate}
                           </Text>
+                          {link.certificateNo && (
+                            <Text style={styles.historyCertNo}>📜 {link.certificateNo}</Text>
+                          )}
                         </View>
-                        <TouchableOpacity
-                          style={styles.disconnectMiniBtn}
-                          onPress={() => onDisconnect(link.id)}
-                        >
-                          <Text style={styles.disconnectMiniText}>결연 해제</Text>
-                        </TouchableOpacity>
+
+                        <View style={{ flexDirection: 'row', gap: 6 }}>
+                          <TouchableOpacity
+                            style={styles.viewCertMiniBtn}
+                            onPress={() => setViewingCertLink(link)}
+                          >
+                            <Text style={styles.viewCertMiniText}>📜 공인서</Text>
+                          </TouchableOpacity>
+
+                          <TouchableOpacity
+                            style={styles.disconnectMiniBtn}
+                            onPress={() => onDisconnect(link.id)}
+                          >
+                            <Text style={styles.disconnectMiniText}>해제</Text>
+                          </TouchableOpacity>
+                        </View>
                       </View>
                     );
                   })}
@@ -1123,6 +1336,84 @@ export const RelationshipStudioModal: React.FC<RelationshipStudioModalProps> = (
             )}
           </ScrollView>
         </View>
+
+        {/* ------------------------------------------------------------- */}
+        {/* MODAL: DIGITAL KINSHIP CERTIFICATE VIEWER (가문 공인 친족 증서) */}
+        {/* ------------------------------------------------------------- */}
+        {viewingCertLink && (
+          <Modal transparent animationType="fade" visible={!!viewingCertLink} onRequestClose={() => setViewingCertLink(null)}>
+            <View style={styles.certOverlay}>
+              <View style={styles.certCard}>
+                <View style={styles.certBorderDecoration}>
+                  <Text style={styles.certHeaderHanja}>家 門 公 認 親 族 證 書</Text>
+                  <Text style={styles.certHeaderKorean}>(가문 공인 친족 증서)</Text>
+
+                  <Text style={styles.certNoText}>
+                    증서 번호: {viewingCertLink.certificateNo || '족보공인 제 2026-88192호'}
+                  </Text>
+
+                  <View style={styles.certBodyBox}>
+                    {(() => {
+                      const personA = allMembers.find((m) => m.id === viewingCertLink.personAId);
+                      const personB = allMembers.find((m) => m.id === viewingCertLink.personBId) || unconnectedMembers.find((m) => m.id === viewingCertLink.personBId);
+                      return (
+                        <>
+                          <View style={styles.certFieldRow}>
+                            <Text style={styles.certFieldKey}>등재 친족 :</Text>
+                            <Text style={styles.certFieldVal}>{personB?.name} ({personB?.hanja || '金氏'})</Text>
+                          </View>
+                          <View style={styles.certFieldRow}>
+                            <Text style={styles.certFieldKey}>결연 상대 :</Text>
+                            <Text style={styles.certFieldVal}>{personA?.name} ({personA?.relationship})</Text>
+                          </View>
+                          <View style={styles.certFieldRow}>
+                            <Text style={styles.certFieldKey}>결연 관계 :</Text>
+                            <Text style={styles.certFieldVal}>
+                              {viewingCertLink.relationType === 'parent_child' ? '1촌 부자(父子) / 모녀(母女)' : viewingCertLink.relationType === 'spouse' ? '0촌 부부(夫婦)' : '2촌 동기간(兄弟)'}
+                            </Text>
+                          </View>
+                          <View style={styles.certFieldRow}>
+                            <Text style={styles.certFieldKey}>가문 본관 :</Text>
+                            <Text style={styles.certFieldVal}>{personB?.clan || '경주 김씨 판도판서공파'}</Text>
+                          </View>
+                          <View style={styles.certFieldRow}>
+                            <Text style={styles.certFieldKey}>공인 어르신 :</Text>
+                            <Text style={[styles.certFieldVal, { color: '#065f46', fontWeight: '900' }]}>
+                              {viewingCertLink.approverElderName || '박순자'} (직계 존속, 🌿 생존)
+                            </Text>
+                          </View>
+                        </>
+                      );
+                    })()}
+                  </View>
+
+                  <Text style={styles.certStatement}>
+                    위 사람은 전통 족보 편찬 규약 및 분산 결연 신뢰 프로토콜에 따라,
+                    가문 생존 직계 존속 윗대 어르신의 엄정한 신원 확인을 거쳐
+                    가문 정식 친족으로 족보에 등재되었음을 공인합니다.
+                  </Text>
+
+                  <View style={styles.certFooterRow}>
+                    <Text style={styles.certDateText}>
+                      서기 {viewingCertLink.elderApprovedAt || '2026-09-16'}
+                    </Text>
+                    <View style={styles.certStampBox}>
+                      <Text style={styles.certStampText}>宗家
+公認之印</Text>
+                    </View>
+                  </View>
+
+                  <TouchableOpacity
+                    style={styles.certCloseBtn}
+                    onPress={() => setViewingCertLink(null)}
+                  >
+                    <Text style={styles.certCloseBtnText}>확인 및 닫기</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </View>
+          </Modal>
+        )}
       </View>
     </Modal>
   );
@@ -1304,7 +1595,7 @@ const styles = StyleSheet.create({
   },
   subTabItem: {
     paddingVertical: 12,
-    paddingHorizontal: 14,
+    paddingHorizontal: 12,
     borderBottomWidth: 2,
     borderBottomColor: 'transparent',
   },
@@ -1312,7 +1603,7 @@ const styles = StyleSheet.create({
     borderBottomColor: '#10b981',
   },
   subTabText: {
-    fontSize: 13,
+    fontSize: 12.5,
     fontWeight: '600',
     color: '#94a3b8',
   },
@@ -1361,6 +1652,19 @@ const styles = StyleSheet.create({
     fontSize: 11.5,
     color: '#cbd5e1',
     lineHeight: 17,
+  },
+  livingRuleNotice: {
+    marginTop: 8,
+    padding: 8,
+    backgroundColor: 'rgba(16, 185, 129, 0.15)',
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#10b981',
+  },
+  livingRuleNoticeText: {
+    fontSize: 11.5,
+    color: '#34d399',
+    fontWeight: '800',
   },
 
   // Stepper
@@ -1545,6 +1849,54 @@ const styles = StyleSheet.create({
     color: '#ffffff',
   },
 
+  // QR Code & Passcode Visual Box
+  qrCardBox: {
+    backgroundColor: '#0f172a',
+    borderRadius: 12,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: '#38bdf8',
+    alignItems: 'center',
+    gap: 6,
+  },
+  qrBadgeRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    width: '100%',
+    alignItems: 'center',
+  },
+  qrTitle: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#94a3b8',
+  },
+  qrPasscodeBadge: {
+    backgroundColor: '#0284c7',
+    color: '#ffffff',
+    fontSize: 13,
+    fontWeight: '900',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+    letterSpacing: 1,
+  },
+  qrVisualBox: {
+    paddingVertical: 10,
+    alignItems: 'center',
+  },
+  qrIconArt: {
+    fontFamily: 'monospace',
+    color: '#38bdf8',
+    fontSize: 13,
+    letterSpacing: 2,
+    fontWeight: '700',
+  },
+  qrNoticeSub: {
+    fontSize: 10.5,
+    color: '#94a3b8',
+    marginTop: 4,
+  },
+
   // Phone B Alert Card
   requestAlertCard: {
     backgroundColor: '#0f172a',
@@ -1726,6 +2078,20 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     lineHeight: 18,
   },
+  viewCertBtn: {
+    backgroundColor: '#047857',
+    borderWidth: 1.5,
+    borderColor: '#34d399',
+    paddingVertical: 11,
+    paddingHorizontal: 20,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  viewCertBtnText: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#ffffff',
+  },
   chainExpansionBox: {
     width: '100%',
     backgroundColor: '#0f172a',
@@ -1848,6 +2214,73 @@ const styles = StyleSheet.create({
     color: '#ffffff',
   },
 
+  // Register Custom Relative Form
+  formCard: {
+    backgroundColor: '#1e293b',
+    borderRadius: 14,
+    padding: 18,
+    borderWidth: 1,
+    borderColor: '#334155',
+    gap: 10,
+  },
+  inputLabel: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#cbd5e1',
+  },
+  textInput: {
+    backgroundColor: '#0f172a',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#334155',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    color: '#ffffff',
+    fontSize: 13,
+  },
+  genderSelectRow: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  genderBtn: {
+    flex: 1,
+    paddingVertical: 10,
+    borderRadius: 8,
+    backgroundColor: '#0f172a',
+    borderWidth: 1,
+    borderColor: '#334155',
+    alignItems: 'center',
+  },
+  genderBtnActiveM: {
+    backgroundColor: '#1e3a8a',
+    borderColor: '#3b82f6',
+  },
+  genderBtnActiveF: {
+    backgroundColor: '#831843',
+    borderColor: '#ec4899',
+  },
+  genderBtnText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#94a3b8',
+  },
+  genderBtnTextActive: {
+    color: '#ffffff',
+    fontWeight: '800',
+  },
+  registerSubmitBtn: {
+    backgroundColor: '#059669',
+    paddingVertical: 13,
+    borderRadius: 10,
+    alignItems: 'center',
+    marginTop: 8,
+  },
+  registerSubmitText: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#ffffff',
+  },
+
   // Elder Inbox
   emptyBox: {
     padding: 30,
@@ -1895,6 +2328,11 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '800',
     color: '#ffffff',
+  },
+  pendingCodeText: {
+    fontSize: 11,
+    color: '#38bdf8',
+    fontWeight: '700',
   },
   pendingNote: {
     fontSize: 11,
@@ -1945,24 +2383,41 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     backgroundColor: '#1e293b',
-    padding: 10,
+    padding: 12,
     borderRadius: 8,
   },
   historyName: {
-    fontSize: 12,
+    fontSize: 13,
     fontWeight: '700',
     color: '#f8fafc',
   },
   historyMeta: {
-    fontSize: 10,
+    fontSize: 11,
     color: '#94a3b8',
     marginTop: 2,
   },
+  historyCertNo: {
+    fontSize: 10.5,
+    color: '#34d399',
+    fontWeight: '700',
+    marginTop: 2,
+  },
+  viewCertMiniBtn: {
+    paddingHorizontal: 9,
+    paddingVertical: 5,
+    backgroundColor: '#065f46',
+    borderRadius: 5,
+  },
+  viewCertMiniText: {
+    fontSize: 11,
+    color: '#a7f3d0',
+    fontWeight: '800',
+  },
   disconnectMiniBtn: {
     paddingHorizontal: 8,
-    paddingVertical: 4,
+    paddingVertical: 5,
     backgroundColor: '#334155',
-    borderRadius: 4,
+    borderRadius: 5,
   },
   disconnectMiniText: {
     fontSize: 11,
@@ -2017,5 +2472,125 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#ffffff',
     fontWeight: '700',
+  },
+
+  // Digital Kinship Certificate Modal Styles
+  certOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.85)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  certCard: {
+    width: '100%',
+    maxWidth: 520,
+    backgroundColor: '#faf7ee', // Traditional parchment hanji color
+    borderRadius: 12,
+    padding: 16,
+    borderWidth: 3,
+    borderColor: '#854d0e',
+    boxShadow: '0 25px 50px rgba(0,0,0,0.8)',
+  },
+  certBorderDecoration: {
+    borderWidth: 1.5,
+    borderColor: '#b45309',
+    borderStyle: 'dashed',
+    borderRadius: 8,
+    padding: 18,
+    alignItems: 'center',
+  },
+  certHeaderHanja: {
+    fontSize: 20,
+    fontWeight: '900',
+    color: '#1c1917',
+    letterSpacing: 4,
+  },
+  certHeaderKorean: {
+    fontSize: 12,
+    color: '#78350f',
+    fontWeight: '700',
+    marginTop: 2,
+    marginBottom: 8,
+  },
+  certNoText: {
+    fontSize: 11,
+    color: '#78716c',
+    marginBottom: 12,
+    fontWeight: '600',
+  },
+  certBodyBox: {
+    width: '100%',
+    backgroundColor: 'rgba(255, 255, 255, 0.7)',
+    borderRadius: 8,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: '#e7e5e4',
+    gap: 6,
+  },
+  certFieldRow: {
+    flexDirection: 'row',
+  },
+  certFieldKey: {
+    width: 90,
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#57534e',
+  },
+  certFieldVal: {
+    flex: 1,
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#1c1917',
+  },
+  certStatement: {
+    fontSize: 11.5,
+    color: '#292524',
+    textAlign: 'center',
+    lineHeight: 18,
+    marginVertical: 14,
+    paddingHorizontal: 8,
+  },
+  certFooterRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    width: '100%',
+    alignItems: 'center',
+    paddingHorizontal: 10,
+    marginTop: 4,
+  },
+  certDateText: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#44403c',
+  },
+  certStampBox: {
+    width: 72,
+    height: 72,
+    borderWidth: 2.5,
+    borderColor: '#dc2626',
+    borderRadius: 10,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(220, 38, 38, 0.05)',
+  },
+  certStampText: {
+    color: '#dc2626',
+    fontWeight: '900',
+    fontSize: 13,
+    textAlign: 'center',
+    lineHeight: 16,
+  },
+  certCloseBtn: {
+    marginTop: 16,
+    backgroundColor: '#78350f',
+    paddingVertical: 10,
+    paddingHorizontal: 24,
+    borderRadius: 8,
+  },
+  certCloseBtnText: {
+    color: '#ffffff',
+    fontWeight: '800',
+    fontSize: 13,
   },
 });

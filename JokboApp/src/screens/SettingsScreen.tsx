@@ -13,7 +13,14 @@ import { LineageType } from '../types/family';
 import { inkTheme } from '../theme/inkTheme';
 
 export default function SettingsScreen() {
-  const { members, resetData } = useFamilyStore();
+  const {
+    members,
+    establishedLinks,
+    pendingElderLinks,
+    approvedLinks,
+    operationMode,
+    resetData,
+  } = useFamilyStore();
   const [statusMsg, setStatusMsg] = useState<string | null>(null);
 
   const handleReset = () => {
@@ -90,6 +97,59 @@ export default function SettingsScreen() {
               </View>
             );
           })}
+        </View>
+      </View>
+
+      {/* Decentralized Kinship & Living Elder Approval Stats */}
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>🛡️ 분산 결연 및 생존 어르신 2차 승인 현황</Text>
+        <View style={styles.statsCard}>
+          <View style={styles.statRow}>
+            <Text style={styles.statKey}>현재 가계도 운영 체계</Text>
+            <Text style={[styles.statVal, { color: inkTheme.accentPine, fontWeight: '800' }]}>
+              {operationMode === 'decentralized' ? '📱 분산 결연형 (2중 승인 보안)' : '🏛️ 중앙 편찬형'}
+            </Text>
+          </View>
+          <View style={styles.statRow}>
+            <Text style={styles.statKey}>총 형성된 결연 링크</Text>
+            <Text style={styles.statVal}>{establishedLinks.length}건</Text>
+          </View>
+          <View style={styles.statRow}>
+            <Text style={styles.statKey}>생존 어르신 공인 완료 (증서 발급)</Text>
+            <Text style={[styles.statVal, { color: '#059669', fontWeight: '800' }]}>
+              {approvedLinks.length}건
+            </Text>
+          </View>
+          <View style={styles.statRow}>
+            <Text style={styles.statKey}>어르신 결재 대기 중</Text>
+            <Text style={[styles.statVal, { color: '#d97706', fontWeight: '800' }]}>
+              {pendingElderLinks.length}건
+            </Text>
+          </View>
+
+          <View style={styles.divider} />
+
+          <Text style={styles.subTitle}>가문 승인 권한 지정 생존 어르신 (엄격 생존 검증)</Text>
+          <View style={styles.elderListWrap}>
+            <View style={styles.elderChip}>
+              <Text style={styles.elderChipText}>👵 박순자 (친조모, 88세, 🌿 생존)</Text>
+            </View>
+            <View style={styles.elderChip}>
+              <Text style={styles.elderChipText}>👴 이성한 (외조부, 89세, 🌿 생존)</Text>
+            </View>
+            <View style={styles.elderChip}>
+              <Text style={styles.elderChipText}>👵 권정자 (외조모, 85세, 🌿 생존)</Text>
+            </View>
+            <View style={styles.elderChip}>
+              <Text style={styles.elderChipText}>👨 김영호 (친가 종손, 67세, 🌿 생존)</Text>
+            </View>
+            <View style={styles.elderChip}>
+              <Text style={styles.elderChipText}>👨 김영수 (친부, 64세, 🌿 생존)</Text>
+            </View>
+            <View style={styles.elderChip}>
+              <Text style={styles.elderChipText}>👩 이정숙 (모친, 62세, 🌿 생존)</Text>
+            </View>
+          </View>
         </View>
       </View>
 
@@ -357,5 +417,24 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '600',
     color: inkTheme.ink1,
+  },
+  elderListWrap: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+    marginTop: 6,
+  },
+  elderChip: {
+    backgroundColor: '#ecfdf5',
+    borderWidth: 1,
+    borderColor: '#a7f3d0',
+    borderRadius: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
+  elderChipText: {
+    fontSize: 11,
+    color: '#065f46',
+    fontWeight: '700',
   },
 });
