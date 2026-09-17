@@ -18,6 +18,8 @@ export interface FamilyMember {
   lastContactDate?: string; // YYYY-MM-DD
   contactCycleDays?: number; // 권장 안부 주기 (일)
   memo?: string;
+  photoUrl?: string; // 인물 사진 URL (거실 액자형 가계도 약전용)
+  achievements?: string[]; // 가문 내 주요 약력, 직함, 업적 (예: 창업주, 신지식인, 종손 등)
 }
 
 export interface LineageInfo {

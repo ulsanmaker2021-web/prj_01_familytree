@@ -132,6 +132,7 @@ export const INITIAL_FAMILY_DATA: FamilyMember[] = [
     isAlive: false,
     spouseId: 'pat-1-2',
     memo: '교직 35년 퇴임. 안동 선영 안장.',
+    achievements: ['창업주 since 1965', '경주김씨 안동종친회 고문', '안동 교육공로훈장 서훈'],
   },
   {
     id: 'pat-1-2',
@@ -149,6 +150,7 @@ export const INITIAL_FAMILY_DATA: FamilyMember[] = [
     lastContactDate: '2026-08-01',
     contactCycleDays: 14,
     memo: '현재 안동 본가 거주. 건강 양호.',
+    achievements: ['가문 대모(大母) · 종부', '안동종가 전통가양주 계승', '생존 가문 최고 어르신(88세)'],
   },
   // 2대: 부친, 백부, 고모, 5촌 당숙
   {
@@ -167,6 +169,7 @@ export const INITIAL_FAMILY_DATA: FamilyMember[] = [
     lastContactDate: '2026-07-15',
     contactCycleDays: 30,
     memo: '스마트폰 C 보유자. 대구 거주. 종친회 총무 역임.',
+    achievements: ['現 경주김씨 가문 종손', '1990년 가업 계승 및 확장', '대구 농업기술혁신 대상 수상'],
   },
   {
     id: 'pat-2-2',
@@ -185,6 +188,7 @@ export const INITIAL_FAMILY_DATA: FamilyMember[] = [
     lastContactDate: '2026-09-08',
     contactCycleDays: 7,
     memo: '서울 거주. 매주 주말 안부 전화.',
+    achievements: ['現 서울지방중소벤처기업청 기술자문', '공학박사 · 국책연구원 수석연구원'],
   },
   {
     id: 'pat-2-3',
@@ -202,6 +206,7 @@ export const INITIAL_FAMILY_DATA: FamilyMember[] = [
     lastContactDate: '2026-06-20',
     contactCycleDays: 45,
     memo: '부산 거주. 화훼업 종사.',
+    achievements: ['영남 플로리스트협회 부회장', '부산 화훼수출영농조합 이사'],
   },
   {
     id: 'pat-2-4',
@@ -218,6 +223,7 @@ export const INITIAL_FAMILY_DATA: FamilyMember[] = [
     lastContactDate: '2026-05-18',
     contactCycleDays: 60,
     memo: '친가 5촌 당숙어르신. 안동 종손가 지원.',
+    achievements: ['안동 유도회(儒道會) 회원', '종친회 족보편찬위원'],
   },
   // 3대: 본인, 남동생, 여동생, 4촌 사촌형
   {
@@ -237,6 +243,7 @@ export const INITIAL_FAMILY_DATA: FamilyMember[] = [
     lastContactDate: '2026-09-12',
     contactCycleDays: 1,
     memo: '스마트폰 A 보유자. 족보 앱 관리자.',
+    achievements: ['IT 벤처 창업대표 (AI 디지털 족보)', '경주김씨 청장년회 이사'],
   },
   {
     id: 'pat-3-2',
@@ -254,6 +261,7 @@ export const INITIAL_FAMILY_DATA: FamilyMember[] = [
     lastContactDate: '2026-09-05',
     contactCycleDays: 14,
     memo: '판교 IT 기업 근무.',
+    achievements: ['판교 카카오 플랫폼 시니어 엔지니어', '정보처리기술사 취득'],
   },
   {
     id: 'pat-3-3',
@@ -271,6 +279,7 @@ export const INITIAL_FAMILY_DATA: FamilyMember[] = [
     lastContactDate: '2026-09-02',
     contactCycleDays: 14,
     memo: '디자이너 프리랜서 활동.',
+    achievements: ['홍익대 시각디자인 졸', '브랜드 디자인 스튜디오 대표'],
   },
   {
     id: 'pat-3-4',
@@ -288,6 +297,7 @@ export const INITIAL_FAMILY_DATA: FamilyMember[] = [
     lastContactDate: '2026-06-10',
     contactCycleDays: 45,
     memo: '큰아버지 장남. 대구 거주.',
+    achievements: ['대구 가업 스마트팜 2대 대표', '농림축산식품부 청년농업인 1기'],
   },
   // 4대: 자녀
   {
@@ -303,6 +313,7 @@ export const INITIAL_FAMILY_DATA: FamilyMember[] = [
     isAlive: true,
     parentIds: ['pat-3-1', 'inlaw-pat-3-1'],
     memo: '유치원 재학 중.',
+    achievements: ['가문 차세대 30대손 장손', '유치원 재학 중'],
   },
   {
     id: 'pat-4-2',
@@ -317,6 +328,7 @@ export const INITIAL_FAMILY_DATA: FamilyMember[] = [
     isAlive: true,
     parentIds: ['pat-3-1', 'inlaw-pat-3-1'],
     memo: '어린이집 재학 중.',
+    achievements: ['가문 30대손 장녀', '건강하게 무럭무럭 성장 중'],
   },
 
   // ==========================================

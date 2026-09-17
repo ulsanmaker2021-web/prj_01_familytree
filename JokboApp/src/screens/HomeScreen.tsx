@@ -13,6 +13,7 @@ import { DeviceSimulatorBar } from '../components/DeviceSimulatorBar';
 import { MemberDetailModal } from '../components/MemberDetailModal';
 import { ObsidianGraphView } from '../components/ObsidianGraphView';
 import { RelationshipStudioModal } from '../components/RelationshipStudioModal';
+import { FramedMasterpieceView } from '../components/FramedMasterpieceView';
 import { inkTheme } from '../theme/inkTheme';
 
 // Scope filter by kinship degree
@@ -20,7 +21,7 @@ type KinshipScope = 'direct' | 'cousin4' | 'extended6';
 // Lineage focus mode
 type FocusLineage = 'all' | 'paternal' | 'maternal' | 'inlaw';
 // View mode
-type ViewMode = 'radial' | 'generation';
+type ViewMode = 'radial' | 'generation' | 'framed';
 
 export default function HomeScreen() {
   const {
@@ -246,7 +247,7 @@ export default function HomeScreen() {
               )}
             </View>
 
-            {/* View Mode Toggle (Obsidian Radial vs Generation) */}
+            {/* View Mode Toggle (Obsidian Radial vs Generation vs Framed Masterpiece) */}
             <View style={styles.viewModeToggle}>
               <TouchableOpacity
                 style={[
@@ -278,6 +279,22 @@ export default function HomeScreen() {
                   ]}
                 >
                   📜 세대별 계통
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[
+                  styles.modeBtn,
+                  viewMode === 'framed' && [styles.modeBtnActive, { backgroundColor: '#854d0e', borderColor: '#b45309' }],
+                ]}
+                onPress={() => setViewMode('framed')}
+              >
+                <Text
+                  style={[
+                    styles.modeBtnText,
+                    viewMode === 'framed' && { color: '#ffffff', fontWeight: '800' },
+                  ]}
+                >
+                  🖼️ 거실 표구 액자형
                 </Text>
               </TouchableOpacity>
             </View>
@@ -593,6 +610,12 @@ export default function HomeScreen() {
               </View>
             )}
           </View>
+        ) : viewMode === 'framed' ? (
+          /* ================== FRAMED MASTERPIECE VIEW (거실 표구 액자형 가계도) ================== */
+          <FramedMasterpieceView
+            members={members}
+            onSelectMember={setSelectedMember}
+          />
         ) : (
           /* ================== GENERATION VIEW (계통별 세대 뷰) ================== */
           <View style={styles.genContainer}>
