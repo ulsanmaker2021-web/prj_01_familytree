@@ -351,6 +351,7 @@ export const INITIAL_FAMILY_DATA: FamilyMember[] = [
     lastContactDate: '2026-07-28',
     contactCycleDays: 21,
     memo: '전주 본가 거주. 명절 및 생신 때 온 가족 방문.',
+    achievements: ['외가 1대 종손 · 전통서예 대가', '전주 향교 전훈(典訓) 역임', '외가 최고령 어르신(89세)'],
   },
   {
     id: 'mat-1-2',
@@ -368,6 +369,7 @@ export const INITIAL_FAMILY_DATA: FamilyMember[] = [
     lastContactDate: '2026-07-28',
     contactCycleDays: 21,
     memo: '전주 본가 거주. 손주들 안부 각별히 챙기심.',
+    achievements: ['외가 자애로운 대모(大母)', '안동 전통 약선요리 계승', '생존 외가 종부(85세)'],
   },
 
   // 2대: 모친, 외숙(외삼촌), 외숙모, 이모, 이모부
@@ -388,6 +390,7 @@ export const INITIAL_FAMILY_DATA: FamilyMember[] = [
     lastContactDate: '2026-09-09',
     contactCycleDays: 7,
     memo: '서울 거주. 외가 모임 주도.',
+    achievements: ['가문 지혜로운 어머니(賢母)', '중등 교육공무원 30년 정년퇴임', '외가 화목의 중심축'],
   },
   {
     id: 'mat-2-2',
@@ -406,6 +409,7 @@ export const INITIAL_FAMILY_DATA: FamilyMember[] = [
     lastContactDate: '2026-07-10',
     contactCycleDays: 45,
     memo: '스마트폰 D 보유자. 대전 연구단지 재직. 자주 안부 교류.',
+    achievements: ['한국전자통신연구원(ETRI) 책임연구원', '전주이씨 대전종친회 간사'],
   },
   {
     id: 'mat-2-5',
@@ -647,6 +651,7 @@ export const INITIAL_FAMILY_DATA: FamilyMember[] = [
     lastContactDate: '2026-08-25',
     contactCycleDays: 14,
     memo: '분당 거주. 주말 골프 및 등산.',
+    achievements: ['現 신소재 벤처기업 상임고문', '한양대 금속공학 졸 · 제조업 혁신가'],
   },
   {
     id: 'inlaw-pat-2-2',
@@ -683,6 +688,7 @@ export const INITIAL_FAMILY_DATA: FamilyMember[] = [
     lastContactDate: '2026-09-12',
     contactCycleDays: 1,
     memo: '스마트폰 B 보유자. 초등학교 교사.',
+    achievements: ['서울교대 졸 · 초등 수석교사', '가문 차세대 든든한 동반자(賢妻)'],
   },
   {
     id: 'inlaw-pat-3-2',
