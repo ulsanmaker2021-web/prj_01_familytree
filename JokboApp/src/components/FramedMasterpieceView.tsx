@@ -6,8 +6,10 @@ import {
   View,
   ScrollView,
   Platform,
+  Image,
 } from 'react-native';
 import { FamilyMember } from '../types/family';
+import { INITIAL_FAMILY_DATA } from '../utils/mockFamilyData';
 
 interface FramedMasterpieceViewProps {
   members: FamilyMember[];
@@ -36,29 +38,33 @@ export const FramedMasterpieceView: React.FC<FramedMasterpieceViewProps> = ({
     }
   };
 
+  // Fallback to INITIAL_FAMILY_DATA so historical ancestors are never missing
+  const findMember = (id: string) =>
+    members.find((m) => m.id === id) || INITIAL_FAMILY_DATA.find((m) => m.id === id);
+
   // 1대 조부모
-  const pat1_1 = members.find((m) => m.id === 'pat-1-1'); // 김진호 (친조부)
-  const pat1_2 = members.find((m) => m.id === 'pat-1-2'); // 박순자 (친조모)
+  const pat1_1 = findMember('pat-1-1'); // 김진호 (친조부)
+  const pat1_2 = findMember('pat-1-2'); // 박순자 (친조모)
 
   // 1대 외조부모 (양가 모드용)
-  const mat1_1 = members.find((m) => m.id === 'mat-1-1'); // 이성한 (외조부)
-  const mat1_2 = members.find((m) => m.id === 'mat-1-2'); // 권정자 (외조모)
+  const mat1_1 = findMember('mat-1-1'); // 이성한 (외조부)
+  const mat1_2 = findMember('mat-1-2'); // 권정자 (외조모)
 
   // 2대 부모
-  const pat2_2 = members.find((m) => m.id === 'pat-2-2'); // 김영수 (부친)
-  const mat2_1 = members.find((m) => m.id === 'mat-2-1'); // 이은경 (모친)
+  const pat2_2 = findMember('pat-2-2'); // 김영수 (부친)
+  const mat2_1 = findMember('mat-2-1'); // 이은경 (모친)
 
   // 3대 본인, 부인, 형제자매
-  const pat3_1 = members.find((m) => m.id === 'pat-3-1'); // 김준혁 (본인)
-  const inlaw3_1 = members.find((m) => m.id === 'inlaw-pat-3-1'); // 정서연 (부인/배우자)
-  const pat3_2 = members.find((m) => m.id === 'pat-3-2'); // 김민혁 (남동생)
-  const pat3_3 = members.find((m) => m.id === 'pat-3-3'); // 김지우 (여동생)
+  const pat3_1 = findMember('pat-3-1'); // 김준혁 (본인)
+  const inlaw3_1 = findMember('inlaw-pat-3-1'); // 정서연 (부인/배우자)
+  const pat3_2 = findMember('pat-3-2'); // 김민혁 (남동생)
+  const pat3_3 = findMember('pat-3-3'); // 김지우 (여동생)
 
   // 4대 자녀
-  const pat4_1 = members.find((m) => m.id === 'pat-4-1'); // 김도윤 (장남)
-  const pat4_2 = members.find((m) => m.id === 'pat-4-2'); // 김하은 (장녀)
+  const pat4_1 = findMember('pat-4-1'); // 김도윤 (장남)
+  const pat4_2 = findMember('pat-4-2'); // 김하은 (장녀)
 
-  // Dignified Person Card Component
+  // Dignified Person Card Component with Profile Photo
   const renderCard = (
     member?: FamilyMember,
     roleTitle?: string,
@@ -95,11 +101,21 @@ export const FramedMasterpieceView: React.FC<FramedMasterpieceViewProps> = ({
         activeOpacity={0.8}
       >
         <View style={styles.cardHeaderRow}>
-          {/* Avatar Icon */}
-          <View style={[styles.avatarBox, { backgroundColor: isMale ? '#fee2e2' : '#dbeafe' }]}>
-            <Text style={[styles.avatarIconText, { color: isMale ? '#dc2626' : '#2563eb' }]}>
-              {isMale ? '父' : '母'}
-            </Text>
+          {/* Profile Photo / Dignified Avatar Ring */}
+          <View style={[styles.avatarFrame, { borderColor: accentColor }]}>
+            {member.photoUrl ? (
+              <Image
+                source={{ uri: member.photoUrl }}
+                style={styles.avatarImg}
+                resizeMode="cover"
+              />
+            ) : (
+              <View style={[styles.avatarFallback, { backgroundColor: isMale ? '#fee2e2' : '#dbeafe' }]}>
+                <Text style={[styles.avatarFallbackText, { color: isMale ? '#dc2626' : '#2563eb' }]}>
+                  {isMale ? '父' : '母'}
+                </Text>
+              </View>
+            )}
           </View>
 
           {/* Identity */}
@@ -708,17 +724,35 @@ const styles = StyleSheet.create({
   cardHeaderRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    gap: 8,
   },
-  avatarBox: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
+  avatarFrame: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    borderWidth: 2,
+    overflow: 'hidden',
+    backgroundColor: '#f5f5f4',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.15,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  avatarImg: {
+    width: '100%',
+    height: '100%',
+  },
+  avatarFallback: {
+    width: '100%',
+    height: '100%',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  avatarIconText: {
-    fontSize: 14,
+  avatarFallbackText: {
+    fontSize: 16,
     fontWeight: '800',
   },
   identityCol: {

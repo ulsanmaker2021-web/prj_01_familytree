@@ -692,7 +692,7 @@ export default function HomeScreen() {
         ) : viewMode === 'framed' ? (
           /* ================== FRAMED MASTERPIECE VIEW (거실 표구 액자형 가계도) ================== */
           <FramedMasterpieceView
-            members={members}
+            members={allMembers && allMembers.length > 0 ? allMembers : members}
             onSelectMember={setSelectedMember}
             onReturnToMain={() => setViewMode('radial')}
           />

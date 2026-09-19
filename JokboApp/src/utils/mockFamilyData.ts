@@ -120,6 +120,7 @@ export const INITIAL_FAMILY_DATA: FamilyMember[] = [
   // 1대: 조부모
   {
     id: 'pat-1-1',
+    photoUrl: 'https://images.unsplash.com/photo-1544717305-2782549b5136?w=240&auto=format&fit=crop&q=80',
     name: '김진호',
     hanja: '金鎭浩',
     gender: 'M',
@@ -136,6 +137,7 @@ export const INITIAL_FAMILY_DATA: FamilyMember[] = [
   },
   {
     id: 'pat-1-2',
+    photoUrl: 'https://images.unsplash.com/photo-1581579438747-1dc8d17bbce4?w=240&auto=format&fit=crop&q=80',
     name: '박순자',
     hanja: '朴順子',
     gender: 'F',
@@ -155,6 +157,7 @@ export const INITIAL_FAMILY_DATA: FamilyMember[] = [
   // 2대: 부친, 백부, 고모, 5촌 당숙
   {
     id: 'pat-2-1',
+    photoUrl: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=240&auto=format&fit=crop&q=80',
     name: '김영호',
     hanja: '金英浩',
     gender: 'M',
@@ -173,6 +176,7 @@ export const INITIAL_FAMILY_DATA: FamilyMember[] = [
   },
   {
     id: 'pat-2-2',
+    photoUrl: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=240&auto=format&fit=crop&q=80',
     name: '김영수',
     hanja: '金英洙',
     gender: 'M',
@@ -192,6 +196,7 @@ export const INITIAL_FAMILY_DATA: FamilyMember[] = [
   },
   {
     id: 'pat-2-3',
+    photoUrl: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=240&auto=format&fit=crop&q=80',
     name: '김영숙',
     hanja: '金英淑',
     gender: 'F',
@@ -210,6 +215,7 @@ export const INITIAL_FAMILY_DATA: FamilyMember[] = [
   },
   {
     id: 'pat-2-4',
+    photoUrl: 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=240&auto=format&fit=crop&q=80',
     name: '김진철',
     hanja: '金鎭澈',
     gender: 'M',
@@ -228,6 +234,7 @@ export const INITIAL_FAMILY_DATA: FamilyMember[] = [
   // 3대: 본인, 남동생, 여동생, 4촌 사촌형
   {
     id: 'pat-3-1',
+    photoUrl: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=240&auto=format&fit=crop&q=80',
     name: '김준혁',
     hanja: '金準赫',
     gender: 'M',
@@ -247,6 +254,7 @@ export const INITIAL_FAMILY_DATA: FamilyMember[] = [
   },
   {
     id: 'pat-3-2',
+    photoUrl: 'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=240&auto=format&fit=crop&q=80',
     name: '김민혁',
     hanja: '金珉赫',
     gender: 'M',
@@ -265,6 +273,7 @@ export const INITIAL_FAMILY_DATA: FamilyMember[] = [
   },
   {
     id: 'pat-3-3',
+    photoUrl: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?w=240&auto=format&fit=crop&q=80',
     name: '김지우',
     hanja: '金智友',
     gender: 'F',
@@ -283,6 +292,7 @@ export const INITIAL_FAMILY_DATA: FamilyMember[] = [
   },
   {
     id: 'pat-3-4',
+    photoUrl: 'https://images.unsplash.com/photo-1492562080023-ab3db95bfbce?w=240&auto=format&fit=crop&q=80',
     name: '김태혁',
     hanja: '金泰赫',
     gender: 'M',
@@ -302,6 +312,7 @@ export const INITIAL_FAMILY_DATA: FamilyMember[] = [
   // 4대: 자녀
   {
     id: 'pat-4-1',
+    photoUrl: 'https://images.unsplash.com/photo-1543332164-6e82f355badc?w=240&auto=format&fit=crop&q=80',
     name: '김도윤',
     hanja: '金道潤',
     gender: 'M',
@@ -317,6 +328,7 @@ export const INITIAL_FAMILY_DATA: FamilyMember[] = [
   },
   {
     id: 'pat-4-2',
+    photoUrl: 'https://images.unsplash.com/photo-1519238263530-99bdd11df2ea?w=240&auto=format&fit=crop&q=80',
     name: '김하은',
     hanja: '金夏恩',
     gender: 'F',
@@ -337,6 +349,7 @@ export const INITIAL_FAMILY_DATA: FamilyMember[] = [
   // 1대: 외조부모
   {
     id: 'mat-1-1',
+    photoUrl: 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=240&auto=format&fit=crop&q=80',
     name: '이성한',
     hanja: '李成漢',
     gender: 'M',
@@ -355,6 +368,7 @@ export const INITIAL_FAMILY_DATA: FamilyMember[] = [
   },
   {
     id: 'mat-1-2',
+    photoUrl: 'https://images.unsplash.com/photo-1567532939604-b6b5b0db2604?w=240&auto=format&fit=crop&q=80',
     name: '권정자',
     hanja: '權貞子',
     gender: 'F',
@@ -375,6 +389,7 @@ export const INITIAL_FAMILY_DATA: FamilyMember[] = [
   // 2대: 모친, 외숙(외삼촌), 외숙모, 이모, 이모부
   {
     id: 'mat-2-1',
+    photoUrl: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=240&auto=format&fit=crop&q=80',
     name: '이은경',
     hanja: '李恩敬',
     gender: 'F',
@@ -394,6 +409,7 @@ export const INITIAL_FAMILY_DATA: FamilyMember[] = [
   },
   {
     id: 'mat-2-2',
+    photoUrl: 'https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?w=240&auto=format&fit=crop&q=80',
     name: '이은철',
     hanja: '李恩哲',
     gender: 'M',
@@ -430,6 +446,7 @@ export const INITIAL_FAMILY_DATA: FamilyMember[] = [
   },
   {
     id: 'mat-2-3',
+    photoUrl: 'https://images.unsplash.com/photo-1580489944761-15a19d654956?w=240&auto=format&fit=crop&q=80',
     name: '이은미',
     hanja: '李恩美',
     gender: 'F',
@@ -500,6 +517,7 @@ export const INITIAL_FAMILY_DATA: FamilyMember[] = [
   // 3대: 본인 세대의 외사촌 및 이종사촌 형제자매
   {
     id: 'mat-3-1',
+    photoUrl: 'https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?w=240&auto=format&fit=crop&q=80',
     name: '이시우',
     hanja: '李時宇',
     gender: 'M',
@@ -636,6 +654,7 @@ export const INITIAL_FAMILY_DATA: FamilyMember[] = [
   // 2대: 장인, 처백부
   {
     id: 'inlaw-pat-2-1',
+    photoUrl: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=240&auto=format&fit=crop&q=80',
     name: '정우진',
     hanja: '鄭宇鎭',
     gender: 'M',
@@ -673,6 +692,7 @@ export const INITIAL_FAMILY_DATA: FamilyMember[] = [
   // 3대: 배우자, 처남
   {
     id: 'inlaw-pat-3-1',
+    photoUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=240&auto=format&fit=crop&q=80',
     name: '정서연',
     hanja: '鄭瑞娟',
     gender: 'F',
@@ -749,6 +769,7 @@ export const INITIAL_FAMILY_DATA: FamilyMember[] = [
   // 2대: 장모, 처외숙, 처이모
   {
     id: 'inlaw-mat-2-1',
+    photoUrl: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=240&auto=format&fit=crop&q=80',
     name: '양혜정',
     hanja: '梁惠貞',
     gender: 'F',
