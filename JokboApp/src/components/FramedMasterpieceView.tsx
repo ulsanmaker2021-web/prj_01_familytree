@@ -15,7 +15,7 @@ interface FramedMasterpieceViewProps {
   onReturnToMain?: () => void;
 }
 
-// Fixed canvas dimensions for high-resolution bilateral gallery framing (16:9 / 16:10 museum ratio)
+// Fixed canvas dimensions for high-resolution gallery framing (16:10 / 16:9 ratio)
 const FRAME_WIDTH = 1560;
 const FRAME_HEIGHT = 1080;
 
@@ -24,108 +24,110 @@ export const FramedMasterpieceView: React.FC<FramedMasterpieceViewProps> = ({
   onSelectMember,
   onReturnToMain,
 }) => {
-  // Lineage balance mode:
-  // 'bilateral' (default: 친가·외가·처가 남녀동등 양계 가계도)
-  // 'paternal' (친가 직계 중심)
-  // 'maternal' (외가 직계 중심)
-  const [viewScope, setViewScope] = useState<'bilateral' | 'paternal' | 'maternal'>('bilateral');
+  // Lineage mode:
+  // 'lineage_direct' (부계 혈통 직계 중심: 조부모 ➔ 부친 ➔ 본인/형제 ➔ 자녀)
+  // 'bilateral' (친가·외가 양가 조부모 대등 배치)
+  const [lineageMode, setLineageMode] = useState<'lineage_direct' | 'bilateral'>('lineage_direct');
 
-  // Trigger high quality browser print dialog
+  // Trigger browser print dialog
   const handlePrint = () => {
     if (Platform.OS === 'web' && typeof window !== 'undefined') {
       window.print();
     }
   };
 
-  // Paternal Lineage (친가)
+  // 1대 조부모
   const pat1_1 = members.find((m) => m.id === 'pat-1-1'); // 김진호 (친조부)
   const pat1_2 = members.find((m) => m.id === 'pat-1-2'); // 박순자 (친조모)
-  const pat2_1 = members.find((m) => m.id === 'pat-2-1'); // 김영호 (백부/종손)
-  const pat2_2 = members.find((m) => m.id === 'pat-2-2'); // 김영수 (부친)
-  const pat2_3 = members.find((m) => m.id === 'pat-2-3'); // 김영숙 (고모)
-  const pat3_4 = members.find((m) => m.id === 'pat-3-4'); // 김태혁 (사촌형)
 
-  // Maternal Lineage (외가 - 어머니 계통)
+  // 1대 외조부모 (양가 모드용)
   const mat1_1 = members.find((m) => m.id === 'mat-1-1'); // 이성한 (외조부)
   const mat1_2 = members.find((m) => m.id === 'mat-1-2'); // 권정자 (외조모)
-  const mat2_1 = members.find((m) => m.id === 'mat-2-1'); // 이은경 (모친)
-  const mat2_2 = members.find((m) => m.id === 'mat-2-2'); // 이은철 (외숙)
 
-  // Central Couple & Generation 3 (본인, 아내, 형제자매)
+  // 2대 부모
+  const pat2_2 = members.find((m) => m.id === 'pat-2-2'); // 김영수 (부친)
+  const mat2_1 = members.find((m) => m.id === 'mat-2-1'); // 이은경 (모친)
+
+  // 3대 본인, 부인, 형제자매
   const pat3_1 = members.find((m) => m.id === 'pat-3-1'); // 김준혁 (본인)
-  const inlaw3_1 = members.find((m) => m.id === 'inlaw-pat-3-1'); // 정서연 (배우자/아내)
-  const inlaw2_1 = members.find((m) => m.id === 'inlaw-pat-2-1'); // 정우진 (장인어른)
-  const inlaw_mat2_1 = members.find((m) => m.id === 'inlaw-mat-2-1'); // 장모
+  const inlaw3_1 = members.find((m) => m.id === 'inlaw-pat-3-1'); // 정서연 (부인/배우자)
   const pat3_2 = members.find((m) => m.id === 'pat-3-2'); // 김민혁 (남동생)
   const pat3_3 = members.find((m) => m.id === 'pat-3-3'); // 김지우 (여동생)
 
-  // Generation 4 (직계 자녀)
-  const pat4_1 = members.find((m) => m.id === 'pat-4-1'); // 김도윤 (아들)
-  const pat4_2 = members.find((m) => m.id === 'pat-4-2'); // 김하은 (딸)
+  // 4대 자녀
+  const pat4_1 = members.find((m) => m.id === 'pat-4-1'); // 김도윤 (장남)
+  const pat4_2 = members.find((m) => m.id === 'pat-4-2'); // 김하은 (장녀)
 
-  // Equal Dignity Person Card Render Component:
-  // 남녀, 부계, 모계 차별 없이 동일한 규격, 동일한 크기의 사진, 동일한 약력을 1:1 대칭으로 렌더링
-  const renderDignifiedCard = (
+  // Dignified Person Card Component
+  const renderCard = (
     member?: FamilyMember,
-    customTitle?: string,
-    width: number = 240,
-    accentColor: string = '#78350f'
+    roleTitle?: string,
+    width: number = 205,
+    height: number = 145,
+    accentColor: string = '#b45309'
   ) => {
-    if (!member) return null;
+    if (!member) {
+      return (
+        <View style={[styles.cardContainer, { width, height, borderColor: '#e7e5e4' }]}>
+          <Text style={styles.emptyCardText}>정보 미등록</Text>
+        </View>
+      );
+    }
 
-    const birthYear = member.birthDate ? member.birthDate.split('-')[0] : '미상';
-    const deathYear = member.deathDate ? member.deathDate.split('-')[0] : '';
-    const yearsText = member.isAlive ? `${birthYear}~` : `${birthYear}~${deathYear}`;
+    const birthYear = member.birthDate ? parseInt(member.birthDate.substring(0, 4), 10) : null;
+    const deathYear = member.deathDate ? parseInt(member.deathDate.substring(0, 4), 10) : null;
+    const yearsText = birthYear
+      ? deathYear
+        ? `${birthYear}~${deathYear}`
+        : `${birthYear}~ `
+      : '생몰 미상';
 
-    const isElder = member.generation <= 2;
     const isMale = member.gender === 'M';
 
     return (
       <TouchableOpacity
+        key={member.id}
         style={[
-          styles.dignifiedCard,
-          { width, borderTopColor: accentColor },
+          styles.cardContainer,
+          { width, height, borderColor: accentColor, borderTopWidth: 3, borderTopColor: accentColor },
         ]}
-        activeOpacity={0.8}
         onPress={() => onSelectMember && onSelectMember(member)}
+        activeOpacity={0.8}
       >
-        <View style={styles.cardHeader}>
-          {/* 1. Vintage Portrait Frame */}
-          <View style={[styles.photoFrame, { borderColor: accentColor }]}>
-            <View style={styles.photoInner}>
-              <Text style={styles.photoAvatarIcon}>
-                {isElder ? (isMale ? '👴' : '👵') : (isMale ? '👨' : '👩')}
-              </Text>
-              <View style={styles.photoSepiaFilter} />
-            </View>
+        <View style={styles.cardHeaderRow}>
+          {/* Avatar Icon */}
+          <View style={[styles.avatarBox, { backgroundColor: isMale ? '#fee2e2' : '#dbeafe' }]}>
+            <Text style={[styles.avatarIconText, { color: isMale ? '#dc2626' : '#2563eb' }]}>
+              {isMale ? '父' : '母'}
+            </Text>
           </View>
 
-          {/* 2. Primary Identifiers */}
-          <View style={styles.cardMainIdentity}>
-            <View style={styles.nameHanjaRow}>
-              <Text style={styles.personName}>{member.name}</Text>
-              {member.hanja && <Text style={styles.personHanja}>({member.hanja})</Text>}
+          {/* Identity */}
+          <View style={styles.identityCol}>
+            <View style={styles.nameRow}>
+              <Text style={styles.cardName}>{member.name}</Text>
+              {member.hanja && <Text style={styles.cardHanja}>({member.hanja})</Text>}
             </View>
             <Text style={styles.lifespanText}>[{yearsText}]</Text>
-            <Text style={[styles.clanBadgeText, { color: accentColor }]}>
+            <Text style={[styles.clanText, { color: accentColor }]}>
               {member.clan || '본관'}
             </Text>
-            <Text style={styles.relationshipRoleText}>
-              {customTitle || member.relationship}
+            <Text style={styles.roleTitleText}>
+              {roleTitle || member.relationship}
             </Text>
           </View>
         </View>
 
-        {/* 3. Achievements & Biographical Record */}
-        <View style={styles.biographySection}>
+        {/* Biography */}
+        <View style={styles.bioBox}>
           {member.achievements && member.achievements.length > 0 ? (
             member.achievements.slice(0, 2).map((ach, idx) => (
-              <Text key={idx} style={styles.biographyLine} numberOfLines={1}>
+              <Text key={idx} style={styles.bioText} numberOfLines={1}>
                 • {ach}
               </Text>
             ))
           ) : (
-            <Text style={styles.biographyLine} numberOfLines={1}>
+            <Text style={styles.bioText} numberOfLines={1}>
               • {member.memo || '가문 화합 및 우애 계승'}
             </Text>
           )}
@@ -134,97 +136,53 @@ export const FramedMasterpieceView: React.FC<FramedMasterpieceViewProps> = ({
     );
   };
 
-  // Equal Dignity Couple Block:
-  // 남편과 아내가 각각 완벽한 독립된 카드로 대등하게 배치되고, 가운데 수평 결연선으로 연결
-  const renderEqualCouple = (
-    husband?: FamilyMember,
-    wife?: FamilyMember,
-    husbandTitle?: string,
-    wifeTitle?: string,
-    cardWidth: number = 230,
-    husbandAccent: string = '#dc2626',
-    wifeAccent: string = '#2563eb'
-  ) => {
-    return (
-      <View style={styles.coupleContainer}>
-        {renderDignifiedCard(husband, husbandTitle, cardWidth, husbandAccent)}
-        
-        {/* Horizontal Marriage Link Line with Heart / Ring Symbol */}
-        <View style={styles.coupleMarriageBridge}>
-          <View style={styles.coupleMarriageLine} />
-          <View style={styles.coupleRingBadge}>
-            <Text style={styles.coupleRingText}>夫婦</Text>
-          </View>
-          <View style={styles.coupleMarriageLine} />
-        </View>
-
-        {renderDignifiedCard(wife, wifeTitle, cardWidth, wifeAccent)}
-      </View>
-    );
-  };
-
   return (
-    <View style={styles.outerContainer}>
-      {/* 1. Action & Mode Selector Toolbar */}
-      <View style={styles.actionToolbar}>
+    <View style={styles.container}>
+      {/* 1. Gallery Top Control Toolbar */}
+      <View style={styles.topToolbar}>
         <View style={styles.toolbarLeft}>
-          <Text style={styles.toolbarTitle}>🖼️ 거실 표구 액자형 가계도 (부계·모계·배우자 동등 통합 에디션)</Text>
-          <Text style={styles.toolbarSubtitle}>
-            가족 모두가 함께 보는 액자로서 부계와 모계, 아내(처가)가 1:1 동등한 비중과 위상으로 완벽히 대칭을 이루도록 구성되었습니다.
+          <View style={styles.masterBadge}>
+            <Text style={styles.masterBadgeText}>🏛️ 가문 거실 액자형 가계도 (표구 명작)</Text>
+          </View>
+          <Text style={styles.toolbarDesc}>
+            부계 혈통 라인이 조부모 중간에서 부친으로, 부모 중간에서 본인과 형제에게로, 본인과 부인 중간에서 자녀에게로 엄격히 흐릅니다.
           </Text>
         </View>
 
         <View style={styles.toolbarRight}>
-          {/* Scope Selector */}
-          <View style={styles.scopeToggleGroup}>
+          {/* Mode Switcher */}
+          <View style={styles.modeGroup}>
             <TouchableOpacity
               style={[
-                styles.scopeBtn,
-                viewScope === 'bilateral' && styles.scopeBtnActive,
+                styles.modeBtn,
+                lineageMode === 'lineage_direct' && styles.modeBtnActive,
               ]}
-              onPress={() => setViewScope('bilateral')}
+              onPress={() => setLineageMode('lineage_direct')}
             >
               <Text
                 style={[
-                  styles.scopeBtnText,
-                  viewScope === 'bilateral' && styles.scopeBtnTextActive,
+                  styles.modeBtnText,
+                  lineageMode === 'lineage_direct' && styles.modeBtnTextActive,
                 ]}
               >
-                ⚖️ 친가·외가·아내 동등 통합보 (권장)
+                👑 직계 4대 가계도 (부계 정통)
               </Text>
             </TouchableOpacity>
 
             <TouchableOpacity
               style={[
-                styles.scopeBtn,
-                viewScope === 'paternal' && styles.scopeBtnActive,
+                styles.modeBtn,
+                lineageMode === 'bilateral' && styles.modeBtnActive,
               ]}
-              onPress={() => setViewScope('paternal')}
+              onPress={() => setLineageMode('bilateral')}
             >
               <Text
                 style={[
-                  styles.scopeBtnText,
-                  viewScope === 'paternal' && styles.scopeBtnTextActive,
+                  styles.modeBtnText,
+                  lineageMode === 'bilateral' && styles.modeBtnTextActive,
                 ]}
               >
-                친가 직계 중심
-              </Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[
-                styles.scopeBtn,
-                viewScope === 'maternal' && styles.scopeBtnActive,
-              ]}
-              onPress={() => setViewScope('maternal')}
-            >
-              <Text
-                style={[
-                  styles.scopeBtnText,
-                  viewScope === 'maternal' && styles.scopeBtnTextActive,
-                ]}
-              >
-                외가 직계 중심
+                ⚖️ 친가·외가 조부모 포함
               </Text>
             </TouchableOpacity>
           </View>
@@ -232,17 +190,17 @@ export const FramedMasterpieceView: React.FC<FramedMasterpieceViewProps> = ({
           {/* Return to Main Menu */}
           {onReturnToMain && (
             <TouchableOpacity
-              style={[styles.printButton, { backgroundColor: '#475569', marginRight: 8 }]}
+              style={styles.returnMainBtn}
               onPress={onReturnToMain}
               activeOpacity={0.85}
             >
-              <Text style={styles.printButtonText}>🏠 전체 메뉴 (가계도 홈)</Text>
+              <Text style={styles.returnMainBtnText}>🏠 전체 메뉴 (가계도 홈)</Text>
             </TouchableOpacity>
           )}
 
           {/* Print Button */}
-          <TouchableOpacity style={styles.printButton} onPress={handlePrint} activeOpacity={0.85}>
-            <Text style={styles.printButtonText}>🖨️ 액자용 고화질 인쇄 / PDF 저장</Text>
+          <TouchableOpacity style={styles.printBtn} onPress={handlePrint} activeOpacity={0.85}>
+            <Text style={styles.printBtnText}>🖨️ 액자 인쇄 / PDF</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -253,191 +211,252 @@ export const FramedMasterpieceView: React.FC<FramedMasterpieceViewProps> = ({
         showsHorizontalScrollIndicator={false}
         contentContainerStyle={styles.canvasScrollContent}
       >
-        <View style={styles.frameOuterBorder}>
+        <View style={styles.frameOuter}>
           <View style={styles.frameWoodMatting}>
             <View style={styles.canvasParchment}>
-              {/* ================= HEADER: BILATERAL CALLIGRAPHY TITLE ================= */}
+              {/* ================= HEADER: CALLIGRAPHY TITLE ================= */}
               <View style={styles.calligraphyHeader}>
                 <View style={styles.headerDecoLine} />
                 <View style={styles.headerTitleGroup}>
                   <Text style={styles.headerClanHanja}>慶州金氏 · 全州李氏 · 東萊鄭氏</Text>
                   <Text style={styles.headerMainTitle}>가 족 가 계 도 (家 族 家 系 圖)</Text>
                   <Text style={styles.headerMotto}>
-                    崇祖愛族 · 孝悌忠信 · 內外和睦 (부계와 모계, 배우자가 상호 존중과 효애로써 가통을 이루다)
+                    崇祖愛族 · 孝悌忠信 · 內外和睦 (부계 혈통의 정통성과 부부 결합의 아름다운 결실을 기리다)
                   </Text>
                 </View>
                 <View style={styles.headerDecoLine} />
               </View>
 
-              {/* ================= BILATERAL TREE DIAGRAM AREA ================= */}
+              {/* ================= TREE DIAGRAM AREA WITH SVG CONNECTIONS ================= */}
               <View style={styles.treeDiagramArea}>
-                {/* SVG Connecting Vector Lines Layer */}
+                {/* SVG Vector Connector Lines */}
                 {/* @ts-ignore: React Native Web supports native svg element */}
                 <svg
                   style={{
                     position: 'absolute',
                     top: 0,
                     left: 0,
-                    width: FRAME_WIDTH - 80,
-                    height: FRAME_HEIGHT - 220,
+                    width: 1480,
+                    height: 860,
                     pointerEvents: 'none',
                     zIndex: 1,
                   }}
                 >
-                  {/* Generation 1 -> Generation 2 Connectors */}
-                  {/* Left (Paternal 1st Gen) down stem to father (pat-2-2) */}
-                  <line x1="390" y1="135" x2="390" y2="185" stroke="#dc2626" strokeWidth="2.5" />
-                  <line x1="240" y1="185" x2="620" y2="185" stroke="#dc2626" strokeWidth="2.5" />
-                  <line x1="240" y1="185" x2="240" y2="235" stroke="#dc2626" strokeWidth="2.5" />
-                  <line x1="620" y1="185" x2="620" y2="235" stroke="#dc2626" strokeWidth="2.5" />
+                  {/* ========================================================================= */}
+                  {/* LINE 1: 조부모 중간(X=595, Y=175) ➔ 부친 김영수(X=595, Y=235) */}
+                  {/* ========================================================================= */}
+                  <line x1="595" y1="175" x2="595" y2="235" stroke="#dc2626" strokeWidth="3" />
+                  <circle cx="595" cy="175" r="4" fill="#dc2626" />
+                  <circle cx="595" cy="235" r="4" fill="#dc2626" />
 
-                  {/* Right (Maternal 1st Gen) down stem to mother (mat-2-1) */}
-                  <line x1="1130" y1="135" x2="1130" y2="185" stroke="#2563eb" strokeWidth="2.5" />
-                  <line x1="860" y1="185" x2="1280" y2="185" stroke="#2563eb" strokeWidth="2.5" />
-                  <line x1="860" y1="185" x2="860" y2="235" stroke="#2563eb" strokeWidth="2.5" />
-                  <line x1="1280" y1="185" x2="1280" y2="235" stroke="#2563eb" strokeWidth="2.5" />
+                  {/* If Bilateral mode: 외가 조부모 중간(X=1050, Y=175) ➔ 모친 이은경(X=855, Y=235) */}
+                  {lineageMode === 'bilateral' && (
+                    <>
+                      <line x1="1100" y1="175" x2="1100" y2="205" stroke="#2563eb" strokeWidth="2.5" />
+                      <line x1="855" y1="205" x2="1100" y2="205" stroke="#2563eb" strokeWidth="2.5" />
+                      <line x1="855" y1="205" x2="855" y2="235" stroke="#2563eb" strokeWidth="2.5" />
+                      <circle cx="1100" cy="175" r="3.5" fill="#2563eb" />
+                      <circle cx="855" cy="235" r="3.5" fill="#2563eb" />
+                    </>
+                  )}
 
-                  {/* Generation 2 Parents Couple -> Generation 3 (Children Kim Jun-hyuk, Min-hyuk, Ji-woo) */}
-                  {/* Central Parents Couple junction point: x = 740, y = 375 */}
-                  <line x1="740" y1="365" x2="740" y2="415" stroke="#1f2937" strokeWidth="3" />
-                  {/* Horizontal line across Gen 3: from 본인 부부(510) to 남동생(1050) to 여동생(1320) */}
-                  <line x1="510" y1="415" x2="1320" y2="415" stroke="#1f2937" strokeWidth="2.5" />
-                  <line x1="510" y1="415" x2="510" y2="445" stroke="#1f2937" strokeWidth="2.5" />
-                  <line x1="1050" y1="415" x2="1050" y2="445" stroke="#1f2937" strokeWidth="2.5" />
-                  <line x1="1320" y1="415" x2="1320" y2="445" stroke="#1f2937" strokeWidth="2.5" />
+                  {/* ========================================================================= */}
+                  {/* LINE 2: 부모 중간 하부(X=725, Y=380) ➔ 3대 형제자매 버스선(Y=430) */}
+                  {/* ========================================================================= */}
+                  <line x1="725" y1="380" x2="725" y2="430" stroke="#1f2937" strokeWidth="3" />
+                  <circle cx="725" cy="380" r="4" fill="#1f2937" />
 
-                  {/* Paternal Cousin branch: pat-2-1 -> pat-3-4 */}
-                  <line x1="240" y1="365" x2="240" y2="445" stroke="#dc2626" strokeWidth="2" />
+                  {/* 3대 형제자매 수평 분배 버스선 (X=320 ~ X=1130) */}
+                  <line x1="320" y1="430" x2="1130" y2="430" stroke="#1f2937" strokeWidth="2.5" />
 
-                  {/* Generation 3 (본인 & 아내 부부 중심) -> Generation 4 (자녀 Kim Do-yoon, Kim Ha-eun) */}
-                  <line x1="510" y1="585" x2="510" y2="635" stroke="#1f2937" strokeWidth="3" />
-                  <line x1="390" y1="635" x2="630" y2="635" stroke="#1f2937" strokeWidth="2.5" />
-                  <line x1="390" y1="635" x2="390" y2="675" stroke="#1f2937" strokeWidth="2.5" />
-                  <line x1="630" y1="635" x2="630" y2="675" stroke="#1f2937" strokeWidth="2.5" />
+                  {/* 수직 분배 드롭선: 오직 혈육(본인, 남동생, 여동생)에게만 내려옴! */}
+                  {/* 1. 본인 김준혁 머리 위(X=320)로 드롭! */}
+                  <line x1="320" y1="430" x2="320" y2="470" stroke="#1f2937" strokeWidth="2.5" />
+                  <circle cx="320" cy="470" r="3.5" fill="#1f2937" />
+
+                  {/* 2. 부인 정서연(X=570): 드롭선 없음! (0 라인) */}
+
+                  {/* 3. 남동생 김민혁 머리 위(X=880)로 드롭! */}
+                  <line x1="880" y1="430" x2="880" y2="470" stroke="#1f2937" strokeWidth="2.5" />
+                  <circle cx="880" cy="470" r="3.5" fill="#1f2937" />
+
+                  {/* 4. 여동생 김지우 머리 위(X=1130)로 드롭! */}
+                  <line x1="1130" y1="430" x2="1130" y2="470" stroke="#1f2937" strokeWidth="2.5" />
+                  <circle cx="1130" cy="470" r="3.5" fill="#1f2937" />
+
+                  {/* ========================================================================= */}
+                  {/* LINE 3: 본인과 부인의 중간 하부(X=445, Y=620) ➔ 4대 자녀 버스선(Y=665) */}
+                  {/* ========================================================================= */}
+                  <line x1="445" y1="620" x2="445" y2="665" stroke="#059669" strokeWidth="3" />
+                  <circle cx="445" cy="620" r="4" fill="#059669" />
+
+                  {/* 4대 자녀 수평 분배 버스선 (X=325 ~ X=565) */}
+                  <line x1="325" y1="665" x2="565" y2="665" stroke="#059669" strokeWidth="2.5" />
+
+                  {/* 1. 장남 김도윤 머리 위(X=325)로 드롭! */}
+                  <line x1="325" y1="665" x2="325" y2="700" stroke="#059669" strokeWidth="2.5" />
+                  <circle cx="325" cy="700" r="3.5" fill="#059669" />
+
+                  {/* 2. 장녀 김하은 머리 위(X=565)로 드롭! */}
+                  <line x1="565" y1="665" x2="565" y2="700" stroke="#059669" strokeWidth="2.5" />
+                  <circle cx="565" cy="700" r="3.5" fill="#059669" />
                 </svg>
 
-                {/* ----------------- TIER 1: 1대 조부모 & 외조부모 (양가 완전 대등 배치) ----------------- */}
-                <View style={styles.tierRowGen1}>
-                  {/* Left: 친조부모 (경주 김씨 · 밀양 박씨) */}
-                  <View style={styles.grandBranchBox}>
-                    <View style={styles.branchHeaderPillPaternal}>
-                      <Text style={styles.branchHeaderText}>🔴 친가 1대 조부모 (부친의 부모)</Text>
-                    </View>
-                    {renderEqualCouple(
-                      pat1_1,
-                      pat1_2,
-                      '친할아버지 (조부)',
-                      '친할머니 (조모)',
-                      215,
-                      '#dc2626',
-                      '#b91c1c'
-                    )}
-                  </View>
-
-                  <View style={styles.centerPillarDivider}>
-                    <Text style={styles.centerPillarText}>同等</Text>
-                  </View>
-
-                  {/* Right: 외조부모 (전주 이씨 · 안동 권씨) */}
-                  <View style={styles.grandBranchBox}>
-                    <View style={styles.branchHeaderPillMaternal}>
-                      <Text style={styles.branchHeaderText}>🔵 외가 1대 외조부모 (모친의 부모)</Text>
-                    </View>
-                    {renderEqualCouple(
-                      mat1_1,
-                      mat1_2,
-                      '외할아버지 (외조부)',
-                      '외할머니 (외조모)',
-                      215,
-                      '#2563eb',
-                      '#1d4ed8'
-                    )}
+                {/* ================= TIER 1: 1대 조부모 (Y = 10 ~ 175) ================= */}
+                <View style={[styles.absPosition, { left: 360, top: 10 }]}>
+                  <View style={styles.sectionHeaderBadge}>
+                    <Text style={styles.sectionHeaderText}>🔴 1대 조부모 (부친의 부모)</Text>
                   </View>
                 </View>
 
-                {/* ----------------- TIER 2: 2대 부모 및 백부·외숙 (부모 중심 대등 결합) ----------------- */}
-                <View style={styles.tierRowGen2}>
-                  {/* 큰아버지 (친가 종손) */}
-                  <View style={styles.sideFamilyBox}>
-                    {renderDignifiedCard(pat2_1, '큰아버지 (백부/종손)', 200, '#dc2626')}
-                  </View>
+                {/* 친조부 김진호 (left=360, top=40) */}
+                <View style={[styles.absPosition, { left: 360, top: 40 }]}>
+                  {renderCard(pat1_1, '친할아버지 (조부)', 210, 135, '#dc2626')}
+                </View>
 
-                  {/* CENTER: 아버지 & 어머니 (1:1 동등한 독립 카드 및 부부 브릿지) */}
-                  <View style={styles.centerParentsMasterBox}>
-                    <View style={styles.parentsHeaderPill}>
-                      <Text style={styles.parentsHeaderText}>★ 2대 직계 존속 부모 (아버지와 어머니의 동등한 결합) ★</Text>
+                {/* 夫婦 결합선 (left=570, top=95) */}
+                <View style={[styles.absPosition, { left: 570, top: 95, width: 50, alignItems: 'center' }]}>
+                  <View style={styles.marriageLine} />
+                  <View style={styles.marriagePill}>
+                    <Text style={styles.marriagePillText}>夫婦</Text>
+                  </View>
+                  <View style={styles.marriageLine} />
+                </View>
+
+                {/* 친조모 박순자 (left=620, top=40) */}
+                <View style={[styles.absPosition, { left: 620, top: 40 }]}>
+                  {renderCard(pat1_2, '친할머니 (조모)', 210, 135, '#b91c1c')}
+                </View>
+
+                {/* 외조부모 (양가 모드일 때만 X=995~1205에 렌더링) */}
+                {lineageMode === 'bilateral' && (
+                  <>
+                    <View style={[styles.absPosition, { left: 995, top: 10 }]}>
+                      <View style={[styles.sectionHeaderBadge, { backgroundColor: '#dbeafe', borderColor: '#bfdbfe' }]}>
+                        <Text style={[styles.sectionHeaderText, { color: '#1e40af' }]}>🔵 외가 1대 외조부모 (모친의 부모)</Text>
+                      </View>
                     </View>
-                    {renderEqualCouple(
-                      pat2_2,
-                      mat2_1,
-                      '아버지 (부친 · 경주 김씨)',
-                      '어머니 (모친 · 전주 이씨)',
-                      235,
-                      '#dc2626',
-                      '#2563eb'
-                    )}
-                  </View>
+                    <View style={[styles.absPosition, { left: 995, top: 40 }]}>
+                      {renderCard(mat1_1, '외할아버지 (외조부)', 200, 135, '#2563eb')}
+                    </View>
+                    <View style={[styles.absPosition, { left: 1195, top: 95, width: 40, alignItems: 'center' }]}>
+                      <View style={styles.marriageLine} />
+                      <View style={[styles.marriagePill, { borderColor: '#2563eb' }]}>
+                        <Text style={[styles.marriagePillText, { color: '#2563eb' }]}>夫婦</Text>
+                      </View>
+                      <View style={styles.marriageLine} />
+                    </View>
+                    <View style={[styles.absPosition, { left: 1235, top: 40 }]}>
+                      {renderCard(mat1_2, '외할머니 (외조모)', 200, 135, '#1d4ed8')}
+                    </View>
+                  </>
+                )}
 
-                  {/* 외삼촌 (외숙) */}
-                  <View style={styles.sideFamilyBox}>
-                    {renderDignifiedCard(mat2_2, '외삼촌 (외숙 · 전주 이씨)', 200, '#2563eb')}
+                {/* ================= TIER 2: 2대 부모 (Y = 205 ~ 380) ================= */}
+                <View style={[styles.absPosition, { left: 590, top: 205 }]}>
+                  <View style={[styles.sectionHeaderBadge, { backgroundColor: '#fef3c7', borderColor: '#fde68a' }]}>
+                    <Text style={[styles.sectionHeaderText, { color: '#b45309' }]}>
+                      ★ 2대 직계 존속 부모 (아버지와 어머니) ★
+                    </Text>
                   </View>
                 </View>
 
-                {/* ----------------- TIER 3: 3대 본인 & 아내(대등한 중심 부부) + 형제자매 ----------------- */}
-                <View style={styles.tierRowGen3}>
-                  {/* 친가 사촌형 */}
-                  <View style={styles.sideFamilyBox}>
-                    {renderDignifiedCard(pat3_4, '사촌형 (4촌 종형)', 180, '#dc2626')}
-                  </View>
+                {/* 부친 김영수 (left=490, top=235, center=595) */}
+                <View style={[styles.absPosition, { left: 490, top: 235 }]}>
+                  {renderCard(pat2_2, '아버지 (부친 · 경주 김씨)', 210, 145, '#dc2626')}
+                </View>
 
-                  {/* CENTER: 본인 & 아내 (1:1 대등한 크기, 사진, 직함) */}
-                  <View style={styles.centerSelfWifeMasterBox}>
-                    <View style={styles.selfWifeHeaderPill}>
-                      <Text style={styles.selfWifeHeaderText}>★ 3대 가문 중심 부부 (본인과 아내의 동등한 동반) ★</Text>
-                    </View>
-                    {renderEqualCouple(
-                      pat3_1,
-                      inlaw3_1,
-                      '본인 (경주 김씨 29세손)',
-                      '배우자 (아내 · 동래 정씨)',
-                      225,
-                      '#b45309',
-                      '#d97706'
-                    )}
+                {/* 夫婦 결합선 (left=700, top=295, center=725) */}
+                <View style={[styles.absPosition, { left: 700, top: 295, width: 50, alignItems: 'center' }]}>
+                  <View style={styles.marriageLine} />
+                  <View style={styles.marriagePill}>
+                    <Text style={styles.marriagePillText}>夫婦</Text>
                   </View>
+                  <View style={styles.marriageLine} />
+                </View>
 
-                  {/* 남동생 */}
-                  <View style={styles.siblingBox}>
-                    {renderDignifiedCard(pat3_2, '남동생', 190, '#78350f')}
-                  </View>
+                {/* 모친 이은경 (left=750, top=235, center=855) */}
+                <View style={[styles.absPosition, { left: 750, top: 235 }]}>
+                  {renderCard(mat2_1, '어머니 (모친 · 전주 이씨)', 210, 145, '#2563eb')}
+                </View>
 
-                  {/* 여동생 */}
-                  <View style={styles.siblingBox}>
-                    {renderDignifiedCard(pat3_3, '여동생', 190, '#78350f')}
+                {/* ================= TIER 3: 3대 본인 & 부인, 형제자매 (Y = 445 ~ 620) ================= */}
+                {/* 본인 부부 헤더 */}
+                <View style={[styles.absPosition, { left: 218, top: 445 }]}>
+                  <View style={[styles.sectionHeaderBadge, { backgroundColor: '#ffedd5', borderColor: '#fed7aa' }]}>
+                    <Text style={[styles.sectionHeaderText, { color: '#c2410c' }]}>
+                      ★ 3대 가문 중심 부부 (본인과 배우자) ★
+                    </Text>
                   </View>
                 </View>
 
-                {/* ----------------- TIER 4: 4대 직계 자녀 (아들과 딸의 동등한 계승) ----------------- */}
-                <View style={styles.tierRowGen4}>
-                  <View style={styles.childrenHeaderPill}>
-                    <Text style={styles.childrenHeaderText}>▼ 4대 미래 자녀 (아버지와 어머니의 피를 고루 물려받은 사랑스러운 결실)</Text>
+                {/* 동기 헤더 */}
+                <View style={[styles.absPosition, { left: 778, top: 445 }]}>
+                  <View style={[styles.sectionHeaderBadge, { backgroundColor: '#f1f5f9', borderColor: '#e2e8f0' }]}>
+                    <Text style={[styles.sectionHeaderText, { color: '#475569' }]}>
+                      동기 (형제·자매)
+                    </Text>
                   </View>
-                  <View style={styles.childrenCardsRow}>
-                    {renderDignifiedCard(pat4_1, '장남 (아들 · 30대손)', 230, '#059669')}
-                    {renderDignifiedCard(pat4_2, '장녀 (딸 · 30대손)', 230, '#059669')}
+                </View>
+
+                {/* 1. 김준혁 본인 (left=218, top=470, center=320) */}
+                <View style={[styles.absPosition, { left: 218, top: 470 }]}>
+                  {renderCard(pat3_1, '본인 (경주 김씨 29세손)', 205, 150, '#b45309')}
+                </View>
+
+                {/* 2. 夫婦 결합선 (left=423, top=535, center=445) */}
+                <View style={[styles.absPosition, { left: 423, top: 535, width: 44, alignItems: 'center' }]}>
+                  <View style={styles.marriageLine} />
+                  <View style={[styles.marriagePill, { borderColor: '#d97706' }]}>
+                    <Text style={[styles.marriagePillText, { color: '#d97706' }]}>夫婦</Text>
                   </View>
+                  <View style={styles.marriageLine} />
+                </View>
+
+                {/* 3. 정서연 부인 (left=467, top=470, center=570) - ⚠️ 위에서 내려오는 라인 없음! */}
+                <View style={[styles.absPosition, { left: 467, top: 470 }]}>
+                  {renderCard(inlaw3_1, '배우자 (아내 · 동래 정씨)', 205, 150, '#d97706')}
+                </View>
+
+                {/* 4. 김민혁 남동생 (left=778, top=470, center=880) */}
+                <View style={[styles.absPosition, { left: 778, top: 470 }]}>
+                  {renderCard(pat3_2, '남동생', 205, 150, '#78350f')}
+                </View>
+
+                {/* 5. 김지우 여동생 (left=1028, top=470, center=1130) */}
+                <View style={[styles.absPosition, { left: 1028, top: 470 }]}>
+                  {renderCard(pat3_3, '여동생', 205, 150, '#78350f')}
+                </View>
+
+                {/* ================= TIER 4: 4대 자녀들 (Y = 675 ~ 840) ================= */}
+                {/* 자녀 헤더 */}
+                <View style={[styles.absPosition, { left: 225, top: 675 }]}>
+                  <View style={[styles.sectionHeaderBadge, { backgroundColor: '#ecfdf5', borderColor: '#a7f3d0' }]}>
+                    <Text style={[styles.sectionHeaderText, { color: '#047857' }]}>
+                      ▼ 4대 직계 자녀 (아버지와 어머니의 피를 물려받은 결실) ▼
+                    </Text>
+                  </View>
+                </View>
+
+                {/* 장남 김도윤 (left=225, top=700, center=325) */}
+                <View style={[styles.absPosition, { left: 225, top: 700 }]}>
+                  {renderCard(pat4_1, '장남 (아들 · 30대손)', 200, 140, '#059669')}
+                </View>
+
+                {/* 장녀 김하은 (left=465, top=700, center=565) */}
+                <View style={[styles.absPosition, { left: 465, top: 700 }]}>
+                  {renderCard(pat4_2, '장녀 (딸 · 30대손)', 200, 140, '#059669')}
                 </View>
               </View>
 
-              {/* ================= FOOTER: EQUAL DIGNITY SEALS & MOTTO ================= */}
+              {/* ================= FOOTER: SEALS & MOTTO ================= */}
               <View style={styles.frameFooter}>
                 <View style={styles.footerLeftNote}>
                   <Text style={styles.footerNoteText}>
-                    ※ 본 가계도는 부계(경주 김씨)와 모계(전주 이씨), 그리고 아내(동래 정씨)의 모든 가통이
+                    ※ 본 가계도는 부계(경주 김씨)의 혈통 가통을 중심으로, 부부의 굳건한 결연을 통해
                   </Text>
                   <Text style={styles.footerNoteText}>
-                    상호 동등한 존엄과 사랑으로 결합되었음을 기리며, 가족 모두가 대대로 화목하기를 기원하여 봉안합니다.
+                    자녀에게 생명의 피가 고루 이어짐을 기리며, 가족 대대로 화목하기를 기원하여 봉안합니다.
                   </Text>
                 </View>
 
@@ -448,10 +467,12 @@ export const FramedMasterpieceView: React.FC<FramedMasterpieceViewProps> = ({
 
                 <View style={styles.footerRightSeals}>
                   <View style={styles.royalSquareSeal}>
-                    <Text style={styles.royalSquareSealText}>金李鄭門\n和睦之印</Text>
+                    <Text style={styles.royalSquareSealText}>金李鄭門
+和睦之印</Text>
                   </View>
                   <View style={styles.circleSeal}>
-                    <Text style={styles.circleSealText}>家族\n公認</Text>
+                    <Text style={styles.circleSealText}>家族
+公認</Text>
                   </View>
                 </View>
               </View>
@@ -464,135 +485,136 @@ export const FramedMasterpieceView: React.FC<FramedMasterpieceViewProps> = ({
 };
 
 const styles = StyleSheet.create({
-  outerContainer: {
-    width: '100%',
+  container: {
+    flex: 1,
     backgroundColor: '#1c1917',
-    paddingBottom: 40,
   },
-  actionToolbar: {
+  topToolbar: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
     backgroundColor: '#292524',
-    paddingHorizontal: 24,
-    paddingVertical: 14,
     borderBottomWidth: 1,
     borderBottomColor: '#44403c',
     flexWrap: 'wrap',
-    gap: 12,
+    gap: 8,
   },
   toolbarLeft: {
     flex: 1,
-    minWidth: 340,
+    minWidth: 280,
   },
-  toolbarTitle: {
-    fontSize: 16,
-    fontWeight: '800',
-    color: '#fafaf9',
-    letterSpacing: 0.5,
+  masterBadge: {
+    backgroundColor: '#78350f',
+    alignSelf: 'flex-start',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 4,
+    marginBottom: 4,
   },
-  toolbarSubtitle: {
+  masterBadgeText: {
+    color: '#fef3c7',
     fontSize: 12,
+    fontWeight: '800',
+  },
+  toolbarDesc: {
     color: '#d6d3d1',
-    marginTop: 3,
+    fontSize: 11,
   },
   toolbarRight: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    gap: 8,
     flexWrap: 'wrap',
   },
-  scopeToggleGroup: {
+  modeGroup: {
     flexDirection: 'row',
-    backgroundColor: '#1c1917',
-    borderRadius: 6,
-    padding: 3,
-    borderWidth: 1,
-    borderColor: '#44403c',
+    gap: 4,
   },
-  scopeBtn: {
-    paddingHorizontal: 12,
+  modeBtn: {
+    paddingHorizontal: 10,
     paddingVertical: 6,
-    borderRadius: 4,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#57534e',
+    backgroundColor: 'transparent',
   },
-  scopeBtnActive: {
+  modeBtnActive: {
     backgroundColor: '#b45309',
+    borderColor: '#f59e0b',
   },
-  scopeBtnText: {
-    fontSize: 12,
+  modeBtnText: {
     color: '#a8a29e',
+    fontSize: 11,
     fontWeight: '600',
   },
-  scopeBtnTextActive: {
+  modeBtnTextActive: {
     color: '#ffffff',
     fontWeight: '800',
   },
-  printButton: {
-    backgroundColor: '#047857',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
+  returnMainBtn: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
     borderRadius: 6,
-    shadowColor: '#000',
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
-    elevation: 4,
+    backgroundColor: '#475569',
   },
-  printButtonText: {
+  returnMainBtnText: {
     color: '#ffffff',
-    fontSize: 13,
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  printBtn: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 6,
+    backgroundColor: '#0284c7',
+  },
+  printBtnText: {
+    color: '#ffffff',
+    fontSize: 11,
     fontWeight: '800',
-    letterSpacing: 0.3,
   },
-
   canvasScrollContent: {
-    padding: 24,
+    padding: 20,
     alignItems: 'center',
-    justifyContent: 'center',
   },
-
-  // Museum-Grade Deep Dark Walnut Wooden Frame
-  frameOuterBorder: {
+  frameOuter: {
     width: FRAME_WIDTH,
     height: FRAME_HEIGHT,
-    backgroundColor: '#27170c', // Deep rich walnut wood
-    borderRadius: 14,
-    padding: 16,
+    backgroundColor: '#451a03',
+    borderRadius: 12,
+    padding: 12,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 18 },
-    shadowOpacity: 0.6,
-    shadowRadius: 32,
-    elevation: 24,
-    borderWidth: 2,
-    borderColor: '#422413',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.4,
+    shadowRadius: 16,
+    elevation: 8,
   },
   frameWoodMatting: {
     flex: 1,
-    backgroundColor: '#ebe6db', // Fine silk matting
+    backgroundColor: '#78350f',
     borderRadius: 8,
-    padding: 16,
-    borderWidth: 1.5,
-    borderColor: '#c7beaf',
+    padding: 8,
   },
   canvasParchment: {
     flex: 1,
-    backgroundColor: '#faf7ee', // Hanji subtle ivory
+    backgroundColor: '#fdfbf7',
     borderRadius: 4,
     borderWidth: 1.5,
-    borderColor: '#78350f',
-    padding: 20,
+    borderColor: '#a8a29e',
+    padding: 18,
     position: 'relative',
     justifyContent: 'space-between',
   },
-
-  // Calligraphy Header
   calligraphyHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     borderBottomWidth: 2,
     borderBottomColor: '#292524',
-    paddingBottom: 14,
-    marginBottom: 16,
+    paddingBottom: 10,
+    marginBottom: 6,
   },
   headerDecoLine: {
     flex: 1,
@@ -604,330 +626,166 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   headerClanHanja: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '800',
     color: '#78350f',
     letterSpacing: 3,
-    marginBottom: 3,
+    marginBottom: 2,
   },
   headerMainTitle: {
-    fontSize: 26,
+    fontSize: 24,
     fontWeight: '900',
     color: '#1c1917',
     letterSpacing: 8,
     fontFamily: Platform.OS === 'web' ? 'serif' : undefined,
   },
   headerMotto: {
-    fontSize: 11.5,
+    fontSize: 11,
     color: '#57534e',
-    letterSpacing: 1.2,
-    marginTop: 4,
+    letterSpacing: 1,
+    marginTop: 2,
     fontWeight: '600',
   },
-
-  // Tree Diagram Area
   treeDiagramArea: {
-    flex: 1,
+    width: 1480,
+    height: 860,
     position: 'relative',
-    justifyContent: 'space-around',
-    paddingVertical: 6,
   },
-
-  // Row 1: 1대 조부모 & 외조부모
-  tierRowGen1: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+  absPosition: {
+    position: 'absolute',
     zIndex: 2,
-    paddingHorizontal: 20,
   },
-  grandBranchBox: {
-    backgroundColor: '#f5f5f4',
-    borderRadius: 8,
-    padding: 10,
-    borderWidth: 1,
-    borderColor: '#e7e5e4',
-    alignItems: 'center',
-  },
-  branchHeaderPillPaternal: {
+  sectionHeaderBadge: {
     backgroundColor: '#fee2e2',
-    paddingHorizontal: 10,
-    paddingVertical: 3,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
     borderRadius: 4,
-    marginBottom: 8,
     borderWidth: 0.8,
     borderColor: '#fca5a5',
   },
-  branchHeaderPillMaternal: {
-    backgroundColor: '#dbeafe',
-    paddingHorizontal: 10,
-    paddingVertical: 3,
-    borderRadius: 4,
-    marginBottom: 8,
-    borderWidth: 0.8,
-    borderColor: '#bfdbfe',
+  sectionHeaderText: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: '#991b1b',
   },
-  branchHeaderText: {
+  marriageLine: {
+    height: 1,
+    width: 12,
+    backgroundColor: '#b45309',
+  },
+  marriagePill: {
+    paddingHorizontal: 4,
+    paddingVertical: 1,
+    borderRadius: 4,
+    borderWidth: 1,
+    borderColor: '#b45309',
+    backgroundColor: '#fffbeb',
+  },
+  marriagePillText: {
+    fontSize: 9,
+    fontWeight: '800',
+    color: '#b45309',
+  },
+  cardContainer: {
+    backgroundColor: '#ffffff',
+    borderRadius: 6,
+    borderWidth: 1,
+    padding: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 3,
+    elevation: 2,
+    justifyContent: 'space-between',
+  },
+  emptyCardText: {
     fontSize: 11,
+    color: '#a8a29e',
+    fontStyle: 'italic',
+    textAlign: 'center',
+    marginTop: 20,
+  },
+  cardHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  avatarBox: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  avatarIconText: {
+    fontSize: 14,
+    fontWeight: '800',
+  },
+  identityCol: {
+    flex: 1,
+  },
+  nameRow: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    gap: 3,
+  },
+  cardName: {
+    fontSize: 13,
     fontWeight: '800',
     color: '#1c1917',
   },
-  centerPillarDivider: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: '#fef3c7',
-    borderWidth: 1.5,
-    borderColor: '#d97706',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  centerPillarText: {
-    fontSize: 12,
-    fontWeight: '900',
-    color: '#b45309',
-  },
-
-  // Row 2: 2대 부모 중심 결합
-  tierRowGen2: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    zIndex: 2,
-    paddingHorizontal: 10,
-  },
-  centerParentsMasterBox: {
-    backgroundColor: '#ffffff',
-    borderRadius: 8,
-    padding: 10,
-    borderWidth: 1.5,
-    borderColor: '#78350f',
-    alignItems: 'center',
-    boxShadow: '0 4px 12px rgba(0,0,0,0.06)',
-  },
-  parentsHeaderPill: {
-    backgroundColor: '#fef3c7',
-    paddingHorizontal: 12,
-    paddingVertical: 3,
-    borderRadius: 4,
-    marginBottom: 8,
-  },
-  parentsHeaderText: {
+  cardHanja: {
     fontSize: 11,
-    fontWeight: '800',
-    color: '#78350f',
-  },
-  sideFamilyBox: {
-    alignItems: 'center',
-  },
-
-  // Row 3: 3대 본인 & 아내 중심
-  tierRowGen3: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    zIndex: 2,
-    paddingHorizontal: 10,
-  },
-  centerSelfWifeMasterBox: {
-    backgroundColor: '#ffffff',
-    borderRadius: 8,
-    padding: 10,
-    borderWidth: 1.5,
-    borderColor: '#b45309',
-    alignItems: 'center',
-    boxShadow: '0 4px 12px rgba(0,0,0,0.06)',
-  },
-  selfWifeHeaderPill: {
-    backgroundColor: '#ffedd5',
-    paddingHorizontal: 12,
-    paddingVertical: 3,
-    borderRadius: 4,
-    marginBottom: 8,
-  },
-  selfWifeHeaderText: {
-    fontSize: 11,
-    fontWeight: '800',
-    color: '#9a3412',
-  },
-  siblingBox: {
-    alignItems: 'center',
-  },
-
-  // Row 4: 4대 자녀들
-  tierRowGen4: {
-    alignItems: 'center',
-    zIndex: 2,
-    marginTop: 4,
-  },
-  childrenHeaderPill: {
-    backgroundColor: '#ecfdf5',
-    paddingHorizontal: 12,
-    paddingVertical: 3,
-    borderRadius: 4,
-    marginBottom: 8,
-    borderWidth: 0.8,
-    borderColor: '#6ee7b7',
-  },
-  childrenHeaderText: {
-    fontSize: 11,
-    fontWeight: '800',
-    color: '#065f46',
-  },
-  childrenCardsRow: {
-    flexDirection: 'row',
-    gap: 30,
-    justifyContent: 'center',
-  },
-
-  // Couple Container & Marriage Bridge
-  coupleContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  coupleMarriageBridge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginHorizontal: 8,
-  },
-  coupleMarriageLine: {
-    width: 22,
-    height: 2,
-    backgroundColor: '#78350f',
-  },
-  coupleRingBadge: {
-    backgroundColor: '#78350f',
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 4,
-  },
-  coupleRingText: {
-    color: '#ffffff',
-    fontSize: 9.5,
-    fontWeight: '900',
-    letterSpacing: 1,
-  },
-
-  // Dignified Person Card (동등한 품격의 카드 레이아웃)
-  dignifiedCard: {
-    backgroundColor: '#ffffff',
-    borderRadius: 6,
-    padding: 8,
-    borderWidth: 1,
-    borderColor: '#d6d3d1',
-    borderTopWidth: 3.5, // Colored lineage identifier at top
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06,
-    shadowRadius: 3,
-  },
-  cardHeader: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-  },
-  photoFrame: {
-    width: 54,
-    height: 66,
-    backgroundColor: '#e7e5e4',
-    borderRadius: 4,
-    borderWidth: 1.2,
-    overflow: 'hidden',
-    position: 'relative',
-    marginRight: 8,
-  },
-  photoInner: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#d6d3d1',
-  },
-  photoAvatarIcon: {
-    fontSize: 30,
-  },
-  photoSepiaFilter: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: 'rgba(68, 64, 60, 0.1)',
-  },
-  cardMainIdentity: {
-    flex: 1,
-    justifyContent: 'flex-start',
-  },
-  nameHanjaRow: {
-    flexDirection: 'row',
-    alignItems: 'baseline',
-    gap: 4,
-    flexWrap: 'wrap',
-  },
-  personName: {
-    fontSize: 14,
-    fontWeight: '900',
-    color: '#0c0a09',
-  },
-  personHanja: {
-    fontSize: 10.5,
     color: '#57534e',
-    fontWeight: '700',
   },
   lifespanText: {
     fontSize: 10,
     color: '#78716c',
-    fontWeight: '600',
-    fontFamily: Platform.OS === 'web' ? 'monospace' : undefined,
-    marginTop: 1,
   },
-  clanBadgeText: {
-    fontSize: 10,
-    fontWeight: '800',
-    marginTop: 2,
-  },
-  relationshipRoleText: {
+  clanText: {
     fontSize: 10,
     fontWeight: '700',
+  },
+  roleTitleText: {
+    fontSize: 10,
     color: '#44403c',
-    marginTop: 1,
+    fontWeight: '600',
   },
-  biographySection: {
-    borderTopWidth: 0.8,
+  bioBox: {
+    borderTopWidth: 0.5,
     borderTopColor: '#f5f5f4',
-    marginTop: 6,
     paddingTop: 4,
+    marginTop: 4,
   },
-  biographyLine: {
+  bioText: {
     fontSize: 9.5,
     color: '#57534e',
-    lineHeight: 13,
   },
-
-  // Footer Section
   frameFooter: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'flex-end',
+    alignItems: 'center',
     borderTopWidth: 1.5,
-    borderTopColor: '#292524',
+    borderTopColor: '#a8a29e',
     paddingTop: 10,
-    marginTop: 8,
+    marginTop: 6,
   },
   footerLeftNote: {
     flex: 1,
   },
   footerNoteText: {
-    fontSize: 9.5,
-    color: '#78716c',
+    fontSize: 10.5,
+    color: '#57534e',
     lineHeight: 14,
   },
   footerCenterDate: {
     alignItems: 'center',
-    paddingHorizontal: 20,
+    marginHorizontal: 20,
   },
   footerDateHanja: {
-    fontSize: 12.5,
+    fontSize: 13,
     fontWeight: '800',
-    color: '#1c1917',
+    color: '#292524',
     letterSpacing: 2,
   },
   footerDateSolar: {
@@ -938,40 +796,39 @@ const styles = StyleSheet.create({
   footerRightSeals: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: 12,
   },
   royalSquareSeal: {
-    width: 54,
-    height: 54,
-    borderWidth: 2,
-    borderColor: '#b91c1c',
-    borderRadius: 4,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: 'rgba(185, 28, 28, 0.04)',
-  },
-  royalSquareSealText: {
-    color: '#b91c1c',
-    fontWeight: '900',
-    fontSize: 9.5,
-    textAlign: 'center',
-    lineHeight: 13,
-    letterSpacing: 1,
-  },
-  circleSeal: {
     width: 44,
     height: 44,
-    borderRadius: 22,
-    borderWidth: 1.8,
-    borderColor: '#b91c1c',
-    justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: '#dc2626',
+    borderRadius: 4,
     alignItems: 'center',
-    backgroundColor: 'rgba(185, 28, 28, 0.04)',
+    justifyContent: 'center',
+    backgroundColor: '#fff1f2',
+  },
+  royalSquareSealText: {
+    fontSize: 8.5,
+    fontWeight: '900',
+    color: '#dc2626',
+    textAlign: 'center',
+    lineHeight: 11,
+  },
+  circleSeal: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    borderWidth: 2,
+    borderColor: '#dc2626',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#fff1f2',
   },
   circleSealText: {
-    color: '#b91c1c',
-    fontWeight: '900',
     fontSize: 9,
+    fontWeight: '900',
+    color: '#dc2626',
     textAlign: 'center',
     lineHeight: 11,
   },
