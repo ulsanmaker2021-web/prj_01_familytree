@@ -10,7 +10,7 @@ import {
 } from 'react-native';
 import { FamilyMember } from '../types/family';
 import { inkTheme } from '../theme/inkTheme';
-import { getLifeStatus } from '../utils/mockFamilyData';
+import { getLifeStatus, getKinshipRelation } from '../utils/mockFamilyData';
 
 interface HorizontalMindmapViewProps {
   members: FamilyMember[];
@@ -25,20 +25,49 @@ export const HorizontalMindmapView: React.FC<HorizontalMindmapViewProps> = ({
   onSelectMember,
   onSetCenterPerson,
 }) => {
-  // Mobile check
   const screenWidth = Dimensions.get('window').width;
   const isMobile = screenWidth < 768;
 
-  // Visual Theme: 'dark' (Mindmap modern dark slate) vs 'hanji' (Traditional soft parchment)
+  // Visual Theme: 'dark' (Modern Mindmap) vs 'hanji' (Traditional Ink Parchment)
   const [themeMode, setThemeMode] = useState<'dark' | 'hanji'>('dark');
 
-  // Find center person's spouse if any
+  // Track expanded nodes (Set of member IDs)
+  // Initially only the center person is expanded; all others are compact mindmap capsules
+  const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set([centerPerson.id]));
+
+  // Toggle extended kin (방계: 백부, 숙부, 고모, 외숙, 이모, 사촌 포함 여부)
+  const [showExtendedKin, setShowExtendedKin] = useState<boolean>(true);
+
+  // Toggle individual node expansion
+  const toggleNodeExpand = (id: string) => {
+    setExpandedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  };
+
+  // Expand all / Collapse all
+  const expandAll = () => {
+    const allIds = new Set(members.map((m) => m.id));
+    setExpandedIds(allIds);
+  };
+
+  const collapseAll = () => {
+    setExpandedIds(new Set());
+  };
+
+  // Find center person's spouse
   const spouse = useMemo(() => {
     if (!centerPerson.spouseId) return null;
     return members.find((m) => m.id === centerPerson.spouseId);
   }, [members, centerPerson]);
 
-  // LEVEL 1 LEFT: Direct Parents (부모)
+  // Parents of center person
   const parents = useMemo(() => {
     if (!centerPerson.parentIds || centerPerson.parentIds.length === 0) return [];
     return centerPerson.parentIds
@@ -46,38 +75,48 @@ export const HorizontalMindmapView: React.FC<HorizontalMindmapViewProps> = ({
       .filter((m): m is FamilyMember => !!m);
   }, [members, centerPerson]);
 
-  // LEVEL 2 LEFT: Grandparents (조부모 및 외조부모)
-  const grandparentsMap = useMemo(() => {
-    const map: Record<string, FamilyMember[]> = {};
-    parents.forEach((parent) => {
-      if (parent.parentIds && parent.parentIds.length > 0) {
-        const gpList = parent.parentIds
-          .map((id) => members.find((m) => m.id === id))
-          .filter((m): m is FamilyMember => !!m);
-        map[parent.id] = gpList;
-      } else {
-        map[parent.id] = [];
-      }
-    });
-    return map;
-  }, [members, parents]);
+  const father = parents.find((p) => p.gender === 'M');
+  const mother = parents.find((p) => p.gender === 'F');
 
-  // LEVEL 1 RIGHT: Direct Children (자녀)
-  const children = useMemo(() => {
-    return members.filter((m) => m.parentIds && m.parentIds.includes(centerPerson.id));
-  }, [members, centerPerson]);
+  // Paternal Grandparents (친조부모)
+  const paternalGrandparents = useMemo(() => {
+    if (!father || !father.parentIds) return [];
+    return father.parentIds
+      .map((id) => members.find((m) => m.id === id))
+      .filter((m): m is FamilyMember => !!m);
+  }, [members, father]);
 
-  // LEVEL 2 RIGHT: Grandchildren (손자녀)
-  const grandchildrenMap = useMemo(() => {
-    const map: Record<string, FamilyMember[]> = {};
-    children.forEach((child) => {
-      const gcList = members.filter((m) => m.parentIds && m.parentIds.includes(child.id));
-      map[child.id] = gcList;
-    });
-    return map;
-  }, [members, children]);
+  // Maternal Grandparents (외조부모)
+  const maternalGrandparents = useMemo(() => {
+    if (!mother || !mother.parentIds) return [];
+    return mother.parentIds
+      .map((id) => members.find((m) => m.id === id))
+      .filter((m): m is FamilyMember => !!m);
+  }, [members, mother]);
 
-  // Siblings of Center Person (형제자매)
+  // Paternal Extended Aunts & Uncles (친가 백부/숙부/고모)
+  const paternalUnclesAunts = useMemo(() => {
+    if (!father || !father.parentIds || father.parentIds.length === 0) return [];
+    return members.filter(
+      (m) =>
+        m.id !== father.id &&
+        m.parentIds &&
+        m.parentIds.some((pId) => father.parentIds?.includes(pId))
+    );
+  }, [members, father]);
+
+  // Maternal Extended Aunts & Uncles (외가 외삼촌/이모)
+  const maternalUnclesAunts = useMemo(() => {
+    if (!mother || !mother.parentIds || mother.parentIds.length === 0) return [];
+    return members.filter(
+      (m) =>
+        m.id !== mother.id &&
+        m.parentIds &&
+        m.parentIds.some((pId) => mother.parentIds?.includes(pId))
+    );
+  }, [members, mother]);
+
+  // Siblings of Center Person (동기: 형제·자매)
   const siblings = useMemo(() => {
     if (!centerPerson.parentIds || centerPerson.parentIds.length === 0) return [];
     return members.filter(
@@ -88,374 +127,642 @@ export const HorizontalMindmapView: React.FC<HorizontalMindmapViewProps> = ({
     );
   }, [members, centerPerson]);
 
-  // Colors based on theme
-  const isDark = themeMode === 'dark';
-  const bgColor = isDark ? '#14171f' : '#f8f6f0';
-  const cardBg = isDark ? '#1f2430' : '#ffffff';
-  const cardBorder = isDark ? '#333b4f' : '#e2dcce';
-  const centerCardBg = isDark ? '#2a2218' : '#fffbeb';
-  const centerCardBorder = isDark ? '#f59e0b' : '#d97706';
-  const textColor = isDark ? '#f1f5f9' : '#1c1917';
-  const subtextColor = isDark ? '#94a3b8' : '#78716c';
-  const lineColor = isDark ? '#4b5563' : '#a8a29e';
+  // Direct Children (직계 자녀)
+  const children = useMemo(() => {
+    return members.filter((m) => m.parentIds && m.parentIds.includes(centerPerson.id));
+  }, [members, centerPerson]);
 
-  // Render an individual Node Card
-  const renderNodeCard = (
+  // Grandchildren (직계 손자녀)
+  const grandchildrenMap = useMemo(() => {
+    const map: Record<string, FamilyMember[]> = {};
+    children.forEach((child) => {
+      const gcList = members.filter((m) => m.parentIds && m.parentIds.includes(child.id));
+      map[child.id] = gcList;
+    });
+    return map;
+  }, [members, children]);
+
+  const allGrandchildren = useMemo(() => {
+    const list: FamilyMember[] = [];
+    Object.values(grandchildrenMap).forEach((gcs) => list.push(...gcs));
+    return list;
+  }, [grandchildrenMap]);
+
+  // Theme palette
+  const isDark = themeMode === 'dark';
+  const bgColor = isDark ? '#0f172a' : '#fcfbf7';
+  const cardBg = isDark ? '#1e293b' : '#ffffff';
+  const cardBorder = isDark ? '#334155' : '#e2e8f0';
+  const centerCardBg = isDark ? '#1e1b4b' : '#eff6ff';
+  const centerCardBorder = isDark ? '#6366f1' : '#3b82f6';
+  const textColor = isDark ? '#f8fafc' : '#0f172a';
+  const subtextColor = isDark ? '#94a3b8' : '#64748b';
+  const branchLineColor = isDark ? '#475569' : '#cbd5e1';
+
+  // Helper to determine relation tag
+  const getDisplayRelationTag = (member: FamilyMember, defaultRole?: string) => {
+    if (defaultRole) return defaultRole;
+    if (member.id === centerPerson.id) return '본인(주인공)';
+    if (member.id === centerPerson.spouseId) return '배우자';
+    if (member.relationship) return member.relationship;
+    const kinship = getKinshipRelation(centerPerson.id, member.id);
+    return kinship.title || '친족';
+  };
+
+  // Render a compact Mindmap Node with optional on-demand expand drawer
+  const renderMindmapNode = (
     member: FamilyMember,
-    isCenter: boolean = false,
-    roleLabel?: string,
-    accentColor?: string
+    options: {
+      isCenter?: boolean;
+      roleTag?: string;
+      lineageBadge?: string;
+      lineageColor?: string;
+    } = {}
   ) => {
-    const life = getLifeStatus(member);
+    const { isCenter = false, roleTag, lineageBadge, lineageColor } = options;
+    const isExpanded = expandedIds.has(member.id);
     const isMale = member.gender === 'M';
-    const borderTopColor = accentColor || (member.lineage === 'maternal' ? '#3b82f6' : '#ef4444');
+    const life = getLifeStatus(member);
+
+    // Birth/Death years
+    const birthYear = member.birthDate ? parseInt(member.birthDate.substring(0, 4), 10) : null;
+    const deathYear = member.deathDate ? parseInt(member.deathDate.substring(0, 4), 10) : null;
+
+    // Gender styling
+    const genderColor = isMale ? '#38bdf8' : '#f472b6';
+    const genderBg = isMale
+      ? isDark ? 'rgba(56, 189, 248, 0.15)' : '#e0f2fe'
+      : isDark ? 'rgba(244, 114, 182, 0.15)' : '#fce7f3';
+
+    // Accent line by lineage
+    const accent = lineageColor || (member.lineage === 'maternal' ? '#3b82f6' : member.lineage === 'inlaw_paternal' || member.lineage === 'inlaw_maternal' ? '#d97706' : '#ef4444');
+
+    const relationText = getDisplayRelationTag(member, roleTag);
 
     return (
       <View
         key={member.id}
         style={[
-          styles.nodeCard,
-          {
-            backgroundColor: isCenter ? centerCardBg : cardBg,
-            borderColor: isCenter ? centerCardBorder : cardBorder,
-            borderTopColor: isCenter ? '#f59e0b' : borderTopColor,
-            borderTopWidth: 3.5,
-          },
-          isCenter && styles.centerNodeGlow,
+          styles.nodeWrapper,
+          isCenter && styles.centerNodeWrapper,
         ]}
       >
-        <TouchableOpacity
-          style={styles.cardClickable}
-          activeOpacity={0.75}
-          onPress={() => onSelectMember(member)}
+        {/* Branch connector incoming dot */}
+        <View style={[styles.connectorDotLeft, { backgroundColor: branchLineColor }]} />
+
+        {/* The Node Capsule */}
+        <View
+          style={[
+            styles.nodeCapsule,
+            {
+              backgroundColor: isCenter ? centerCardBg : cardBg,
+              borderColor: isCenter ? centerCardBorder : isExpanded ? accent : cardBorder,
+              borderLeftColor: accent,
+              borderLeftWidth: 4,
+            },
+            isCenter && styles.nodeCapsuleCenter,
+            isExpanded && styles.nodeCapsuleExpanded,
+          ]}
         >
-          {/* Header Row */}
-          <View style={styles.cardHeaderRow}>
-            {/* Avatar Pill */}
+          {/* Main Compact Row (클릭 시 펼침/접힘 토글) */}
+          <TouchableOpacity
+            style={styles.compactRow}
+            onPress={() => toggleNodeExpand(member.id)}
+            activeOpacity={0.7}
+          >
+            {/* Gender Icon Badge */}
+            <View style={[styles.genderBadge, { backgroundColor: genderBg }]}>
+              <Text style={[styles.genderIconText, { color: genderColor }]}>
+                {isMale ? '남' : '여'}
+              </Text>
+            </View>
+
+            {/* Name + Hanja */}
+            <View style={styles.nameContainer}>
+              <Text
+                style={[
+                  styles.nodeName,
+                  { color: isCenter ? (isDark ? '#a5b4fc' : '#1d4ed8') : textColor },
+                  isCenter && styles.nodeNameCenter,
+                ]}
+                numberOfLines={1}
+              >
+                {member.name}
+                {member.hanja ? (
+                  <Text style={[styles.nodeHanja, { color: subtextColor }]}>
+                    {' '}({member.hanja})
+                  </Text>
+                ) : null}
+              </Text>
+            </View>
+
+            {/* Relation Tag Badge */}
             <View
               style={[
-                styles.avatarPill,
+                styles.relationTag,
                 {
-                  backgroundColor: member.lineage === 'maternal' ? 'rgba(59, 130, 246, 0.15)' : 'rgba(239, 68, 68, 0.15)',
+                  backgroundColor: isCenter
+                    ? (isDark ? '#4338ca' : '#dbeafe')
+                    : (isDark ? '#334155' : '#f1f5f9'),
                 },
               ]}
             >
-              <Text style={styles.avatarIcon}>
-                {member.generation <= 2 ? (isMale ? '👴' : '👵') : (isMale ? '👨' : '👩')}
+              <Text
+                style={[
+                  styles.relationTagText,
+                  {
+                    color: isCenter
+                      ? (isDark ? '#e0e7ff' : '#1e40af')
+                      : (isDark ? '#cbd5e1' : '#475569'),
+                  },
+                ]}
+              >
+                {relationText}
               </Text>
             </View>
 
-            {/* Name & Hanja */}
-            <View style={styles.nameWrap}>
-              <View style={styles.nameRow}>
-                <Text style={[styles.nameText, { color: textColor }]}>{member.name}</Text>
-                {member.hanja && <Text style={styles.hanjaText}>({member.hanja})</Text>}
+            {/* Lineage small badge if provided */}
+            {lineageBadge && (
+              <View style={[styles.lineageBadge, { backgroundColor: accent + '22', borderColor: accent }]}>
+                <Text style={[styles.lineageBadgeText, { color: accent }]}>{lineageBadge}</Text>
               </View>
-              <Text style={[styles.roleBadgeText, { color: isCenter ? '#f59e0b' : subtextColor }]}>
-                {roleLabel || member.relationship}
-              </Text>
-            </View>
+            )}
 
-            {/* Alive / Deceased Pill */}
+            {/* Life status dot */}
             <View
               style={[
-                styles.lifeStatusPill,
-                { backgroundColor: member.isAlive ? '#065f46' : '#475569' },
+                styles.lifeStatusDot,
+                { backgroundColor: life.isAlive ? '#10b981' : '#64748b' },
+              ]}
+            />
+
+            {/* Expand / Fold Button */}
+            <TouchableOpacity
+              style={[
+                styles.expandToggleBtn,
+                {
+                  backgroundColor: isExpanded
+                    ? (isDark ? '#475569' : '#e2e8f0')
+                    : (isDark ? '#334155' : '#f8fafc'),
+                  borderColor: isExpanded ? accent : (isDark ? '#64748b' : '#cbd5e1'),
+                },
+              ]}
+              onPress={() => toggleNodeExpand(member.id)}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            >
+              <Text
+                style={[
+                  styles.expandToggleBtnText,
+                  { color: isExpanded ? accent : textColor },
+                ]}
+              >
+                {isExpanded ? '−' : '+'}
+              </Text>
+            </TouchableOpacity>
+          </TouchableOpacity>
+
+          {/* ================================================================= */}
+          {/* Expanded Detail Drawer (확장 버튼 클릭 시 나타나는 풍부한 정보 서랍) */}
+          {/* ================================================================= */}
+          {isExpanded && (
+            <View
+              style={[
+                styles.expandedDrawer,
+                {
+                  borderTopColor: isDark ? '#334155' : '#f1f5f9',
+                  backgroundColor: isDark ? 'rgba(15, 23, 42, 0.6)' : 'rgba(248, 250, 252, 0.8)',
+                },
               ]}
             >
-              <Text style={styles.lifeStatusText}>
-                {member.isAlive ? `🌿 ${life.ageText}` : `🕯️ 작고`}
-              </Text>
+              {/* Lifespan & Age */}
+              <View style={styles.detailRow}>
+                <Text style={[styles.detailLabel, { color: subtextColor }]}>생몰/연세:</Text>
+                <Text style={[styles.detailValue, { color: textColor }]}>
+                  {birthYear ? `${birthYear}년생` : '미상'}
+                  {deathYear ? ` ~ ${deathYear}년 (${deathYear - (birthYear || 0)}세 별세)` : ''}
+                  {life.fullDesc ? ` · ${life.fullDesc}` : ''}
+                </Text>
+              </View>
+
+              {/* Clan */}
+              {member.clan && (
+                <View style={styles.detailRow}>
+                  <Text style={[styles.detailLabel, { color: subtextColor }]}>본관:</Text>
+                  <Text style={[styles.detailValue, { color: textColor }]}>
+                    {member.clan}
+                  </Text>
+                </View>
+              )}
+
+              {/* Achievements / Bio */}
+              {member.achievements && member.achievements.length > 0 ? (
+                <View style={styles.detailRow}>
+                  <Text style={[styles.detailLabel, { color: subtextColor }]}>주요이력:</Text>
+                  <Text style={[styles.detailValue, { color: textColor }]} numberOfLines={2}>
+                    {member.achievements.join(', ')}
+                  </Text>
+                </View>
+              ) : null}
+
+              {/* Elder Verification Badge */}
+              <View style={styles.detailRow}>
+                <Text style={[styles.detailLabel, { color: subtextColor }]}>가문공인:</Text>
+                <Text style={[styles.detailValue, { color: '#10b981', fontWeight: '700' }]}>
+                  🛡️ 윗대 생존 어르신 공인 완료
+                </Text>
+              </View>
+
+              {/* Action Buttons in Drawer */}
+              <View style={styles.drawerActionsRow}>
+                {!isCenter && (
+                  <TouchableOpacity
+                    style={[styles.actionBtn, styles.actionBtnShift]}
+                    onPress={() => onSetCenterPerson(member.id)}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={styles.actionBtnShiftText}>
+                      🎯 이 사람 중심으로 3대 펼치기
+                    </Text>
+                  </TouchableOpacity>
+                )}
+
+                <TouchableOpacity
+                  style={[styles.actionBtn, styles.actionBtnProfile, { borderColor: isDark ? '#64748b' : '#cbd5e1' }]}
+                  onPress={() => onSelectMember(member)}
+                  activeOpacity={0.7}
+                >
+                  <Text style={[styles.actionBtnProfileText, { color: textColor }]}>
+                    📋 전체 프로필 모달
+                  </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[styles.actionBtnFold, { borderColor: isDark ? '#475569' : '#e2e8f0' }]}
+                  onPress={() => toggleNodeExpand(member.id)}
+                >
+                  <Text style={[styles.actionBtnFoldText, { color: subtextColor }]}>▲ 접기</Text>
+                </TouchableOpacity>
+              </View>
             </View>
-          </View>
+          )}
+        </View>
 
-          {/* Profile & Biography Excerpt */}
-          <View style={styles.cardBody}>
-            <View style={styles.metaRow}>
-              <Text style={[styles.clanText, { color: subtextColor }]} numberOfLines={1}>
-                {member.clan || '본관 미상'}
-              </Text>
-              <Text style={[styles.genText, { color: subtextColor }]}>
-                {member.generation}대
-              </Text>
-            </View>
-
-            {member.achievements && member.achievements.length > 0 ? (
-              <Text style={[styles.achievementExcerpt, { color: isDark ? '#cbd5e1' : '#44403c' }]} numberOfLines={2}>
-                • {member.achievements[0]}
-              </Text>
-            ) : member.memo ? (
-              <Text style={[styles.achievementExcerpt, { color: isDark ? '#94a3b8' : '#78716c' }]} numberOfLines={1}>
-                • {member.memo}
-              </Text>
-            ) : null}
-          </View>
-        </TouchableOpacity>
-
-        {/* Center Shift Button (마인드맵 중심 기준 재배치) */}
-        {!isCenter && (
-          <TouchableOpacity
-            style={styles.shiftCenterBtn}
-            onPress={() => onSetCenterPerson(member.id)}
-            activeOpacity={0.7}
-          >
-            <Text style={styles.shiftCenterBtnText}>🎯 이 사람을 중심으로 3대 펼치기</Text>
-          </TouchableOpacity>
-        )}
+        {/* Branch connector outgoing dot */}
+        <View style={[styles.connectorDotRight, { backgroundColor: branchLineColor }]} />
       </View>
     );
   };
 
   return (
     <View style={[styles.container, { backgroundColor: bgColor }]}>
-      {/* 1. Header Toolbar */}
-      <View style={[styles.toolbar, { backgroundColor: isDark ? '#1a202c' : '#ffffff', borderColor: isDark ? '#2d3748' : '#e2e8f0' }]}>
+      {/* 1. Header Toolbar & Quick Controls */}
+      <View
+        style={[
+          styles.toolbar,
+          {
+            backgroundColor: isDark ? '#1e293b' : '#ffffff',
+            borderColor: isDark ? '#334155' : '#e2e8f0',
+          },
+        ]}
+      >
         <View style={styles.toolbarLeft}>
-          <View style={styles.titleBadge}>
-            <Text style={styles.titleBadgeText}>수평 마인드맵 (좌:윗대 / 우:아랫대)</Text>
+          <View style={styles.titleRow}>
+            <View style={styles.mindmapBadge}>
+              <Text style={styles.mindmapBadgeText}>🧠 수평 간략 마인드맵</Text>
+            </View>
+            <Text style={[styles.mainTitle, { color: textColor }]}>
+              [ {centerPerson.name} {centerPerson.hanja ? `(${centerPerson.hanja})` : ''} ] 중심 3대 가계도
+            </Text>
           </View>
-          <Text style={[styles.mainTitle, { color: textColor }]}>
-            [ {centerPerson.name} ] 중심 3대 가계 계통도
-          </Text>
           <Text style={[styles.subTitle, { color: subtextColor }]}>
-            화면 어디서나 인물을 탭하면 해당 인물을 중심으로 앞뒤 3대가 즉시 화면에 맞게 재정렬됩니다.
+            💡 마인드맵 노드의 [+] 버튼을 누르면 상세 정보와 [중심 변경] 메뉴가 펼쳐집니다.
           </Text>
         </View>
 
         <View style={styles.toolbarRight}>
+          {/* Expand All / Collapse All */}
+          <View style={styles.controlGroup}>
+            <TouchableOpacity
+              style={[styles.toolBtn, { borderColor: isDark ? '#475569' : '#cbd5e1' }]}
+              onPress={expandAll}
+            >
+              <Text style={[styles.toolBtnText, { color: textColor }]}>➕ 전체 펼침</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.toolBtn, { borderColor: isDark ? '#475569' : '#cbd5e1' }]}
+              onPress={collapseAll}
+            >
+              <Text style={[styles.toolBtnText, { color: textColor }]}>➖ 전체 간략</Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* Toggle Extended Kin (방계 포함 여부) */}
           <TouchableOpacity
-            style={[styles.themeBtn, { borderColor: isDark ? '#4b5563' : '#d1d5db' }]}
+            style={[
+              styles.toolBtn,
+              showExtendedKin && styles.toolBtnActive,
+              { borderColor: showExtendedKin ? '#0284c7' : (isDark ? '#475569' : '#cbd5e1') },
+            ]}
+            onPress={() => setShowExtendedKin(!showExtendedKin)}
+          >
+            <Text
+              style={[
+                styles.toolBtnText,
+                { color: showExtendedKin ? '#0284c7' : textColor, fontWeight: showExtendedKin ? '800' : '500' },
+              ]}
+            >
+              {showExtendedKin ? '🌐 방계 포함됨' : '🌿 직계만 보기'}
+            </Text>
+          </TouchableOpacity>
+
+          {/* Theme Toggle */}
+          <TouchableOpacity
+            style={[styles.toolBtn, { borderColor: isDark ? '#475569' : '#cbd5e1' }]}
             onPress={() => setThemeMode(isDark ? 'hanji' : 'dark')}
           >
-            <Text style={[styles.themeBtnText, { color: isDark ? '#fde047' : '#0284c7' }]}>
-              {isDark ? '☀️ 라이트 한지 모드' : '🌙 다크 마인드맵 모드'}
+            <Text style={[styles.toolBtnText, { color: isDark ? '#fde047' : '#0284c7' }]}>
+              {isDark ? '☀️ 한지' : '🌙 다크'}
             </Text>
           </TouchableOpacity>
         </View>
       </View>
 
-      {/* 2. Horizontal 3-Tier Mindmap Tree Canvas */}
+      {/* 2. Horizontal Scroll Canvas with Mindmap Branches */}
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={true}
-        contentContainerStyle={styles.scrollCanvasContent}
+        contentContainerStyle={styles.horizontalScrollContent}
       >
         <ScrollView
           showsVerticalScrollIndicator={true}
           contentContainerStyle={styles.verticalScrollContent}
         >
-          <View style={styles.mindmapRowLayout}>
+          <View style={styles.mindmapTreeRow}>
             {/* ========================================================================= */}
             {/* COLUMN 1 (가장 좌측): 2단계 윗대 - 조부모 / 외조부모 (Grandparents) */}
             {/* ========================================================================= */}
-            <View style={styles.columnSection}>
-              <View style={[styles.columnHeaderPill, { backgroundColor: isDark ? '#1e293b' : '#f1f5f9' }]}>
-                <Text style={[styles.columnHeaderText, { color: isDark ? '#94a3b8' : '#475569' }]}>
-                  ◀ 2단계 윗대 (조부모 / 외조부모)
-                </Text>
+            <View style={styles.treeColumn}>
+              <View style={[styles.columnHeader, { borderBottomColor: isDark ? '#334155' : '#e2e8f0' }]}>
+                <View style={[styles.columnHeaderBadge, { backgroundColor: '#475569' }]}>
+                  <Text style={styles.columnHeaderBadgeText}>2단계 윗대</Text>
+                </View>
+                <Text style={[styles.columnTitle, { color: textColor }]}>조부모·외조부모</Text>
+                <Text style={[styles.columnSub, { color: subtextColor }]}>친·외가 동등</Text>
               </View>
 
-              <View style={styles.cardsColumnStack}>
-                {parents.length === 0 ? (
-                  <View style={[styles.emptyBox, { borderColor: cardBorder }]}>
-                    <Text style={[styles.emptyText, { color: subtextColor }]}>등록된 조부모 정보 없음</Text>
+              <View style={styles.columnNodesContainer}>
+                {/* Paternal Grandparents (친조부모) */}
+                <View style={styles.subGroupBlock}>
+                  <View style={styles.subGroupHeader}>
+                    <View style={[styles.subGroupLine, { backgroundColor: '#ef4444' }]} />
+                    <Text style={[styles.subGroupTitle, { color: '#ef4444' }]}>🔴 친가 조부모</Text>
                   </View>
-                ) : (
-                  parents.map((parent) => {
-                    const gpList = grandparentsMap[parent.id] || [];
-                    return (
-                      <View key={parent.id} style={styles.gpSubCluster}>
-                        <View style={styles.clusterSubHeader}>
-                          <Text style={[styles.clusterSubHeaderText, { color: parent.lineage === 'maternal' ? '#3b82f6' : '#ef4444' }]}>
-                            {parent.name}({parent.relationship})의 부모님:
-                          </Text>
-                        </View>
-                        {gpList.length > 0 ? (
-                          gpList.map((gp) =>
-                            renderNodeCard(
-                              gp,
-                              false,
-                              parent.lineage === 'maternal' ? '외조부모' : '친조부모',
-                              parent.lineage === 'maternal' ? '#3b82f6' : '#ef4444'
-                            )
-                          )
-                        ) : (
-                          <View style={[styles.emptyBoxMini, { borderColor: cardBorder }]}>
-                            <Text style={[styles.emptyTextMini, { color: subtextColor }]}>
-                              {parent.name}의 부모 미등록
-                            </Text>
-                          </View>
-                        )}
-                      </View>
-                    );
-                  })
-                )}
-              </View>
-            </View>
-
-            {/* Connecting Fork Lines (Grandparents -> Parents) */}
-            <View style={styles.connectingForkArea}>
-              <View style={[styles.horizontalStemLine, { backgroundColor: lineColor }]} />
-              <View style={[styles.forkBullet, { backgroundColor: lineColor }]} />
-            </View>
-
-            {/* ========================================================================= */}
-            {/* COLUMN 2 (좌측 중앙): 1단계 윗대 - 부모 (Parents) */}
-            {/* ========================================================================= */}
-            <View style={styles.columnSection}>
-              <View style={[styles.columnHeaderPill, { backgroundColor: isDark ? '#2e1065' : '#f3e8ff' }]}>
-                <Text style={[styles.columnHeaderText, { color: isDark ? '#c084fc' : '#7e22ce' }]}>
-                  ◀ 1단계 윗대 (직계 부모님)
-                </Text>
-              </View>
-
-              <View style={styles.cardsColumnStack}>
-                {parents.length > 0 ? (
-                  parents.map((p) =>
-                    renderNodeCard(
-                      p,
-                      false,
-                      p.gender === 'M' ? '아버지 (부친)' : '어머니 (모친)',
-                      p.gender === 'M' ? '#ef4444' : '#3b82f6'
+                  {paternalGrandparents.length > 0 ? (
+                    paternalGrandparents.map((gp) =>
+                      renderMindmapNode(gp, {
+                        roleTag: gp.gender === 'M' ? '친조부' : '친조모',
+                        lineageBadge: '친가',
+                        lineageColor: '#ef4444',
+                      })
                     )
-                  )
-                ) : (
-                  <View style={[styles.emptyBox, { borderColor: cardBorder }]}>
-                    <Text style={[styles.emptyText, { color: subtextColor }]}>직계 부모 미등록</Text>
+                  ) : (
+                    <Text style={[styles.emptyNotice, { color: subtextColor }]}>친조부모 정보 미등록</Text>
+                  )}
+                </View>
+
+                {/* Branch vertical separator */}
+                <View style={[styles.branchDivider, { backgroundColor: isDark ? '#1e293b' : '#e2e8f0' }]} />
+
+                {/* Maternal Grandparents (외조부모) */}
+                <View style={styles.subGroupBlock}>
+                  <View style={styles.subGroupHeader}>
+                    <View style={[styles.subGroupLine, { backgroundColor: '#3b82f6' }]} />
+                    <Text style={[styles.subGroupTitle, { color: '#3b82f6' }]}>🔵 외가 외조부모</Text>
                   </View>
-                )}
+                  {maternalGrandparents.length > 0 ? (
+                    maternalGrandparents.map((mgp) =>
+                      renderMindmapNode(mgp, {
+                        roleTag: mgp.gender === 'M' ? '외조부' : '외조모',
+                        lineageBadge: '외가',
+                        lineageColor: '#3b82f6',
+                      })
+                    )
+                  ) : (
+                    <Text style={[styles.emptyNotice, { color: subtextColor }]}>외조부모 정보 미등록</Text>
+                  )}
+                </View>
               </View>
             </View>
 
-            {/* Connecting Fork Lines (Parents -> Center Person) */}
-            <View style={styles.connectingForkArea}>
-              <View style={[styles.horizontalStemLine, { backgroundColor: lineColor }]} />
-              <View style={[styles.forkBullet, { backgroundColor: '#f59e0b' }]} />
+            {/* Tree Branch Line (Col 1 ➔ Col 2) */}
+            <View style={styles.branchBridge}>
+              <View style={[styles.horizontalLine, { backgroundColor: branchLineColor }]} />
+              <View style={[styles.arrowHeadLeft, { borderColor: branchLineColor }]} />
             </View>
 
             {/* ========================================================================= */}
-            {/* COLUMN 3 (중앙): ★ 선택된 기준 인물 (Center Person & Spouse & Siblings) */}
+            {/* COLUMN 2 (좌측): 1단계 윗대 - 부모 세대 (Parents & Aunts/Uncles) */}
             {/* ========================================================================= */}
-            <View style={[styles.columnSection, styles.centerColumnHighlight]}>
-              <View style={styles.centerHeaderPill}>
-                <Text style={styles.centerHeaderText}>
-                  ★ 기준 인물 (나 / 선택된 주인공) ★
-                </Text>
+            <View style={styles.treeColumn}>
+              <View style={[styles.columnHeader, { borderBottomColor: isDark ? '#334155' : '#e2e8f0' }]}>
+                <View style={[styles.columnHeaderBadge, { backgroundColor: '#0284c7' }]}>
+                  <Text style={styles.columnHeaderBadgeText}>1단계 윗대</Text>
+                </View>
+                <Text style={[styles.columnTitle, { color: textColor }]}>부모님 세대</Text>
+                <Text style={[styles.columnSub, { color: subtextColor }]}>친부·친모</Text>
               </View>
 
-              <View style={styles.cardsColumnStack}>
-                {/* Center Person Card */}
-                {renderNodeCard(centerPerson, true, '중심 기준 인물', '#f59e0b')}
+              <View style={styles.columnNodesContainer}>
+                {/* Direct Parents */}
+                <View style={styles.subGroupBlock}>
+                  <View style={styles.subGroupHeader}>
+                    <Text style={[styles.subGroupTitle, { color: textColor }]}>직계 부모</Text>
+                  </View>
+                  {father &&
+                    renderMindmapNode(father, {
+                      roleTag: '친부(아버지)',
+                      lineageBadge: '친가',
+                      lineageColor: '#ef4444',
+                    })}
+                  {mother &&
+                    renderMindmapNode(mother, {
+                      roleTag: '친모(어머니)',
+                      lineageBadge: '외가',
+                      lineageColor: '#3b82f6',
+                    })}
+                  {!father && !mother && (
+                    <Text style={[styles.emptyNotice, { color: subtextColor }]}>등록된 부모 정보 없음</Text>
+                  )}
+                </View>
 
-                {/* Spouse Card if present */}
-                {spouse && (
-                  <View style={styles.spouseBlock}>
-                    <View style={styles.spouseConnectLine}>
-                      <Text style={styles.spouseConnectText}>── 夫婦 (배우자) ──</Text>
+                {/* Extended Kin: Paternal & Maternal Uncles/Aunts (백부, 숙부, 고모, 외숙, 이모) */}
+                {showExtendedKin && (paternalUnclesAunts.length > 0 || maternalUnclesAunts.length > 0) && (
+                  <>
+                    <View style={[styles.branchDivider, { backgroundColor: isDark ? '#1e293b' : '#e2e8f0' }]} />
+                    <View style={styles.subGroupBlock}>
+                      <View style={styles.subGroupHeader}>
+                        <Text style={[styles.subGroupTitle, { color: subtextColor }]}>방계 어르신 (백부·숙부·외숙)</Text>
+                      </View>
+                      {paternalUnclesAunts.map((u) =>
+                        renderMindmapNode(u, {
+                          roleTag: u.relationship || (u.gender === 'M' ? '백부/숙부' : '고모'),
+                          lineageBadge: '친가',
+                          lineageColor: '#ef4444',
+                        })
+                      )}
+                      {maternalUnclesAunts.map((u) =>
+                        renderMindmapNode(u, {
+                          roleTag: u.relationship || (u.gender === 'M' ? '외숙' : '이모'),
+                          lineageBadge: '외가',
+                          lineageColor: '#3b82f6',
+                        })
+                      )}
                     </View>
-                    {renderNodeCard(spouse, false, '배우자 (아내/남편)', '#ec4899')}
+                  </>
+                )}
+              </View>
+            </View>
+
+            {/* Tree Branch Line (Col 2 ➔ Col 3) */}
+            <View style={styles.branchBridge}>
+              <View style={[styles.horizontalLine, { backgroundColor: branchLineColor }]} />
+              <View style={[styles.arrowHeadLeft, { borderColor: branchLineColor }]} />
+            </View>
+
+            {/* ========================================================================= */}
+            {/* COLUMN 3 (중앙): ★ 기준 인물 Hub (Center Person, Spouse, Siblings) */}
+            {/* ========================================================================= */}
+            <View style={[styles.treeColumn, styles.treeColumnCenter, { borderColor: centerCardBorder }]}>
+              <View style={[styles.columnHeader, { borderBottomColor: isDark ? '#4338ca' : '#bfdbfe' }]}>
+                <View style={[styles.columnHeaderBadge, { backgroundColor: '#6366f1' }]}>
+                  <Text style={styles.columnHeaderBadgeText}>★ 기준 인물 Hub</Text>
+                </View>
+                <Text style={[styles.columnTitle, { color: isDark ? '#c7d2fe' : '#1e3a8a', fontWeight: '900' }]}>
+                  {centerPerson.name} 중심 세대
+                </Text>
+                <Text style={[styles.columnSub, { color: subtextColor }]}>본인 · 배우자 · 형제</Text>
+              </View>
+
+              <View style={styles.columnNodesContainer}>
+                {/* 1. Center Person (The Main Star) */}
+                <View style={styles.subGroupBlock}>
+                  <View style={styles.subGroupHeader}>
+                    <Text style={[styles.subGroupTitle, { color: '#6366f1', fontWeight: '800' }]}>
+                      ★ 주인공 (중심 기준 인물)
+                    </Text>
+                  </View>
+                  {renderMindmapNode(centerPerson, {
+                    isCenter: true,
+                    roleTag: '★ 본인(주인공)',
+                    lineageBadge: '중심',
+                    lineageColor: '#6366f1',
+                  })}
+                </View>
+
+                {/* 2. Spouse (배우자) */}
+                {spouse ? (
+                  <View style={styles.subGroupBlock}>
+                    <View style={styles.subGroupHeader}>
+                      <Text style={[styles.subGroupTitle, { color: '#d97706', fontWeight: '700' }]}>
+                        💍 동반자 배우자
+                      </Text>
+                    </View>
+                    {renderMindmapNode(spouse, {
+                      roleTag: '배우자',
+                      lineageBadge: '배우자',
+                      lineageColor: '#d97706',
+                    })}
+                  </View>
+                ) : (
+                  <View style={styles.subGroupBlock}>
+                    <Text style={[styles.emptyNotice, { color: subtextColor }]}>배우자 미등록</Text>
                   </View>
                 )}
 
-                {/* Siblings Collapsible / Inline */}
+                {/* 3. Siblings (형제자매) */}
                 {siblings.length > 0 && (
-                  <View style={styles.siblingsGroup}>
-                    <Text style={[styles.siblingsTitle, { color: subtextColor }]}>
-                      동일 세대 형제·자매 ({siblings.length}명)
-                    </Text>
+                  <View style={styles.subGroupBlock}>
+                    <View style={[styles.branchDivider, { backgroundColor: isDark ? '#1e293b' : '#e2e8f0' }]} />
+                    <View style={styles.subGroupHeader}>
+                      <Text style={[styles.subGroupTitle, { color: subtextColor }]}>동기 (형제·자매)</Text>
+                    </View>
                     {siblings.map((sib) =>
-                      renderNodeCard(
-                        sib,
-                        false,
-                        sib.gender === 'M' ? '형제/남동생' : '자매/여동생',
-                        '#64748b'
-                      )
+                      renderMindmapNode(sib, {
+                        roleTag: sib.gender === 'M' ? '형제' : '자매',
+                        lineageBadge: '동기',
+                        lineageColor: '#10b981',
+                      })
                     )}
                   </View>
                 )}
               </View>
             </View>
 
-            {/* Connecting Fork Lines (Center Person -> Children) */}
-            <View style={styles.connectingForkArea}>
-              <View style={[styles.horizontalStemLine, { backgroundColor: lineColor }]} />
-              <View style={[styles.forkBullet, { backgroundColor: '#10b981' }]} />
+            {/* Tree Branch Line (Col 3 ➔ Col 4) */}
+            <View style={styles.branchBridge}>
+              <View style={[styles.horizontalLine, { backgroundColor: branchLineColor }]} />
+              <View style={[styles.arrowHeadRight, { borderColor: branchLineColor }]} />
             </View>
 
             {/* ========================================================================= */}
-            {/* COLUMN 4 (우측 중앙): 1단계 아랫대 - 직계 자녀 (Children) */}
+            {/* COLUMN 4 (우측): 1단계 아랫대 - 직계 자녀 (Children) */}
             {/* ========================================================================= */}
-            <View style={styles.columnSection}>
-              <View style={[styles.columnHeaderPill, { backgroundColor: isDark ? '#064e3b' : '#ecfdf5' }]}>
-                <Text style={[styles.columnHeaderText, { color: isDark ? '#34d399' : '#047857' }]}>
-                  ▶ 1단계 아랫대 (직계 자녀)
-                </Text>
+            <View style={styles.treeColumn}>
+              <View style={[styles.columnHeader, { borderBottomColor: isDark ? '#334155' : '#e2e8f0' }]}>
+                <View style={[styles.columnHeaderBadge, { backgroundColor: '#059669' }]}>
+                  <Text style={styles.columnHeaderBadgeText}>1단계 아랫대</Text>
+                </View>
+                <Text style={[styles.columnTitle, { color: textColor }]}>직계 자녀</Text>
+                <Text style={[styles.columnSub, { color: subtextColor }]}>아들 · 딸</Text>
               </View>
 
-              <View style={styles.cardsColumnStack}>
+              <View style={styles.columnNodesContainer}>
                 {children.length > 0 ? (
-                  children.map((child) =>
-                    renderNodeCard(
-                      child,
-                      false,
-                      child.gender === 'M' ? '장남/아들' : '장녀/딸',
-                      '#10b981'
-                    )
+                  children.map((child, idx) =>
+                    renderMindmapNode(child, {
+                      roleTag: child.gender === 'M' ? (idx === 0 ? '장남' : '차남') : (idx === 0 ? '장녀' : '차녀'),
+                      lineageBadge: '자녀',
+                      lineageColor: '#059669',
+                    })
                   )
                 ) : (
-                  <View style={[styles.emptyBox, { borderColor: cardBorder }]}>
-                    <Text style={[styles.emptyText, { color: subtextColor }]}>등록된 직계 자녀 없음</Text>
-                  </View>
+                  <Text style={[styles.emptyNotice, { color: subtextColor }]}>등록된 자녀 정보 없음</Text>
                 )}
               </View>
             </View>
 
-            {/* Connecting Fork Lines (Children -> Grandchildren) */}
-            {children.length > 0 && (
-              <View style={styles.connectingForkArea}>
-                <View style={[styles.horizontalStemLine, { backgroundColor: lineColor }]} />
-                <View style={[styles.forkBullet, { backgroundColor: lineColor }]} />
-              </View>
-            )}
+            {/* Tree Branch Line (Col 4 ➔ Col 5) */}
+            <View style={styles.branchBridge}>
+              <View style={[styles.horizontalLine, { backgroundColor: branchLineColor }]} />
+              <View style={[styles.arrowHeadRight, { borderColor: branchLineColor }]} />
+            </View>
 
             {/* ========================================================================= */}
             {/* COLUMN 5 (가장 우측): 2단계 아랫대 - 손자녀 (Grandchildren) */}
             {/* ========================================================================= */}
-            {children.length > 0 && (
-              <View style={styles.columnSection}>
-                <View style={[styles.columnHeaderPill, { backgroundColor: isDark ? '#1e293b' : '#f1f5f9' }]}>
-                  <Text style={[styles.columnHeaderText, { color: isDark ? '#94a3b8' : '#475569' }]}>
-                    ▶ 2단계 아랫대 (손자·손녀)
-                  </Text>
+            <View style={styles.treeColumn}>
+              <View style={[styles.columnHeader, { borderBottomColor: isDark ? '#334155' : '#e2e8f0' }]}>
+                <View style={[styles.columnHeaderBadge, { backgroundColor: '#7c3aed' }]}>
+                  <Text style={styles.columnHeaderBadgeText}>2단계 아랫대</Text>
                 </View>
-
-                <View style={styles.cardsColumnStack}>
-                  {children.map((child) => {
-                    const gcList = grandchildrenMap[child.id] || [];
-                    if (gcList.length === 0) return null;
-                    return (
-                      <View key={child.id} style={styles.gpSubCluster}>
-                        <View style={styles.clusterSubHeader}>
-                          <Text style={[styles.clusterSubHeaderText, { color: '#10b981' }]}>
-                            {child.name}의 자녀(손자녀):
-                          </Text>
-                        </View>
-                        {gcList.map((gc) =>
-                          renderNodeCard(gc, false, '손자/손녀', '#059669')
-                        )}
-                      </View>
-                    );
-                  })}
-                  {Object.values(grandchildrenMap).every((arr) => arr.length === 0) && (
-                    <View style={[styles.emptyBox, { borderColor: cardBorder }]}>
-                      <Text style={[styles.emptyText, { color: subtextColor }]}>
-                        등록된 2단계 손자녀 없음
-                      </Text>
-                    </View>
-                  )}
-                </View>
+                <Text style={[styles.columnTitle, { color: textColor }]}>손자녀 세대</Text>
+                <Text style={[styles.columnSub, { color: subtextColor }]}>손자 · 손녀</Text>
               </View>
-            )}
+
+              <View style={styles.columnNodesContainer}>
+                {allGrandchildren.length > 0 ? (
+                  allGrandchildren.map((gc) =>
+                    renderMindmapNode(gc, {
+                      roleTag: gc.gender === 'M' ? '손자' : '손녀',
+                      lineageBadge: '손주',
+                      lineageColor: '#7c3aed',
+                    })
+                  )
+                ) : (
+                  <Text style={[styles.emptyNotice, { color: subtextColor }]}>손자녀 세대 미등록</Text>
+                )}
+              </View>
+            </View>
           </View>
         </ScrollView>
       </ScrollView>
@@ -465,304 +772,351 @@ export const HorizontalMindmapView: React.FC<HorizontalMindmapViewProps> = ({
 
 const styles = StyleSheet.create({
   container: {
-    width: '100%',
     flex: 1,
   },
   toolbar: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 20,
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
     paddingVertical: 12,
     borderBottomWidth: 1,
     flexWrap: 'wrap',
-    gap: 10,
+    gap: 8,
   },
   toolbarLeft: {
     flex: 1,
-    minWidth: 300,
+    minWidth: 260,
   },
-  titleBadge: {
-    alignSelf: 'flex-start',
+  titleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    flexWrap: 'wrap',
+  },
+  mindmapBadge: {
     backgroundColor: '#0284c7',
     paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 4,
-    marginBottom: 4,
+    paddingVertical: 3,
+    borderRadius: 6,
   },
-  titleBadgeText: {
+  mindmapBadgeText: {
     color: '#ffffff',
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: '800',
   },
   mainTitle: {
-    fontSize: 18,
-    fontWeight: '900',
-    letterSpacing: 0.3,
+    fontSize: 16,
+    fontWeight: '800',
   },
   subTitle: {
     fontSize: 12,
-    marginTop: 2,
+    marginTop: 4,
   },
   toolbarRight: {
     flexDirection: 'row',
     alignItems: 'center',
+    gap: 8,
+    flexWrap: 'wrap',
   },
-  themeBtn: {
-    paddingHorizontal: 12,
+  controlGroup: {
+    flexDirection: 'row',
+    gap: 4,
+  },
+  toolBtn: {
+    paddingHorizontal: 10,
     paddingVertical: 6,
     borderRadius: 6,
     borderWidth: 1,
+    backgroundColor: 'transparent',
   },
-  themeBtnText: {
+  toolBtnActive: {
+    backgroundColor: 'rgba(2, 132, 199, 0.1)',
+  },
+  toolBtnText: {
     fontSize: 12,
-    fontWeight: '700',
   },
-
-  scrollCanvasContent: {
+  horizontalScrollContent: {
     padding: 16,
-    minWidth: '100%',
   },
   verticalScrollContent: {
-    paddingVertical: 10,
+    paddingVertical: 8,
   },
-  mindmapRowLayout: {
+  mindmapTreeRow: {
     flexDirection: 'row',
     alignItems: 'flex-start',
   },
-
-  // Column Section
-  columnSection: {
-    width: 270,
-    marginHorizontal: 8,
+  treeColumn: {
+    width: 250,
+    minHeight: 480,
+    backgroundColor: 'transparent',
   },
-  centerColumnHighlight: {
-    width: 300,
-    backgroundColor: 'rgba(245, 158, 11, 0.04)',
-    borderRadius: 12,
-    padding: 8,
-    borderWidth: 1.5,
-    borderColor: 'rgba(245, 158, 11, 0.25)',
-  },
-  columnHeaderPill: {
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-    borderRadius: 6,
-    marginBottom: 12,
-    alignItems: 'center',
-  },
-  columnHeaderText: {
-    fontSize: 12,
-    fontWeight: '800',
-    letterSpacing: 0.5,
-  },
-  centerHeaderPill: {
-    backgroundColor: '#d97706',
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    borderRadius: 6,
-    marginBottom: 12,
-    alignItems: 'center',
-  },
-  centerHeaderText: {
-    color: '#ffffff',
-    fontSize: 13,
-    fontWeight: '900',
-    letterSpacing: 0.5,
-  },
-  cardsColumnStack: {
-    gap: 14,
-  },
-
-  // Sub Cluster for Grandparents & Grandchildren
-  gpSubCluster: {
-    marginBottom: 10,
-    gap: 8,
-  },
-  clusterSubHeader: {
+  treeColumnCenter: {
+    width: 280,
     paddingHorizontal: 4,
-    marginBottom: 2,
   },
-  clusterSubHeaderText: {
-    fontSize: 11,
-    fontWeight: '800',
+  columnHeader: {
+    paddingBottom: 8,
+    marginBottom: 12,
+    borderBottomWidth: 1,
+    alignItems: 'flex-start',
   },
-
-  // Node Card
-  nodeCard: {
-    borderRadius: 10,
-    borderWidth: 1,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.12,
-    shadowRadius: 6,
-    elevation: 3,
-    overflow: 'hidden',
-  },
-  centerNodeGlow: {
-    borderWidth: 2,
-    shadowOpacity: 0.25,
-    shadowRadius: 10,
-    elevation: 6,
-  },
-  cardClickable: {
-    padding: 12,
-  },
-  cardHeaderRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  avatarPill: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 8,
-  },
-  avatarIcon: {
-    fontSize: 20,
-  },
-  nameWrap: {
-    flex: 1,
-  },
-  nameRow: {
-    flexDirection: 'row',
-    alignItems: 'baseline',
-    gap: 4,
-    flexWrap: 'wrap',
-  },
-  nameText: {
-    fontSize: 15,
-    fontWeight: '900',
-  },
-  hanjaText: {
-    fontSize: 11,
-    color: '#64748b',
-    fontWeight: '600',
-  },
-  roleBadgeText: {
-    fontSize: 11,
-    fontWeight: '700',
-    marginTop: 1,
-  },
-  lifeStatusPill: {
+  columnHeaderBadge: {
     paddingHorizontal: 6,
     paddingVertical: 2,
     borderRadius: 4,
+    marginBottom: 4,
   },
-  lifeStatusText: {
+  columnHeaderBadgeText: {
     color: '#ffffff',
     fontSize: 10,
+    fontWeight: '700',
+  },
+  columnTitle: {
+    fontSize: 14,
     fontWeight: '800',
   },
-
-  cardBody: {
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(150, 150, 150, 0.15)',
-    paddingTop: 6,
-    gap: 3,
+  columnSub: {
+    fontSize: 11,
+    marginTop: 2,
   },
-  metaRow: {
+  columnNodesContainer: {
+    gap: 8,
+  },
+  subGroupBlock: {
+    gap: 6,
+    marginBottom: 4,
+  },
+  subGroupHeader: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
+    gap: 4,
+    marginTop: 4,
+    marginBottom: 2,
   },
-  clanText: {
+  subGroupLine: {
+    width: 3,
+    height: 10,
+    borderRadius: 2,
+  },
+  subGroupTitle: {
     fontSize: 11,
     fontWeight: '700',
   },
-  genText: {
-    fontSize: 10,
-    fontWeight: '800',
+  branchDivider: {
+    height: 1,
+    marginVertical: 6,
   },
-  achievementExcerpt: {
+  emptyNotice: {
     fontSize: 11,
-    lineHeight: 15,
-  },
-
-  // Center Shift Button
-  shiftCenterBtn: {
-    backgroundColor: '#0284c7',
+    fontStyle: 'italic',
     paddingVertical: 6,
-    alignItems: 'center',
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(255, 255, 255, 0.1)',
+    paddingHorizontal: 8,
   },
-  shiftCenterBtnText: {
-    color: '#ffffff',
-    fontSize: 11,
-    fontWeight: '800',
-  },
-
-  // Spouse Block
-  spouseBlock: {
-    marginTop: 6,
-  },
-  spouseConnectLine: {
-    alignItems: 'center',
-    marginVertical: 4,
-  },
-  spouseConnectText: {
-    fontSize: 10,
-    fontWeight: '800',
-    color: '#ec4899',
-  },
-
-  // Siblings Group
-  siblingsGroup: {
-    marginTop: 12,
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(150, 150, 150, 0.2)',
-    paddingTop: 8,
-    gap: 10,
-  },
-  siblingsTitle: {
-    fontSize: 11,
-    fontWeight: '800',
-    marginBottom: 4,
-  },
-
-  // Connecting Fork
-  connectingForkArea: {
-    width: 32,
-    height: 120,
+  branchBridge: {
+    width: 28,
+    height: 100,
     justifyContent: 'center',
     alignItems: 'center',
-    alignSelf: 'center',
+    position: 'relative',
   },
-  horizontalStemLine: {
-    width: 32,
+  horizontalLine: {
+    width: '100%',
     height: 2,
   },
-  forkBullet: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
+  arrowHeadLeft: {
     position: 'absolute',
+    right: 4,
+    width: 6,
+    height: 6,
+    borderTopWidth: 2,
+    borderRightWidth: 2,
+    transform: [{ rotate: '45deg' }],
   },
-
-  // Empty State
-  emptyBox: {
-    padding: 20,
+  arrowHeadRight: {
+    position: 'absolute',
+    right: 4,
+    width: 6,
+    height: 6,
+    borderTopWidth: 2,
+    borderRightWidth: 2,
+    transform: [{ rotate: '45deg' }],
+  },
+  nodeWrapper: {
+    position: 'relative',
+    marginVertical: 3,
+  },
+  centerNodeWrapper: {
+    marginVertical: 6,
+  },
+  connectorDotLeft: {
+    position: 'absolute',
+    left: -6,
+    top: 16,
+    width: 4,
+    height: 4,
+    borderRadius: 2,
+    zIndex: 2,
+  },
+  connectorDotRight: {
+    position: 'absolute',
+    right: -6,
+    top: 16,
+    width: 4,
+    height: 4,
+    borderRadius: 2,
+    zIndex: 2,
+  },
+  nodeCapsule: {
     borderRadius: 8,
     borderWidth: 1,
-    borderStyle: 'dashed',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.08,
+    shadowRadius: 2,
+    elevation: 1,
+    overflow: 'hidden',
+  },
+  nodeCapsuleCenter: {
+    shadowOpacity: 0.2,
+    shadowRadius: 6,
+    elevation: 3,
+  },
+  nodeCapsuleExpanded: {
+    shadowOpacity: 0.15,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  compactRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 7,
+    paddingHorizontal: 8,
+    gap: 6,
+    minHeight: 38,
+  },
+  genderBadge: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  emptyText: {
-    fontSize: 12,
+  genderIconText: {
+    fontSize: 11,
+    fontWeight: '800',
   },
-  emptyBoxMini: {
-    padding: 8,
-    borderRadius: 6,
+  nameContainer: {
+    flex: 1,
+    minWidth: 0,
+  },
+  nodeName: {
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  nodeNameCenter: {
+    fontSize: 14,
+    fontWeight: '800',
+  },
+  nodeHanja: {
+    fontSize: 11,
+    fontWeight: '400',
+  },
+  relationTag: {
+    paddingHorizontal: 5,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  relationTagText: {
+    fontSize: 10,
+    fontWeight: '700',
+  },
+  lineageBadge: {
+    paddingHorizontal: 4,
+    paddingVertical: 1,
+    borderRadius: 3,
+    borderWidth: 0.5,
+  },
+  lineageBadgeText: {
+    fontSize: 9,
+    fontWeight: '700',
+  },
+  lifeStatusDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 4,
+    marginHorizontal: 1,
+  },
+  expandToggleBtn: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
     borderWidth: 1,
-    borderStyle: 'dashed',
     alignItems: 'center',
+    justifyContent: 'center',
+    marginLeft: 2,
   },
-  emptyTextMini: {
+  expandToggleBtnText: {
+    fontSize: 14,
+    fontWeight: '700',
+    lineHeight: 16,
+  },
+  expandedDrawer: {
+    borderTopWidth: 1,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    gap: 5,
+  },
+  detailRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 6,
+  },
+  detailLabel: {
+    fontSize: 11,
+    fontWeight: '600',
+    width: 54,
+  },
+  detailValue: {
+    fontSize: 11,
+    flex: 1,
+  },
+  drawerActionsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 4,
+    flexWrap: 'wrap',
+  },
+  actionBtn: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 4,
+  },
+  actionBtnShift: {
+    backgroundColor: '#0284c7',
+  },
+  actionBtnShiftText: {
+    color: '#ffffff',
+    fontSize: 10,
+    fontWeight: '700',
+  },
+  actionBtnProfile: {
+    backgroundColor: 'transparent',
+    borderWidth: 1,
+  },
+  actionBtnProfileText: {
+    fontSize: 10,
+    fontWeight: '600',
+  },
+  actionBtnFold: {
+    paddingHorizontal: 6,
+    paddingVertical: 3,
+    borderRadius: 3,
+    borderWidth: 0.5,
+    marginLeft: 'auto',
+  },
+  actionBtnFoldText: {
     fontSize: 10,
   },
 });
