@@ -14,6 +14,7 @@ import { MemberDetailModal } from '../components/MemberDetailModal';
 import { ObsidianGraphView } from '../components/ObsidianGraphView';
 import { RelationshipStudioModal } from '../components/RelationshipStudioModal';
 import { FramedMasterpieceView } from '../components/FramedMasterpieceView';
+import { HorizontalMindmapView } from '../components/HorizontalMindmapView';
 import { inkTheme } from '../theme/inkTheme';
 
 // Scope filter by kinship degree
@@ -21,7 +22,7 @@ type KinshipScope = 'direct' | 'cousin4' | 'extended6';
 // Lineage focus mode
 type FocusLineage = 'all' | 'paternal' | 'maternal' | 'inlaw';
 // View mode
-type ViewMode = 'radial' | 'generation' | 'framed';
+type ViewMode = 'radial' | 'generation' | 'framed' | 'mindmap';
 
 export default function HomeScreen() {
   const {
@@ -295,6 +296,22 @@ export default function HomeScreen() {
                   ]}
                 >
                   🖼️ 거실 표구 액자형
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[
+                  styles.modeBtn,
+                  viewMode === 'mindmap' && [styles.modeBtnActive, { backgroundColor: '#0369a1', borderColor: '#0ea5e9' }],
+                ]}
+                onPress={() => setViewMode('mindmap')}
+              >
+                <Text
+                  style={[
+                    styles.modeBtnText,
+                    viewMode === 'mindmap' && { color: '#ffffff', fontWeight: '800' },
+                  ]}
+                >
+                  🧠 수평 마인드맵 (3대)
                 </Text>
               </TouchableOpacity>
             </View>
@@ -610,6 +627,16 @@ export default function HomeScreen() {
               </View>
             )}
           </View>
+        ) : viewMode === 'mindmap' ? (
+          /* ================== HORIZONTAL MINDMAP VIEW (수평 3대 펼침 마인드맵) ================== */
+          centerPerson ? (
+            <HorizontalMindmapView
+              members={allMembers && allMembers.length > 0 ? allMembers : members}
+              centerPerson={centerPerson}
+              onSelectMember={setSelectedMember}
+              onSetCenterPerson={setCenterPerson}
+            />
+          ) : null
         ) : viewMode === 'framed' ? (
           /* ================== FRAMED MASTERPIECE VIEW (거실 표구 액자형 가계도) ================== */
           <FramedMasterpieceView
