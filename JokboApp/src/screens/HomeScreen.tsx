@@ -56,6 +56,49 @@ export default function HomeScreen() {
   const [studioVisible, setStudioVisible] = useState(false);
   const [studioPreselectedPersonAId, setStudioPreselectedPersonAId] = useState<string | undefined>(undefined);
 
+  // Navigation history of explored center persons
+  const [centerHistory, setCenterHistory] = useState<string[]>([currentDevice.ownerId]);
+
+  // When device changes, reset center history to new device owner
+  React.useEffect(() => {
+    setCenterHistory([currentDevice.ownerId]);
+  }, [currentDevice.ownerId]);
+
+  const handleSetCenterPerson = (memberId: string) => {
+    if (memberId !== centerPersonId) {
+      setCenterHistory((prev) => [...prev, memberId]);
+      setCenterPerson(memberId);
+    }
+  };
+
+  const handleGoBack = () => {
+    if (centerHistory.length > 1) {
+      const nextHistory = [...centerHistory];
+      nextHistory.pop(); // Remove current person
+      const prevPersonId = nextHistory[nextHistory.length - 1];
+      setCenterHistory(nextHistory);
+      setCenterPerson(prevPersonId);
+    } else {
+      // If already at initial person, switch view mode back to main 'radial'
+      setViewMode('radial');
+    }
+  };
+
+  const handleNavigateToHistory = (memberId: string) => {
+    const idx = centerHistory.lastIndexOf(memberId);
+    if (idx !== -1) {
+      setCenterHistory((prev) => prev.slice(0, idx + 1));
+      setCenterPerson(memberId);
+    } else {
+      handleSetCenterPerson(memberId);
+    }
+  };
+
+  const handleResetToOwner = () => {
+    resetCenterToOwner();
+    setCenterHistory([currentDevice.ownerId]);
+  };
+
   // Get central person (fallback to current device owner or first member)
   const centerPerson =
     members.find((m) => m.id === centerPersonId) ||
@@ -634,7 +677,16 @@ export default function HomeScreen() {
               members={allMembers && allMembers.length > 0 ? allMembers : members}
               centerPerson={centerPerson}
               onSelectMember={setSelectedMember}
-              onSetCenterPerson={setCenterPerson}
+              onSetCenterPerson={handleSetCenterPerson}
+              currentViewMode={viewMode}
+              onSwitchViewMode={setViewMode}
+              ownerName={currentDevice.ownerName}
+              onResetToOwner={handleResetToOwner}
+              historyMembers={centerHistory
+                .map((id) => allMembers.find((m) => m.id === id) || members.find((m) => m.id === id))
+                .filter((m): m is FamilyMember => !!m)}
+              onGoBack={handleGoBack}
+              onNavigateToHistory={handleNavigateToHistory}
             />
           ) : null
         ) : viewMode === 'framed' ? (
@@ -642,6 +694,7 @@ export default function HomeScreen() {
           <FramedMasterpieceView
             members={members}
             onSelectMember={setSelectedMember}
+            onReturnToMain={() => setViewMode('radial')}
           />
         ) : (
           /* ================== GENERATION VIEW (계통별 세대 뷰) ================== */

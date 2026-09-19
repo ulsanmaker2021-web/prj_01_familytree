@@ -17,6 +17,14 @@ interface HorizontalMindmapViewProps {
   centerPerson: FamilyMember;
   onSelectMember: (member: FamilyMember) => void;
   onSetCenterPerson: (memberId: string) => void;
+  // Navigation & Menu return props
+  currentViewMode?: 'radial' | 'generation' | 'framed' | 'mindmap';
+  onSwitchViewMode?: (mode: 'radial' | 'generation' | 'framed' | 'mindmap') => void;
+  ownerName?: string;
+  onResetToOwner?: () => void;
+  historyMembers?: FamilyMember[];
+  onGoBack?: () => void;
+  onNavigateToHistory?: (memberId: string) => void;
 }
 
 export const HorizontalMindmapView: React.FC<HorizontalMindmapViewProps> = ({
@@ -24,6 +32,13 @@ export const HorizontalMindmapView: React.FC<HorizontalMindmapViewProps> = ({
   centerPerson,
   onSelectMember,
   onSetCenterPerson,
+  currentViewMode = 'mindmap',
+  onSwitchViewMode,
+  ownerName,
+  onResetToOwner,
+  historyMembers = [],
+  onGoBack,
+  onNavigateToHistory,
 }) => {
   const screenWidth = Dimensions.get('window').width;
   const isMobile = screenWidth < 768;
@@ -37,6 +52,14 @@ export const HorizontalMindmapView: React.FC<HorizontalMindmapViewProps> = ({
 
   // Toggle extended kin (방계: 백부, 숙부, 고모, 외숙, 이모, 사촌 포함 여부)
   const [showExtendedKin, setShowExtendedKin] = useState<boolean>(true);
+
+  // Previous person in history if any
+  const prevMember = useMemo(() => {
+    if (historyMembers.length >= 2) {
+      return historyMembers[historyMembers.length - 2];
+    }
+    return null;
+  }, [historyMembers]);
 
   // Toggle individual node expansion
   const toggleNodeExpand = (id: string) => {
@@ -386,6 +409,32 @@ export const HorizontalMindmapView: React.FC<HorizontalMindmapViewProps> = ({
                   </TouchableOpacity>
                 )}
 
+                {/* Back to previous person */}
+                {prevMember && isCenter && onGoBack && (
+                  <TouchableOpacity
+                    style={[styles.actionBtn, styles.actionBtnBackPrev]}
+                    onPress={onGoBack}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={styles.actionBtnBackPrevText}>
+                      ◀ 이전 ({prevMember.name})으로 복귀
+                    </Text>
+                  </TouchableOpacity>
+                )}
+
+                {/* Return to All Menu (전체 메뉴 / 홈으로) */}
+                {onSwitchViewMode && (
+                  <TouchableOpacity
+                    style={[styles.actionBtn, styles.actionBtnMainHome]}
+                    onPress={() => onSwitchViewMode('radial')}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={styles.actionBtnMainHomeText}>
+                      🏠 전체 메뉴로
+                    </Text>
+                  </TouchableOpacity>
+                )}
+
                 <TouchableOpacity
                   style={[styles.actionBtn, styles.actionBtnProfile, { borderColor: isDark ? '#64748b' : '#cbd5e1' }]}
                   onPress={() => onSelectMember(member)}
@@ -415,6 +464,139 @@ export const HorizontalMindmapView: React.FC<HorizontalMindmapViewProps> = ({
 
   return (
     <View style={[styles.container, { backgroundColor: bgColor }]}>
+      {/* ===================================================================== */}
+      {/* 0. Top Navigation & Menu Return Bar (세부 메뉴 ➔ 이전/전체 메뉴 복귀 내비게이션) */}
+      {/* ===================================================================== */}
+      <View
+        style={[
+          styles.navBar,
+          {
+            backgroundColor: isDark ? '#0b1120' : '#ffffff',
+            borderBottomColor: isDark ? '#1e293b' : '#e2e8f0',
+          },
+        ]}
+      >
+        <View style={styles.navLeftGroup}>
+          {/* 1. Back button (이전 메뉴 / 이전 인물) */}
+          <TouchableOpacity
+            style={[styles.navBtn, styles.navBtnBack]}
+            onPress={onGoBack}
+            activeOpacity={0.8}
+          >
+            <Text style={styles.navBtnBackText}>
+              ◀ {prevMember ? `이전 (${prevMember.name})` : '이전 메뉴'}
+            </Text>
+          </TouchableOpacity>
+
+          {/* 2. Full Menu / Home Button (전체 메뉴 / 메인 가계도) */}
+          <TouchableOpacity
+            style={[styles.navBtn, styles.navBtnHome]}
+            onPress={() => onSwitchViewMode && onSwitchViewMode('radial')}
+            activeOpacity={0.8}
+          >
+            <Text style={styles.navBtnHomeText}>
+              🏠 전체 메뉴 (메인 가계도)
+            </Text>
+          </TouchableOpacity>
+
+          {/* 3. Return to Device Owner (스마트폰 주인으로 복귀) */}
+          {ownerName && onResetToOwner && (
+            <TouchableOpacity
+              style={[styles.navBtn, styles.navBtnOwner]}
+              onPress={onResetToOwner}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.navBtnOwnerText}>
+                👤 {ownerName} (본인 복귀)
+              </Text>
+            </TouchableOpacity>
+          )}
+        </View>
+
+        {/* 4. Mode Switcher Pills (다른 뷰로 즉시 전환) */}
+        {onSwitchViewMode && (
+          <View style={styles.viewModeSwitcher}>
+            <Text style={[styles.viewModeLabel, { color: subtextColor }]}>전체 메뉴 바로가기:</Text>
+            <TouchableOpacity
+              style={[styles.modePill, currentViewMode === 'radial' && styles.modePillActive]}
+              onPress={() => onSwitchViewMode('radial')}
+            >
+              <Text style={[styles.modePillText, currentViewMode === 'radial' && styles.modePillTextActive]}>
+                🌐 옵시디언
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.modePill, currentViewMode === 'generation' && styles.modePillActive]}
+              onPress={() => onSwitchViewMode('generation')}
+            >
+              <Text style={[styles.modePillText, currentViewMode === 'generation' && styles.modePillTextActive]}>
+                📜 세대별
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.modePill, currentViewMode === 'framed' && [styles.modePillActive, { backgroundColor: '#854d0e', borderColor: '#b45309' }]]}
+              onPress={() => onSwitchViewMode('framed')}
+            >
+              <Text style={[styles.modePillText, currentViewMode === 'framed' && styles.modePillTextActive]}>
+                🖼️ 거실액자
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.modePill, currentViewMode === 'mindmap' && styles.modePillActiveMindmap]}
+              onPress={() => onSwitchViewMode('mindmap')}
+            >
+              <Text style={[styles.modePillText, currentViewMode === 'mindmap' && styles.modePillTextActiveMindmap]}>
+                🧠 수평 마인드맵
+              </Text>
+            </TouchableOpacity>
+          </View>
+        )}
+      </View>
+
+      {/* ===================================================================== */}
+      {/* 0-B. Breadcrumb Navigation Trail (현재 탐색 경로 표시 및 원클릭 점프) */}
+      {/* ===================================================================== */}
+      {historyMembers && historyMembers.length > 0 && (
+        <View
+          style={[
+            styles.breadcrumbBar,
+            {
+              backgroundColor: isDark ? '#111827' : '#f8fafc',
+              borderBottomColor: isDark ? '#1f2937' : '#e2e8f0',
+            },
+          ]}
+        >
+          <Text style={[styles.breadcrumbLabel, { color: subtextColor }]}>🧭 이동 경로:</Text>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.breadcrumbScroll}>
+            <TouchableOpacity onPress={() => onSwitchViewMode && onSwitchViewMode('radial')}>
+              <Text style={[styles.breadcrumbLink, { color: '#0284c7' }]}>🏠 가계도 전체</Text>
+            </TouchableOpacity>
+            <Text style={[styles.breadcrumbSep, { color: subtextColor }]}> ❯ </Text>
+            {historyMembers.map((m, idx) => {
+              const isLast = idx === historyMembers.length - 1;
+              return (
+                <View key={m.id + '_' + idx} style={styles.breadcrumbItemWrap}>
+                  {idx > 0 && <Text style={[styles.breadcrumbSep, { color: subtextColor }]}> ❯ </Text>}
+                  <TouchableOpacity
+                    onPress={() => !isLast && onNavigateToHistory && onNavigateToHistory(m.id)}
+                    disabled={isLast}
+                  >
+                    <Text
+                      style={[
+                        isLast ? styles.breadcrumbCurrent : styles.breadcrumbLink,
+                        { color: isLast ? (isDark ? '#38bdf8' : '#0369a1') : (isDark ? '#93c5fd' : '#0284c7') },
+                      ]}
+                    >
+                      {m.name} ({m.relationship || '친족'})
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              );
+            })}
+          </ScrollView>
+        </View>
+      )}
+
       {/* 1. Header Toolbar & Quick Controls */}
       <View
         style={[
@@ -774,6 +956,130 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
+  navBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    flexWrap: 'wrap',
+    gap: 10,
+  },
+  navLeftGroup: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    flexWrap: 'wrap',
+  },
+  navBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 6,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  navBtnBack: {
+    backgroundColor: '#0284c7',
+  },
+  navBtnBackText: {
+    color: '#ffffff',
+    fontSize: 12,
+    fontWeight: '800',
+  },
+  navBtnHome: {
+    backgroundColor: '#475569',
+  },
+  navBtnHomeText: {
+    color: '#ffffff',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  navBtnOwner: {
+    backgroundColor: '#059669',
+  },
+  navBtnOwnerText: {
+    color: '#ffffff',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  viewModeSwitcher: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    flexWrap: 'wrap',
+  },
+  viewModeLabel: {
+    fontSize: 11,
+    fontWeight: '600',
+  },
+  modePill: {
+    paddingHorizontal: 9,
+    paddingVertical: 5,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#64748b',
+    backgroundColor: 'transparent',
+  },
+  modePillActive: {
+    backgroundColor: '#0284c7',
+    borderColor: '#38bdf8',
+  },
+  modePillActiveMindmap: {
+    backgroundColor: '#0284c7',
+    borderColor: '#38bdf8',
+  },
+  modePillText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#cbd5e1',
+  },
+  modePillTextActive: {
+    color: '#ffffff',
+    fontWeight: '800',
+  },
+  modePillTextActiveMindmap: {
+    color: '#ffffff',
+    fontWeight: '800',
+  },
+  breadcrumbBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 7,
+    borderBottomWidth: 1,
+  },
+  breadcrumbLabel: {
+    fontSize: 11,
+    fontWeight: '700',
+    marginRight: 6,
+  },
+  breadcrumbScroll: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  breadcrumbItemWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  breadcrumbSep: {
+    fontSize: 11,
+    marginHorizontal: 4,
+  },
+  breadcrumbLink: {
+    fontSize: 12,
+    fontWeight: '700',
+    textDecorationLine: 'underline',
+  },
+  breadcrumbCurrent: {
+    fontSize: 12,
+    fontWeight: '800',
+  },
   toolbar: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1097,6 +1403,22 @@ const styles = StyleSheet.create({
     backgroundColor: '#0284c7',
   },
   actionBtnShiftText: {
+    color: '#ffffff',
+    fontSize: 10,
+    fontWeight: '700',
+  },
+  actionBtnBackPrev: {
+    backgroundColor: '#0284c7',
+  },
+  actionBtnBackPrevText: {
+    color: '#ffffff',
+    fontSize: 10,
+    fontWeight: '700',
+  },
+  actionBtnMainHome: {
+    backgroundColor: '#475569',
+  },
+  actionBtnMainHomeText: {
     color: '#ffffff',
     fontSize: 10,
     fontWeight: '700',

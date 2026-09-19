@@ -12,6 +12,7 @@ import { FamilyMember } from '../types/family';
 interface FramedMasterpieceViewProps {
   members: FamilyMember[];
   onSelectMember?: (member: FamilyMember) => void;
+  onReturnToMain?: () => void;
 }
 
 // Fixed canvas dimensions for high-resolution bilateral gallery framing (16:9 / 16:10 museum ratio)
@@ -21,6 +22,7 @@ const FRAME_HEIGHT = 1080;
 export const FramedMasterpieceView: React.FC<FramedMasterpieceViewProps> = ({
   members,
   onSelectMember,
+  onReturnToMain,
 }) => {
   // Lineage balance mode:
   // 'bilateral' (default: 친가·외가·처가 남녀동등 양계 가계도)
@@ -226,6 +228,17 @@ export const FramedMasterpieceView: React.FC<FramedMasterpieceViewProps> = ({
               </Text>
             </TouchableOpacity>
           </View>
+
+          {/* Return to Main Menu */}
+          {onReturnToMain && (
+            <TouchableOpacity
+              style={[styles.printButton, { backgroundColor: '#475569', marginRight: 8 }]}
+              onPress={onReturnToMain}
+              activeOpacity={0.85}
+            >
+              <Text style={styles.printButtonText}>🏠 전체 메뉴 (가계도 홈)</Text>
+            </TouchableOpacity>
+          )}
 
           {/* Print Button */}
           <TouchableOpacity style={styles.printButton} onPress={handlePrint} activeOpacity={0.85}>
