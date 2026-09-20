@@ -11,6 +11,11 @@ import {
 } from 'react-native';
 import { useAuthStore } from '../hooks/useAuthStore';
 import { DEMO_SECURITY_ACCOUNTS, VALID_CLAN_INVITE_TOKENS } from '../utils/securityAuth';
+import {
+  extractSurname,
+  getHanjaCandidates,
+  getRecommendedClans,
+} from '../utils/koreanHanjaHelper';
 import { inkTheme } from '../theme/inkTheme';
 
 interface SecurityLoginModalProps {
@@ -66,6 +71,53 @@ export const SecurityLoginModal: React.FC<SecurityLoginModalProps> = ({
   const [regOtpInput, setRegOtpInput] = useState('');
   const [regIsPhoneVerified, setRegIsPhoneVerified] = useState(false);
   const [unregisteredPhoneAlert, setUnregisteredPhoneAlert] = useState<string | null>(null);
+
+  // Dynamic Surname & Clan Recommendations
+  const currentSurname = extractSurname(regName);
+  const recommendedClans = getRecommendedClans(currentSurname);
+
+  // Auto-switch clan suggestion when surname changes
+  useEffect(() => {
+    if (currentSurname) {
+      const recs = getRecommendedClans(currentSurname);
+      if (recs.length > 0) {
+        if (!regClan || (!regClan.includes(currentSurname) && regClan.startsWith('경주 김씨'))) {
+          setRegClan(recs[0].value);
+        }
+      }
+    }
+  }, [currentSurname]);
+
+  // One-click Hanja Auto Complete
+  const handleAutoHanja = () => {
+    const chars = regName.trim().split('');
+    if (chars.length === 0) {
+      showToast('성명(한글)을 먼저 입력해주세요.', true);
+      return;
+    }
+    let result = '';
+    for (const c of chars) {
+      const candidates = getHanjaCandidates(c);
+      if (candidates.length > 0) {
+        result += candidates[0].hanja;
+      } else {
+        result += c;
+      }
+    }
+    setRegHanja(result);
+    showToast(`'${result}' 한자가 추천 완성되었습니다!`, false, true);
+  };
+
+  // Specific syllable Hanja selection
+  const handleSelectHanja = (charIdx: number, hanjaChar: string) => {
+    const chars = regName.trim().split('');
+    let currentChars = regHanja.split('');
+    while (currentChars.length < chars.length) {
+      currentChars.push(chars[currentChars.length]);
+    }
+    currentChars[charIdx] = hanjaChar;
+    setRegHanja(currentChars.join(''));
+  };
 
   const [statusMessage, setStatusMessage] = useState<{
     text: string;
@@ -717,43 +769,100 @@ export const SecurityLoginModal: React.FC<SecurityLoginModalProps> = ({
                         style={styles.input}
                         value={regName}
                         onChangeText={setRegName}
-                        placeholder="예: 김동현"
+                        placeholder="예: 최민호"
                         placeholderTextColor="#94a3b8"
                       />
                     </View>
                     <View style={[styles.fieldGroup, { flex: 1 }]}>
-                      <Text style={styles.fieldLabel}>한자 성명 (선택)</Text>
+                      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <Text style={styles.fieldLabel}>한자 성명</Text>
+                        <TouchableOpacity onPress={handleAutoHanja} activeOpacity={0.7}>
+                          <Text style={{ fontSize: 11, color: '#0284c7', fontWeight: '800' }}>⚡ 자동 변환</Text>
+                        </TouchableOpacity>
+                      </View>
                       <TextInput
                         style={styles.input}
                         value={regHanja}
                         onChangeText={setRegHanja}
-                        placeholder="예: 金東炫"
+                        placeholder="예: 崔敏浩"
                         placeholderTextColor="#94a3b8"
                       />
                     </View>
                   </View>
 
-                  {/* 가문 / 본관 선택 */}
+                  {/* 스마트폰 원클릭 한자 변환 도우미 */}
+                  {regName.trim().length > 0 && (
+                    <View style={styles.hanjaHelperBox}>
+                      <View style={styles.hanjaHelperHeader}>
+                        <Text style={styles.hanjaHelperTitle}>
+                          🈳 스마트폰 간편 한자 변환 선택기
+                        </Text>
+                        <TouchableOpacity
+                          style={styles.hanjaAutoBtn}
+                          onPress={handleAutoHanja}
+                          activeOpacity={0.8}
+                        >
+                          <Text style={styles.hanjaAutoBtnText}>⚡ 추천 한자 자동완성</Text>
+                        </TouchableOpacity>
+                      </View>
+                      <Text style={styles.hanjaHelperDesc}>
+                        모바일 키보드에서 한자 변환이 불편하실 때, 아래 음절별 한자를 터치하면 즉시 한자 성명에 입력됩니다:
+                      </Text>
+                      <View style={styles.hanjaSyllableContainer}>
+                        {regName.trim().split('').map((char, charIdx) => {
+                          const candidates = getHanjaCandidates(char);
+                          if (candidates.length === 0) return null;
+                          return (
+                            <View key={`${char}-${charIdx}`} style={styles.hanjaCharCol}>
+                              <Text style={styles.hanjaCharTitle}>[{char}]</Text>
+                              <View style={styles.hanjaChipRow}>
+                                {candidates.map((c) => (
+                                  <TouchableOpacity
+                                    key={c.hanja}
+                                    style={styles.hanjaChip}
+                                    onPress={() => handleSelectHanja(charIdx, c.hanja)}
+                                    activeOpacity={0.7}
+                                  >
+                                    <Text style={styles.hanjaChipChar}>{c.hanja}</Text>
+                                    <Text style={styles.hanjaChipDesc}>{c.meaning.split('/')[0]}</Text>
+                                  </TouchableOpacity>
+                                ))}
+                              </View>
+                            </View>
+                          );
+                        })}
+                      </View>
+                    </View>
+                  )}
+
+                  {/* 가문 / 본관 선택 (성씨 기준 동적 가이드) */}
                   <View style={styles.fieldGroup}>
-                    <Text style={styles.fieldLabel}>
-                      가문 본관 및 파 <Text style={{ color: '#ef4444' }}>*</Text>
-                    </Text>
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <Text style={styles.fieldLabel}>
+                        가문 본관 및 파 <Text style={{ color: '#ef4444' }}>*</Text>
+                      </Text>
+                      {currentSurname ? (
+                        <Text style={{ fontSize: 11, color: '#0369a1', fontWeight: '800' }}>
+                          💡 [{currentSurname}씨] 추천 본관 및 분파
+                        </Text>
+                      ) : null}
+                    </View>
                     <TextInput
                       style={styles.input}
                       value={regClan}
                       onChangeText={setRegClan}
-                      placeholder="예: 경주 김씨 판도판서공파"
+                      placeholder={currentSurname ? `예: 경주 ${currentSurname}씨` : '예: 경주 김씨 판도판서공파'}
                       placeholderTextColor="#94a3b8"
                     />
                     <View style={styles.codePillRow}>
-                      {['경주 김씨 판도판서공파', '전주 이씨 효령대군파', '동래 정씨 직제학공파', '남원 양씨'].map((c) => (
+                      {recommendedClans.map((c) => (
                         <TouchableOpacity
-                          key={c}
-                          style={[styles.codePill, regClan === c && { backgroundColor: '#e0f2fe', borderColor: '#0284c7' }]}
-                          onPress={() => setRegClan(c)}
+                          key={c.value}
+                          style={[styles.codePill, regClan === c.value && { backgroundColor: '#e0f2fe', borderColor: '#0284c7' }]}
+                          onPress={() => setRegClan(c.value)}
                         >
-                          <Text style={[styles.codePillText, regClan === c && { color: '#0369a1', fontWeight: '800' }]}>
-                            {c.split(' ')[0]} {c.split(' ')[1] || ''}
+                          <Text style={[styles.codePillText, regClan === c.value && { color: '#0369a1', fontWeight: '800' }]}>
+                            {c.label}
                           </Text>
                         </TouchableOpacity>
                       ))}
@@ -825,46 +934,51 @@ export const SecurityLoginModal: React.FC<SecurityLoginModalProps> = ({
                     </View>
                   </View>
 
-                  {/* 휴대전화 번호 및 SMS 본인인증 */}
+                  {/* 휴대전화 번호 및 모바일 친화적 SMS 본인인증 */}
                   <View style={styles.fieldGroup}>
                     <Text style={styles.fieldLabel}>
                       휴대전화 번호 (로그인 ID) <Text style={{ color: '#ef4444' }}>*</Text>
                     </Text>
-                    <View style={{ flexDirection: 'row', gap: 8 }}>
-                      <TextInput
-                        style={[
-                          styles.input,
-                          { flex: 1 },
-                          regIsPhoneVerified && { backgroundColor: '#f0fdf4', borderColor: '#22c55e' },
-                        ]}
-                        value={regPhone}
-                        onChangeText={(txt) => {
-                          setRegPhone(txt);
-                          setRegIsPhoneVerified(false);
-                          setRegOtpSent(false);
-                        }}
-                        placeholder="010-0000-0000"
-                        placeholderTextColor="#94a3b8"
-                        keyboardType="phone-pad"
-                        editable={!regIsPhoneVerified}
-                      />
-                      <TouchableOpacity
-                        style={[
-                          styles.otpRequestBtn,
-                          regIsPhoneVerified && { backgroundColor: '#15803d' },
-                        ]}
-                        onPress={handleSendRegOtp}
-                        activeOpacity={0.8}
-                      >
-                        <Text style={styles.otpRequestBtnText}>
-                          {regIsPhoneVerified ? '✅ 인증완료' : regOtpSent ? '재전송' : '📱 OTP 발송'}
-                        </Text>
-                      </TouchableOpacity>
-                    </View>
+                    
+                    {/* Phone Input */}
+                    <TextInput
+                      style={[
+                        styles.input,
+                        regIsPhoneVerified && { backgroundColor: '#f0fdf4', borderColor: '#22c55e' },
+                      ]}
+                      value={regPhone}
+                      onChangeText={(txt) => {
+                        setRegPhone(txt);
+                        setRegIsPhoneVerified(false);
+                        setRegOtpSent(false);
+                      }}
+                      placeholder="010-0000-0000"
+                      placeholderTextColor="#94a3b8"
+                      keyboardType="phone-pad"
+                      editable={!regIsPhoneVerified}
+                    />
+
+                    {/* Full-width, never cut off OTP Request Button */}
+                    <TouchableOpacity
+                      style={[
+                        styles.otpRequestBtnFull,
+                        regIsPhoneVerified && { backgroundColor: '#15803d' },
+                      ]}
+                      onPress={handleSendRegOtp}
+                      activeOpacity={0.8}
+                    >
+                      <Text style={styles.otpRequestBtnFullText}>
+                        {regIsPhoneVerified
+                          ? '✅ 휴대전화 본인인증 완료'
+                          : regOtpSent
+                          ? '📱 인증번호 재발송'
+                          : '📱 6자리 SMS 가입 인증번호 발송'}
+                      </Text>
+                    </TouchableOpacity>
 
                     {/* Simulated SMS Alert Box for Registration */}
                     {regOtpSent && !regIsPhoneVerified && (
-                      <View style={{ marginTop: 8 }}>
+                      <View style={{ marginTop: 10 }}>
                         <View style={styles.smsSimBox}>
                           <Text style={styles.smsSimTitle}>
                             📬 [모의 SMS 수신] 가문 신규 가입 본인인증
@@ -903,7 +1017,7 @@ export const SecurityLoginModal: React.FC<SecurityLoginModalProps> = ({
                       </Text>
                     ) : (
                       <Text style={styles.fieldHint}>
-                        휴대전화 번호를 입력 후 [📱 OTP 발송]을 눌러 6자리 SMS 인증을 완료해주세요.
+                        휴대전화 번호를 입력 후 위 파란색 버튼을 눌러 SMS 인증번호를 확인해주세요.
                       </Text>
                     )}
                   </View>
@@ -1676,5 +1790,98 @@ const styles = StyleSheet.create({
     color: '#ffffff',
     fontSize: 12,
     fontWeight: '800',
+  },
+  otpRequestBtnFull: {
+    backgroundColor: '#0284c7',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    alignItems: 'center',
+    marginTop: 6,
+    width: '100%',
+  },
+  otpRequestBtnFullText: {
+    color: '#ffffff',
+    fontSize: 13,
+    fontWeight: '800',
+  },
+  hanjaHelperBox: {
+    backgroundColor: '#f8fafc',
+    borderWidth: 1.5,
+    borderColor: '#cbd5e1',
+    borderRadius: 10,
+    padding: 12,
+    marginBottom: 14,
+  },
+  hanjaHelperHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 6,
+  },
+  hanjaHelperTitle: {
+    fontSize: 12.5,
+    fontWeight: '800',
+    color: '#1e293b',
+  },
+  hanjaAutoBtn: {
+    backgroundColor: '#e0f2fe',
+    borderWidth: 1,
+    borderColor: '#38bdf8',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 4,
+  },
+  hanjaAutoBtnText: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#0284c7',
+  },
+  hanjaHelperDesc: {
+    fontSize: 11,
+    color: '#64748b',
+    marginBottom: 8,
+    lineHeight: 15,
+  },
+  hanjaSyllableContainer: {
+    gap: 8,
+  },
+  hanjaCharCol: {
+    backgroundColor: '#ffffff',
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    borderRadius: 6,
+    padding: 8,
+  },
+  hanjaCharTitle: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#0f172a',
+    marginBottom: 4,
+  },
+  hanjaChipRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+  },
+  hanjaChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#f1f5f9',
+    borderWidth: 1,
+    borderColor: '#cbd5e1',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 4,
+  },
+  hanjaChipChar: {
+    fontSize: 14,
+    fontWeight: '900',
+    color: '#0f172a',
+  },
+  hanjaChipDesc: {
+    fontSize: 10,
+    color: '#475569',
   },
 });
