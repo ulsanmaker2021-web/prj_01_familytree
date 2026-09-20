@@ -1,6 +1,32 @@
 import { UserProfile, UserRole, ClanInviteToken, BruteForceState } from '../types/auth';
 
-// 1. 공인 가문 보안 계정 레지스트리 (체험 및 시뮬레이션용)
+// 0. 전화번호 정규화 및 포맷팅 유틸리티
+export function stripPhoneNumber(phone: string | undefined | null): string {
+  return (phone || '').replace(/[^0-9]/g, '');
+}
+
+export function formatPhoneNumber(value: string | undefined | null): string {
+  const digits = stripPhoneNumber(value);
+  if (!digits) return '';
+
+  // 서울 지역번호 02
+  if (digits.startsWith('02')) {
+    if (digits.length <= 2) return digits;
+    if (digits.length <= 5) return `${digits.slice(0, 2)}-${digits.slice(2)}`;
+    if (digits.length <= 9) return `${digits.slice(0, 2)}-${digits.slice(2, 5)}-${digits.slice(5)}`;
+    return `${digits.slice(0, 2)}-${digits.slice(2, 6)}-${digits.slice(6, 10)}`;
+  }
+
+  // 휴대폰 및 일반 지역번호 (010, 011, 031, 052 등)
+  if (digits.length <= 3) return digits;
+  if (digits.length <= 7) return `${digits.slice(0, 3)}-${digits.slice(3)}`;
+  if (digits.length <= 10) {
+    return `${digits.slice(0, 3)}-${digits.slice(3, 6)}-${digits.slice(6)}`;
+  }
+  return `${digits.slice(0, 3)}-${digits.slice(3, 7)}-${digits.slice(7, 11)}`;
+}
+
+// 1. 공인 가문 보안 계정 레지스트리 (체험 및 시뮬레이션용 - DB에는 하이픈 없이 숫자만 저장)
 export const DEMO_SECURITY_ACCOUNTS: (UserProfile & { password: string })[] = [
   {
     id: 'user-kim-junhyeok',
@@ -10,7 +36,7 @@ export const DEMO_SECURITY_ACCOUNTS: (UserProfile & { password: string })[] = [
     clan: '경주 김씨 판도판서공파 (29세손)',
     role: 'direct_family',
     roleLabel: '직계 가족 (본인)',
-    phone: '010-1234-5678',
+    phone: '01012345678',
     password: 'password123!',
     is2FAVerified: true,
     clanInviteCode: 'KJ-KIM-2026-9872X',
@@ -25,7 +51,7 @@ export const DEMO_SECURITY_ACCOUNTS: (UserProfile & { password: string })[] = [
     clan: '경주 김씨 판도판서공파 (28세손)',
     role: 'admin',
     roleLabel: '가문 종손 (관리자)',
-    phone: '010-9182-4411',
+    phone: '01091824411',
     password: 'password123!',
     is2FAVerified: true,
     clanInviteCode: 'KJ-KIM-2026-9872X',
@@ -40,7 +66,7 @@ export const DEMO_SECURITY_ACCOUNTS: (UserProfile & { password: string })[] = [
     clan: '경주 김씨 판도판서공파 (28세손)',
     role: 'collateral',
     roleLabel: '방계 친족 (5촌 당숙)',
-    phone: '010-8833-1199',
+    phone: '01088331199',
     password: 'password123!',
     is2FAVerified: true,
     clanInviteCode: 'KJ-KIM-2026-9872X',
@@ -55,7 +81,7 @@ export const DEMO_SECURITY_ACCOUNTS: (UserProfile & { password: string })[] = [
     clan: '동래 정씨 직제학공파',
     role: 'direct_family',
     roleLabel: '직계 배우자 (아내)',
-    phone: '010-9876-5432',
+    phone: '01098765432',
     password: 'password123!',
     is2FAVerified: true,
     clanInviteCode: 'DR-JUNG-2026-8831A',
@@ -74,7 +100,12 @@ export function getCustomRegisteredAccounts(): (UserProfile & { password: string
   try {
     const raw = window.localStorage.getItem(STORAGE_KEY_CUSTOM_ACCOUNTS);
     if (!raw) return [];
-    return JSON.parse(raw);
+    const accounts: (UserProfile & { password: string })[] = JSON.parse(raw);
+    // DB 내 번호 하이픈 제거 보장 (구버전 호환 마이그레이션)
+    return accounts.map((acc) => ({
+      ...acc,
+      phone: stripPhoneNumber(acc.phone),
+    }));
   } catch (e) {
     console.error('Failed to read custom accounts from localStorage:', e);
     return [];
@@ -92,9 +123,14 @@ export function saveCustomAccount(account: UserProfile & { password: string }): 
   }
   try {
     const current = getCustomRegisteredAccounts();
-    const cleanPhone = account.phone.replace(/[^0-9]/g, '');
-    const filtered = current.filter((a) => a.phone.replace(/[^0-9]/g, '') !== cleanPhone);
-    filtered.push(account);
+    const cleanPhone = stripPhoneNumber(account.phone);
+    // DB에는 항상 하이픈 없이 숫자만 저장
+    const normalizedAccount: UserProfile & { password: string } = {
+      ...account,
+      phone: cleanPhone,
+    };
+    const filtered = current.filter((a) => stripPhoneNumber(a.phone) !== cleanPhone);
+    filtered.push(normalizedAccount);
     window.localStorage.setItem(STORAGE_KEY_CUSTOM_ACCOUNTS, JSON.stringify(filtered));
     return true;
   } catch (e) {
@@ -193,17 +229,18 @@ export function maskSensitiveInfo(
 ): string {
   if (!value) return '';
 
-  // 관리자(admin) 및 직계 가족(direct_family)이거나 동일 직계 결연자일 경우 마스킹 해제
+  // 관리자(admin) 및 직계 가족(direct_family)이거나 동일 직계 결연자일 경우 마스킹 해제 (단, 전화번호는 읽기 편하게 하이픈 포맷팅)
   if (viewerRole === 'admin' || (viewerRole === 'direct_family' && isDirectRelation)) {
-    return value;
+    return type === 'phone' ? formatPhoneNumber(value) : value;
   }
 
   // 방계 친족(collateral) 또는 미승인 사용자(guest)인 경우 엄격 마스킹 적용
   if (type === 'phone') {
-    // 010-1234-5678 -> 010-****-5678
-    const cleaned = value.replace(/\s+/g, '');
-    if (cleaned.length >= 11) {
-      return cleaned.replace(/(\d{3})-(\d{4})-(\d{4})/, '$1-****-$3');
+    const digits = stripPhoneNumber(value);
+    if (digits.length >= 11) {
+      return `${digits.slice(0, 3)}-****-${digits.slice(7, 11)}`;
+    } else if (digits.length === 10) {
+      return `${digits.slice(0, 3)}-***-${digits.slice(6, 10)}`;
     }
     return '010-****-****';
   }

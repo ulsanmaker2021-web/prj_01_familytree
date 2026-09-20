@@ -11,6 +11,8 @@ import {
   recordFailedLogin,
   resetBruteForceLock,
   getBruteForceStatus,
+  stripPhoneNumber,
+  formatPhoneNumber,
 } from '../utils/securityAuth';
 
 export interface RegisterMemberParams {
@@ -109,10 +111,10 @@ export function useAuthStore() {
       };
     }
 
-    const cleanPhone = phone.trim().replace(/[^0-9]/g, '');
+    const cleanPhone = stripPhoneNumber(phone);
     const allAccounts = getAllSecurityAccounts();
     const account = allAccounts.find(
-      (acc) => acc.phone.replace(/[^0-9]/g, '') === cleanPhone
+      (acc) => stripPhoneNumber(acc.phone) === cleanPhone
     );
 
     if (!account) {
@@ -155,7 +157,7 @@ export function useAuthStore() {
       success: true,
       require2FA: true,
       otpCode: generatedOtp, // 시뮬레이션용 화면 노출용
-      message: `2단계 인증: [${account.phone}] 번호로 6자리 보안 OTP가 발송되었습니다.`,
+      message: `2단계 인증: [${formatPhoneNumber(account.phone)}] 번호로 6자리 보안 OTP가 발송되었습니다.`,
     };
   };
 
@@ -207,7 +209,7 @@ export function useAuthStore() {
       clan: `${token.clanName} ${token.branchName}`,
       role: 'direct_family',
       roleLabel: '가문 인증 정회원',
-      phone: phone.trim() || '010-0000-0000',
+      phone: stripPhoneNumber(phone) || '01000000000',
       is2FAVerified: true,
       clanInviteCode: token.code,
       lastLoginAt: new Date().toISOString().substring(0, 16).replace('T', ' '),
@@ -229,7 +231,7 @@ export function useAuthStore() {
 
   // 5. 가문 신규 등록 (직접 회원가입 및 족보 등재 신청)
   const registerNewMember = (params: RegisterMemberParams) => {
-    const cleanPhone = params.phone.trim().replace(/[^0-9]/g, '');
+    const cleanPhone = stripPhoneNumber(params.phone);
     if (cleanPhone.length < 10) {
       return { success: false, message: '올바른 휴대전화 번호(10~11자리)를 입력해주세요.' };
     }
@@ -242,7 +244,7 @@ export function useAuthStore() {
 
     const allAccounts = getAllSecurityAccounts();
     const isDup = allAccounts.some(
-      (acc) => acc.phone.replace(/[^0-9]/g, '') === cleanPhone
+      (acc) => stripPhoneNumber(acc.phone) === cleanPhone
     );
     if (isDup) {
       return {
@@ -251,7 +253,7 @@ export function useAuthStore() {
       };
     }
 
-    const formattedPhone = cleanPhone.replace(/(\d{3})(\d{3,4})(\d{4})/, '$1-$2-$3');
+    // 데이터베이스에는 '-' 하이픈 없이 숫자만 저장
     const newAccount: UserProfile & { password: string } = {
       id: `user-custom-${Date.now()}`,
       memberId: `custom-mem-${Date.now()}`,
@@ -260,7 +262,7 @@ export function useAuthStore() {
       clan: params.clan.trim() || '경주 김씨 판도판서공파',
       role: params.role || 'direct_family',
       roleLabel: params.roleLabel || '가문 등록 정회원',
-      phone: formattedPhone,
+      phone: cleanPhone, // DB에는 하이픈 없이 숫자만 보관
       password: params.password,
       birthDate: params.birthDate?.trim() || undefined,
       fatherName: params.fatherName?.trim() || undefined,
@@ -281,7 +283,7 @@ export function useAuthStore() {
     return {
       success: true,
       user: newAccount,
-      message: `🎉 [가문 등재 완료] ${newAccount.name}님의 정보가 성공적으로 등록되었습니다! 등록하신 번호로 로그인해주세요.`,
+      message: `🎉 [가문 등재 완료] ${newAccount.name}님의 정보가 성공적으로 등록되었습니다! 등록하신 번호(${formatPhoneNumber(cleanPhone)})로 로그인해주세요.`,
     };
   };
 

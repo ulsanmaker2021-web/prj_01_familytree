@@ -14,6 +14,7 @@ import { useFamilyStore } from '../hooks/useFamilyStore';
 import { useAuthStore } from '../hooks/useAuthStore';
 import { MemberDetailModal } from '../components/MemberDetailModal';
 import { AddFamilyMemberModal } from '../components/AddFamilyMemberModal';
+import { formatPhoneNumber } from '../utils/securityAuth';
 import { inkTheme } from '../theme/inkTheme';
 
 export default function FamilyScreen() {
@@ -359,7 +360,7 @@ export default function FamilyScreen() {
                       {member.deathDate ? ` ~ ${member.deathDate}` : ''}
                     </Text>
                     {member.phone ? (
-                      <Text style={styles.phoneText}>📞 {member.phone}</Text>
+                      <Text style={styles.phoneText}>📞 {formatPhoneNumber(member.phone)}</Text>
                     ) : null}
                   </View>
                 </View>

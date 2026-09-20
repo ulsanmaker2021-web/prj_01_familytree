@@ -17,6 +17,7 @@ import { ObsidianGraphView } from '../components/ObsidianGraphView';
 import { RelationshipStudioModal } from '../components/RelationshipStudioModal';
 import { FramedMasterpieceView } from '../components/FramedMasterpieceView';
 import { HorizontalMindmapView } from '../components/HorizontalMindmapView';
+import { formatPhoneNumber } from '../utils/securityAuth';
 import { inkTheme } from '../theme/inkTheme';
 
 // Scope filter by kinship degree
@@ -307,7 +308,7 @@ export default function HomeScreen() {
               {currentUser.name} 님의 가문 가계도 (실제 등재 족보)
             </Text>
             <Text style={styles.realMemberSub}>
-              🛡️ 2단계 본인확인 완료 ({currentUser.phone}) · {currentUser.roleLabel || '가문 정회원'}
+              🛡️ 2단계 본인확인 완료 ({formatPhoneNumber(currentUser.phone)}) · {currentUser.roleLabel || '가문 정회원'}
             </Text>
           </View>
           <View style={styles.realMemberBtnRow}>

@@ -10,7 +10,12 @@ import {
   Platform,
 } from 'react-native';
 import { useAuthStore } from '../hooks/useAuthStore';
-import { DEMO_SECURITY_ACCOUNTS, VALID_CLAN_INVITE_TOKENS } from '../utils/securityAuth';
+import {
+  DEMO_SECURITY_ACCOUNTS,
+  VALID_CLAN_INVITE_TOKENS,
+  formatPhoneNumber,
+  stripPhoneNumber,
+} from '../utils/securityAuth';
 import {
   extractSurname,
   getHanjaCandidates,
@@ -155,10 +160,10 @@ export const SecurityLoginModal: React.FC<SecurityLoginModalProps> = ({
   };
 
   const handleCredentialsSubmit = () => {
-    const res = loginWithCredentials(phoneInput, passwordInput);
+    const res = loginWithCredentials(stripPhoneNumber(phoneInput), passwordInput);
     if (!res.success) {
       if (res.isNotRegistered) {
-        setUnregisteredPhoneAlert(phoneInput);
+        setUnregisteredPhoneAlert(formatPhoneNumber(phoneInput));
       } else {
         setUnregisteredPhoneAlert(null);
       }
@@ -182,7 +187,7 @@ export const SecurityLoginModal: React.FC<SecurityLoginModalProps> = ({
   };
 
   const handleClanCodeSubmit = () => {
-    const res = registerWithClanCode(clanCodeInput, newUserName, newUserPhone);
+    const res = registerWithClanCode(clanCodeInput, newUserName, stripPhoneNumber(newUserPhone));
     if (res.success) {
       showToast(res.message, false, true);
     } else {
@@ -191,13 +196,13 @@ export const SecurityLoginModal: React.FC<SecurityLoginModalProps> = ({
   };
 
   const handleSendRegOtp = () => {
-    const clean = regPhone.trim().replace(/[^0-9]/g, '');
+    const clean = stripPhoneNumber(regPhone);
     if (clean.length < 10) {
       showToast('올바른 휴대전화 번호(10~11자리)를 먼저 입력해주세요.', true);
       return;
     }
     const allAccounts = registeredAccounts;
-    const exists = allAccounts.some((a) => a.phone.replace(/[^0-9]/g, '') === clean);
+    const exists = allAccounts.some((a) => stripPhoneNumber(a.phone) === clean);
     if (exists) {
       showToast('이미 등록된 번호입니다. [📱 휴대폰 로그인] 탭을 이용해주세요.', true);
       return;
@@ -208,7 +213,7 @@ export const SecurityLoginModal: React.FC<SecurityLoginModalProps> = ({
     setRegOtpSent(true);
     setRegOtpInput(generated); // auto-fill for testing ease
     setRegIsPhoneVerified(false);
-    showToast(`[${regPhone}] 번호로 6자리 SMS 가입 인증번호가 발송되었습니다.`, false, true);
+    showToast(`[${formatPhoneNumber(regPhone)}] 번호로 6자리 SMS 가입 인증번호가 발송되었습니다.`, false, true);
   };
 
   const handleVerifyRegOtp = () => {
@@ -225,7 +230,7 @@ export const SecurityLoginModal: React.FC<SecurityLoginModalProps> = ({
       showToast('성명(실명)을 입력해주세요.', true);
       return;
     }
-    const cleanPhone = regPhone.trim().replace(/[^0-9]/g, '');
+    const cleanPhone = stripPhoneNumber(regPhone);
     if (cleanPhone.length < 10) {
       showToast('올바른 휴대전화 번호(10~11자리)를 입력해주세요.', true);
       return;
@@ -253,7 +258,7 @@ export const SecurityLoginModal: React.FC<SecurityLoginModalProps> = ({
       clan: regClan.trim(),
       role: regRoleType,
       roleLabel: regRoleLabel,
-      phone: regPhone.trim(),
+      phone: cleanPhone, // DB에는 '-' 하이픈 없이 숫자만 저장
       password: regPassword,
       birthDate: regBirthDate.trim() || undefined,
       fatherName: regFatherName.trim() || undefined,
@@ -504,7 +509,7 @@ export const SecurityLoginModal: React.FC<SecurityLoginModalProps> = ({
 
                             <View style={styles.accountDetails}>
                               <Text style={styles.accountDetailItem}>
-                                📱 연락처: {acc.phone}
+                                📱 연락처: {formatPhoneNumber(acc.phone)}
                               </Text>
                               {acc.birthDate && (
                                 <Text style={styles.accountDetailItem}>
@@ -586,7 +591,7 @@ export const SecurityLoginModal: React.FC<SecurityLoginModalProps> = ({
 
                         <View style={styles.accountDetails}>
                           <Text style={styles.accountDetailItem}>
-                            📱 연락처: {acc.phone}
+                            📱 연락처: {formatPhoneNumber(acc.phone)}
                           </Text>
                           <Text style={styles.accountDetailItem}>
                             🛡️ 권한: {acc.role === 'admin' ? '가문 전체 열람 및 승인' : acc.role === 'direct_family' ? '직계 상호 연락처 열람' : '생존 친족 연락처 마스킹(010-****)'}
@@ -620,7 +625,7 @@ export const SecurityLoginModal: React.FC<SecurityLoginModalProps> = ({
                       <TextInput
                         style={styles.input}
                         value={phoneInput}
-                        onChangeText={setPhoneInput}
+                        onChangeText={(txt) => setPhoneInput(formatPhoneNumber(txt))}
                         placeholder="010-1234-5678"
                         placeholderTextColor="#94a3b8"
                         keyboardType="phone-pad"
@@ -709,7 +714,7 @@ export const SecurityLoginModal: React.FC<SecurityLoginModalProps> = ({
                       <View>
                         <Text style={styles.formTitle}>2단계 본인 확인 (2FA OTP)</Text>
                         <Text style={styles.formDesc}>
-                          [{pending2FA.phone}] 번호로 일회용 보안 코드가 발송되었습니다.
+                          [{formatPhoneNumber(pending2FA.phone)}] 번호로 일회용 보안 코드가 발송되었습니다.
                         </Text>
                       </View>
                     </View>
@@ -1026,11 +1031,11 @@ export const SecurityLoginModal: React.FC<SecurityLoginModalProps> = ({
                       ]}
                       value={regPhone}
                       onChangeText={(txt) => {
-                        setRegPhone(txt);
+                        setRegPhone(formatPhoneNumber(txt));
                         setRegIsPhoneVerified(false);
                         setRegOtpSent(false);
                       }}
-                      placeholder="010-0000-0000"
+                      placeholder="010-1234-5678"
                       placeholderTextColor="#94a3b8"
                       keyboardType="phone-pad"
                       editable={!regIsPhoneVerified}
@@ -1266,8 +1271,8 @@ export const SecurityLoginModal: React.FC<SecurityLoginModalProps> = ({
                     <TextInput
                       style={styles.input}
                       value={newUserPhone}
-                      onChangeText={setNewUserPhone}
-                      placeholder="010-0000-0000"
+                      onChangeText={(txt) => setNewUserPhone(formatPhoneNumber(txt))}
+                      placeholder="010-1234-5678"
                       placeholderTextColor="#94a3b8"
                       keyboardType="phone-pad"
                     />

@@ -18,6 +18,7 @@ import {
   getAllRequests,
   updateMasterRequestStatus,
 } from '../utils/genealogyMasterData';
+import { formatPhoneNumber } from '../utils/securityAuth';
 
 interface MasterTrackingDashboardModalProps {
   visible: boolean;
@@ -366,7 +367,7 @@ export const MasterTrackingDashboardModal: React.FC<MasterTrackingDashboardModal
 
                       <View style={styles.masterCardFooter}>
                         <View style={styles.masterContactCol}>
-                          <Text style={styles.masterPhone}>📞 {m.phone}</Text>
+                          <Text style={styles.masterPhone}>📞 {formatPhoneNumber(m.phone)}</Text>
                           <Text style={styles.masterEmail}>✉️ {m.email}</Text>
                         </View>
                         {onSelectMasterToRequest && (
