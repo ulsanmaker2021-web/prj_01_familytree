@@ -64,6 +64,7 @@ export const SecurityLoginModal: React.FC<SecurityLoginModalProps> = ({
   const [regFatherName, setRegFatherName] = useState('');
   const [regMotherName, setRegMotherName] = useState('');
   const [regAgreePolicy, setRegAgreePolicy] = useState(true);
+  const [isPureHangulName, setIsPureHangulName] = useState(false);
 
   // Phone OTP Verification State for Registration
   const [regOtpSent, setRegOtpSent] = useState(false);
@@ -90,6 +91,10 @@ export const SecurityLoginModal: React.FC<SecurityLoginModalProps> = ({
 
   // One-click Hanja Auto Complete
   const handleAutoHanja = () => {
+    if (isPureHangulName) {
+      showToast('순수 한글/외국어/종교 이름 모드입니다. 한자 없이 등재됩니다.', true);
+      return;
+    }
     const chars = regName.trim().split('');
     if (chars.length === 0) {
       showToast('성명(한글)을 먼저 입력해주세요.', true);
@@ -101,7 +106,7 @@ export const SecurityLoginModal: React.FC<SecurityLoginModalProps> = ({
       if (candidates.length > 0) {
         result += candidates[0].hanja;
       } else {
-        result += c;
+        result += c; // fallback: preserve character if pure Korean / unmapped
       }
     }
     setRegHanja(result);
@@ -110,6 +115,7 @@ export const SecurityLoginModal: React.FC<SecurityLoginModalProps> = ({
 
   // Specific syllable Hanja selection
   const handleSelectHanja = (charIdx: number, hanjaChar: string) => {
+    if (isPureHangulName) return;
     const chars = regName.trim().split('');
     let currentChars = regHanja.split('');
     while (currentChars.length < chars.length) {
@@ -243,7 +249,7 @@ export const SecurityLoginModal: React.FC<SecurityLoginModalProps> = ({
 
     const res = registerNewMember({
       name: regName.trim(),
-      hanja: regHanja.trim() || undefined,
+      hanja: isPureHangulName ? undefined : (regHanja.trim() || undefined),
       clan: regClan.trim(),
       role: regRoleType,
       roleLabel: regRoleLabel,
@@ -259,6 +265,7 @@ export const SecurityLoginModal: React.FC<SecurityLoginModalProps> = ({
       // Reset form
       setRegName('');
       setRegHanja('');
+      setIsPureHangulName(false);
       setRegPhone('');
       setRegPassword('');
       setRegPasswordConfirm('');
@@ -775,64 +782,130 @@ export const SecurityLoginModal: React.FC<SecurityLoginModalProps> = ({
                     </View>
                     <View style={[styles.fieldGroup, { flex: 1 }]}>
                       <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <Text style={styles.fieldLabel}>한자 성명</Text>
-                        <TouchableOpacity onPress={handleAutoHanja} activeOpacity={0.7}>
-                          <Text style={{ fontSize: 11, color: '#0284c7', fontWeight: '800' }}>⚡ 자동 변환</Text>
-                        </TouchableOpacity>
+                        <Text style={styles.fieldLabel}>한자 성명 (선택)</Text>
+                        {!isPureHangulName && (
+                          <TouchableOpacity onPress={handleAutoHanja} activeOpacity={0.7}>
+                            <Text style={{ fontSize: 11, color: '#0284c7', fontWeight: '800' }}>⚡ 자동 변환</Text>
+                          </TouchableOpacity>
+                        )}
                       </View>
                       <TextInput
-                        style={styles.input}
-                        value={regHanja}
+                        style={[
+                          styles.input,
+                          isPureHangulName && { backgroundColor: '#f1f5f9', color: '#64748b' },
+                        ]}
+                        value={isPureHangulName ? '한자 없음 (순수 한글/외국어)' : regHanja}
                         onChangeText={setRegHanja}
-                        placeholder="예: 崔敏浩"
+                        placeholder={isPureHangulName ? '한자 성명 미사용' : '예: 崔敏浩'}
                         placeholderTextColor="#94a3b8"
+                        editable={!isPureHangulName}
                       />
                     </View>
                   </View>
 
+                  {/* 순수 한글 / 종교적 / 외국어 성명 옵션 체크박스 */}
+                  <TouchableOpacity
+                    style={[
+                      styles.pureNameToggleRow,
+                      isPureHangulName && styles.pureNameToggleRowActive,
+                    ]}
+                    onPress={() => {
+                      const next = !isPureHangulName;
+                      setIsPureHangulName(next);
+                      if (next) {
+                        setRegHanja('');
+                      }
+                    }}
+                    activeOpacity={0.8}
+                  >
+                    <Text style={{ fontSize: 16 }}>{isPureHangulName ? '☑️' : '⬜'}</Text>
+                    <Text style={[styles.pureNameToggleText, isPureHangulName && styles.pureNameToggleTextActive]}>
+                      순수 한글 / 종교적 / 외국어 성명 (한자 없음 선택)
+                    </Text>
+                  </TouchableOpacity>
+
                   {/* 스마트폰 원클릭 한자 변환 도우미 */}
                   {regName.trim().length > 0 && (
-                    <View style={styles.hanjaHelperBox}>
-                      <View style={styles.hanjaHelperHeader}>
-                        <Text style={styles.hanjaHelperTitle}>
-                          🈳 스마트폰 간편 한자 변환 선택기
+                    isPureHangulName ? (
+                      <View style={styles.pureNameNoticeBox}>
+                        <Text style={styles.pureNameNoticeTitle}>
+                          🌿 [순수 한글 / 외래어 / 종교 이름 모드]
                         </Text>
-                        <TouchableOpacity
-                          style={styles.hanjaAutoBtn}
-                          onPress={handleAutoHanja}
-                          activeOpacity={0.8}
-                        >
-                          <Text style={styles.hanjaAutoBtnText}>⚡ 추천 한자 자동완성</Text>
-                        </TouchableOpacity>
+                        <Text style={styles.pureNameNoticeDesc}>
+                          한자 없이 실명(한글) [{regName.trim()}](으)로 가문 족보에 그대로 등재됩니다. 한자 변환이 필요하지 않습니다.
+                        </Text>
                       </View>
-                      <Text style={styles.hanjaHelperDesc}>
-                        모바일 키보드에서 한자 변환이 불편하실 때, 아래 음절별 한자를 터치하면 즉시 한자 성명에 입력됩니다:
-                      </Text>
-                      <View style={styles.hanjaSyllableContainer}>
-                        {regName.trim().split('').map((char, charIdx) => {
-                          const candidates = getHanjaCandidates(char);
-                          if (candidates.length === 0) return null;
-                          return (
-                            <View key={`${char}-${charIdx}`} style={styles.hanjaCharCol}>
-                              <Text style={styles.hanjaCharTitle}>[{char}]</Text>
-                              <View style={styles.hanjaChipRow}>
-                                {candidates.map((c) => (
-                                  <TouchableOpacity
-                                    key={c.hanja}
-                                    style={styles.hanjaChip}
-                                    onPress={() => handleSelectHanja(charIdx, c.hanja)}
-                                    activeOpacity={0.7}
-                                  >
-                                    <Text style={styles.hanjaChipChar}>{c.hanja}</Text>
-                                    <Text style={styles.hanjaChipDesc}>{c.meaning.split('/')[0]}</Text>
-                                  </TouchableOpacity>
-                                ))}
+                    ) : (
+                      <View style={styles.hanjaHelperBox}>
+                        <View style={styles.hanjaHelperHeader}>
+                          <Text style={styles.hanjaHelperTitle}>
+                            🈳 스마트폰 간편 한자 변환 선택기 ({regName.trim().length}글자)
+                          </Text>
+                          <TouchableOpacity
+                            style={styles.hanjaAutoBtn}
+                            onPress={handleAutoHanja}
+                            activeOpacity={0.8}
+                          >
+                            <Text style={styles.hanjaAutoBtnText}>⚡ 전체 추천 한자 자동완성</Text>
+                          </TouchableOpacity>
+                        </View>
+                        <Text style={styles.hanjaHelperDesc}>
+                          이름을 구성하는 각 음절별로 원하는 한자를 터치하시면 즉시 입력됩니다. (한자가 없는 음절은 한글로 유지됩니다)
+                        </Text>
+                        <View style={styles.hanjaSyllableContainer}>
+                          {regName.trim().split('').map((char, charIdx) => {
+                            const candidates = getHanjaCandidates(char);
+                            return (
+                              <View key={`${char}-${charIdx}`} style={styles.hanjaCharCol}>
+                                <View style={styles.hanjaCharTitleRow}>
+                                  <Text style={styles.hanjaCharTitle}>
+                                    {charIdx + 1}번째 글자: [{char}]
+                                  </Text>
+                                  {candidates.length === 0 ? (
+                                    <View style={styles.pureHangulTag}>
+                                      <Text style={styles.pureHangulTagText}>순수 한글 / 한자 미등록</Text>
+                                    </View>
+                                  ) : (
+                                    <Text style={styles.candidateCountText}>
+                                      {candidates.length}개 한자 후보
+                                    </Text>
+                                  )}
+                                </View>
+
+                                {candidates.length > 0 ? (
+                                  <View style={styles.hanjaChipRow}>
+                                    {candidates.map((c) => (
+                                      <TouchableOpacity
+                                        key={c.hanja}
+                                        style={styles.hanjaChip}
+                                        onPress={() => handleSelectHanja(charIdx, c.hanja)}
+                                        activeOpacity={0.7}
+                                      >
+                                        <Text style={styles.hanjaChipChar}>{c.hanja}</Text>
+                                        <Text style={styles.hanjaChipDesc}>{c.meaning.split('/')[0]}</Text>
+                                      </TouchableOpacity>
+                                    ))}
+                                  </View>
+                                ) : (
+                                  <View style={styles.noHanjaRow}>
+                                    <Text style={styles.noHanjaText}>
+                                      이 음절은 한자 없이 한글 '{char}'(으)로 유지됩니다.
+                                    </Text>
+                                    <TouchableOpacity
+                                      style={styles.keepHangulChip}
+                                      onPress={() => handleSelectHanja(charIdx, char)}
+                                      activeOpacity={0.7}
+                                    >
+                                      <Text style={styles.keepHangulChipText}>한글 [{char}] 유지</Text>
+                                    </TouchableOpacity>
+                                  </View>
+                                )}
                               </View>
-                            </View>
-                          );
-                        })}
+                            );
+                          })}
+                        </View>
                       </View>
-                    </View>
+                    )
                   )}
 
                   {/* 가문 / 본관 선택 (성씨 기준 동적 가이드) */}
@@ -988,23 +1061,37 @@ export const SecurityLoginModal: React.FC<SecurityLoginModalProps> = ({
                           </Text>
                         </View>
 
-                        <View style={{ flexDirection: 'row', gap: 8, marginTop: 4 }}>
+                        <View style={{ marginTop: 8, gap: 8 }}>
                           <TextInput
-                            style={[styles.input, styles.otpInput, { flex: 1 }]}
+                            style={[
+                              styles.input,
+                              styles.otpInput,
+                              {
+                                width: '100%',
+                                textAlign: 'center',
+                                fontSize: 18,
+                                letterSpacing: 6,
+                                fontWeight: '800',
+                                backgroundColor: '#f8fafc',
+                                borderColor: '#0284c7',
+                                borderWidth: 2,
+                                paddingVertical: 12,
+                              },
+                            ]}
                             value={regOtpInput}
                             onChangeText={setRegOtpInput}
-                            placeholder="6자리 인증번호"
+                            placeholder="6자리 인증번호 입력"
                             placeholderTextColor="#94a3b8"
                             keyboardType="number-pad"
                             maxLength={6}
                           />
                           <TouchableOpacity
-                            style={styles.verifyOtpSmallBtn}
+                            style={styles.verifyOtpFullBtn}
                             onPress={handleVerifyRegOtp}
                             activeOpacity={0.85}
                           >
-                            <Text style={styles.verifyOtpSmallBtnText}>
-                              🔐 인증 확인
+                            <Text style={styles.verifyOtpFullBtnText}>
+                              🔐 6자리 인증번호 확인 및 본인인증 완료
                             </Text>
                           </TouchableOpacity>
                         </View>
@@ -1883,5 +1970,115 @@ const styles = StyleSheet.create({
   hanjaChipDesc: {
     fontSize: 10,
     color: '#475569',
+  },
+  pureNameToggleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: '#f8fafc',
+    borderWidth: 1,
+    borderColor: '#cbd5e1',
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 9,
+    marginBottom: 12,
+  },
+  pureNameToggleRowActive: {
+    backgroundColor: '#f0fdf4',
+    borderColor: '#86efac',
+  },
+  pureNameToggleText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#475569',
+  },
+  pureNameToggleTextActive: {
+    color: '#15803d',
+    fontWeight: '800',
+  },
+  pureNameNoticeBox: {
+    backgroundColor: '#f0fdf4',
+    borderWidth: 1.5,
+    borderColor: '#86efac',
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 14,
+  },
+  pureNameNoticeTitle: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#166534',
+    marginBottom: 4,
+  },
+  pureNameNoticeDesc: {
+    fontSize: 11.5,
+    color: '#15803d',
+    lineHeight: 16,
+  },
+  hanjaCharTitleRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 6,
+  },
+  pureHangulTag: {
+    backgroundColor: '#f1f5f9',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  pureHangulTagText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#64748b',
+  },
+  candidateCountText: {
+    fontSize: 10.5,
+    color: '#0284c7',
+    fontWeight: '700',
+  },
+  noHanjaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#f8fafc',
+    padding: 8,
+    borderRadius: 6,
+  },
+  noHanjaText: {
+    fontSize: 11.5,
+    color: '#64748b',
+    flex: 1,
+  },
+  keepHangulChip: {
+    backgroundColor: '#e2e8f0',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 6,
+  },
+  keepHangulChipText: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#334155',
+  },
+  verifyOtpFullBtn: {
+    backgroundColor: '#059669',
+    paddingVertical: 13,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: '100%',
+    shadowColor: '#059669',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  verifyOtpFullBtnText: {
+    color: '#ffffff',
+    fontSize: 13.5,
+    fontWeight: '800',
+    letterSpacing: 0.5,
   },
 });
