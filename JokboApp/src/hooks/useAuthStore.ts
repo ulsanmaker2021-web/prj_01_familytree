@@ -2,11 +2,28 @@ import { useState, useEffect } from 'react';
 import { UserProfile, UserRole } from '../types/auth';
 import {
   DEMO_SECURITY_ACCOUNTS,
+  getAllSecurityAccounts,
+  getCustomRegisteredAccounts,
+  saveCustomAccount,
+  clearCustomAccounts,
   verifyClanInviteCode,
   recordFailedLogin,
   resetBruteForceLock,
   getBruteForceStatus,
 } from '../utils/securityAuth';
+
+export interface RegisterMemberParams {
+  name: string;
+  hanja?: string;
+  clan: string;
+  role: UserRole;
+  roleLabel: string;
+  phone: string;
+  password: string;
+  birthDate?: string;
+  fatherName?: string;
+  motherName?: string;
+}
 
 // Global Auth State
 let globalCurrentUser: UserProfile = DEMO_SECURITY_ACCOUNTS[0]; // 기본 프로필: 김준혁 (본인)
@@ -48,7 +65,8 @@ export function useAuthStore() {
 
   // 1. 데모 가문 계정으로 원클릭 빠른 전환 로그인
   const loginWithDemoAccount = (accountId: string) => {
-    const target = DEMO_SECURITY_ACCOUNTS.find((acc) => acc.id === accountId);
+    const allAccounts = getAllSecurityAccounts();
+    const target = allAccounts.find((acc) => acc.id === accountId);
     if (!target) return { success: false, message: '존재하지 않는 계정입니다.' };
 
     resetBruteForceLock();
@@ -75,9 +93,10 @@ export function useAuthStore() {
       };
     }
 
-    const cleanPhone = phone.trim().replace(/-/g, '');
-    const account = DEMO_SECURITY_ACCOUNTS.find(
-      (acc) => acc.phone.replace(/-/g, '') === cleanPhone
+    const cleanPhone = phone.trim().replace(/[^0-9]/g, '');
+    const allAccounts = getAllSecurityAccounts();
+    const account = allAccounts.find(
+      (acc) => acc.phone.replace(/[^0-9]/g, '') === cleanPhone
     );
 
     if (!account || account.password !== password) {
@@ -183,7 +202,65 @@ export function useAuthStore() {
     };
   };
 
-  // 5. 보안 로그아웃
+  // 5. 가문 신규 등록 (직접 회원가입 및 족보 등재 신청)
+  const registerNewMember = (params: RegisterMemberParams) => {
+    const cleanPhone = params.phone.trim().replace(/[^0-9]/g, '');
+    if (cleanPhone.length < 10) {
+      return { success: false, message: '올바른 휴대전화 번호(10~11자리)를 입력해주세요.' };
+    }
+    if (!params.name.trim()) {
+      return { success: false, message: '성명(실명)을 입력해주세요.' };
+    }
+    if (!params.password || params.password.length < 4) {
+      return { success: false, message: '비밀번호는 최소 4자리 이상으로 설정해주세요.' };
+    }
+
+    const allAccounts = getAllSecurityAccounts();
+    const isDup = allAccounts.some(
+      (acc) => acc.phone.replace(/[^0-9]/g, '') === cleanPhone
+    );
+    if (isDup) {
+      return {
+        success: false,
+        message: '이미 등록된 휴대전화 번호입니다. 기존 등록 번호로 로그인하시거나 번호를 다시 확인해주세요.',
+      };
+    }
+
+    const formattedPhone = cleanPhone.replace(/(\d{3})(\d{3,4})(\d{4})/, '$1-$2-$3');
+    const newAccount: UserProfile & { password: string } = {
+      id: `user-custom-${Date.now()}`,
+      memberId: `custom-mem-${Date.now()}`,
+      name: params.name.trim(),
+      hanja: params.hanja?.trim() || undefined,
+      clan: params.clan.trim() || '경주 김씨 판도판서공파',
+      role: params.role || 'direct_family',
+      roleLabel: params.roleLabel || '가문 등록 정회원',
+      phone: formattedPhone,
+      password: params.password,
+      birthDate: params.birthDate?.trim() || undefined,
+      fatherName: params.fatherName?.trim() || undefined,
+      motherName: params.motherName?.trim() || undefined,
+      is2FAVerified: false,
+      clanInviteCode: 'REG-LOCAL-DB',
+      lastLoginAt: new Date().toISOString().substring(0, 16).replace('T', ' '),
+      securityTier: '2단계(2FA 완료)',
+      isCustomRegistered: true,
+    };
+
+    const saved = saveCustomAccount(newAccount);
+    if (!saved) {
+      return { success: false, message: '가문 데이터베이스(LocalStorage) 저장 중 오류가 발생했습니다.' };
+    }
+
+    notifyAuth();
+    return {
+      success: true,
+      user: newAccount,
+      message: `🎉 [가문 등재 완료] ${newAccount.name}님의 정보가 성공적으로 등록되었습니다! 등록하신 번호로 로그인해주세요.`,
+    };
+  };
+
+  // 6. 보안 로그아웃
   const logout = () => {
     globalIsAuthenticated = false;
     globalIsLoginModalOpen = true;
@@ -191,7 +268,7 @@ export function useAuthStore() {
     notifyAuth();
   };
 
-  // 6. 보안 로그인 모달 열기/닫기
+  // 7. 보안 로그인 모달 열기/닫기
   const openLoginModal = () => {
     globalIsLoginModalOpen = true;
     notifyAuth();
@@ -211,6 +288,13 @@ export function useAuthStore() {
     isLoginModalOpen,
     pending2FA,
     bruteForce,
+    registeredAccounts: getAllSecurityAccounts(),
+    customAccounts: getCustomRegisteredAccounts(),
+    registerNewMember,
+    clearAllCustomAccounts: () => {
+      clearCustomAccounts();
+      notifyAuth();
+    },
     loginWithDemoAccount,
     loginWithCredentials,
     verify2FA,

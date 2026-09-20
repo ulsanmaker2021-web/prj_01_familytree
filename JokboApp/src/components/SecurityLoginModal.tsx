@@ -27,6 +27,10 @@ export const SecurityLoginModal: React.FC<SecurityLoginModalProps> = ({
     isAuthenticated,
     pending2FA,
     bruteForce,
+    registeredAccounts,
+    customAccounts,
+    registerNewMember,
+    clearAllCustomAccounts,
     loginWithDemoAccount,
     loginWithCredentials,
     verify2FA,
@@ -34,13 +38,28 @@ export const SecurityLoginModal: React.FC<SecurityLoginModalProps> = ({
     closeLoginModal,
   } = useAuthStore();
 
-  const [activeTab, setActiveTab] = useState<'demo' | 'credentials' | 'clan_code'>('demo');
+  const [activeTab, setActiveTab] = useState<'demo' | 'credentials' | 'register' | 'clan_code'>('demo');
   const [phoneInput, setPhoneInput] = useState('010-1234-5678');
   const [passwordInput, setPasswordInput] = useState('password123!');
   const [otpInput, setOtpInput] = useState('');
   const [clanCodeInput, setClanCodeInput] = useState('KJ-KIM-2026-9872X');
   const [newUserName, setNewUserName] = useState('김동현');
   const [newUserPhone, setNewUserPhone] = useState('010-3344-9988');
+
+  // Registration form state
+  const [regName, setRegName] = useState('');
+  const [regHanja, setRegHanja] = useState('');
+  const [regClan, setRegClan] = useState('경주 김씨 판도판서공파');
+  const [regRoleType, setRegRoleType] = useState<'direct_family' | 'collateral'>('direct_family');
+  const [regRoleLabel, setRegRoleLabel] = useState('가문 직계 자손');
+  const [regPhone, setRegPhone] = useState('');
+  const [regPassword, setRegPassword] = useState('');
+  const [regPasswordConfirm, setRegPasswordConfirm] = useState('');
+  const [regBirthDate, setRegBirthDate] = useState('');
+  const [regFatherName, setRegFatherName] = useState('');
+  const [regMotherName, setRegMotherName] = useState('');
+  const [regAgreePolicy, setRegAgreePolicy] = useState(true);
+
   const [statusMessage, setStatusMessage] = useState<{
     text: string;
     isError?: boolean;
@@ -95,6 +114,64 @@ export const SecurityLoginModal: React.FC<SecurityLoginModalProps> = ({
     const res = registerWithClanCode(clanCodeInput, newUserName, newUserPhone);
     if (res.success) {
       showToast(res.message, false, true);
+    } else {
+      showToast(res.message, true);
+    }
+  };
+
+  const handleRegisterSubmit = () => {
+    if (!regName.trim()) {
+      showToast('성명(실명)을 입력해주세요.', true);
+      return;
+    }
+    const cleanPhone = regPhone.trim().replace(/[^0-9]/g, '');
+    if (cleanPhone.length < 10) {
+      showToast('올바른 휴대전화 번호(10~11자리)를 입력해주세요.', true);
+      return;
+    }
+    if (!regPassword || regPassword.length < 4) {
+      showToast('비밀번호는 최소 4자리 이상으로 설정해주세요.', true);
+      return;
+    }
+    if (regPassword !== regPasswordConfirm) {
+      showToast('비밀번호와 비밀번호 확인이 일치하지 않습니다.', true);
+      return;
+    }
+    if (!regAgreePolicy) {
+      showToast('개인정보 보호 및 가문 규약에 동의해주세요.', true);
+      return;
+    }
+
+    const res = registerNewMember({
+      name: regName.trim(),
+      hanja: regHanja.trim() || undefined,
+      clan: regClan.trim(),
+      role: regRoleType,
+      roleLabel: regRoleLabel,
+      phone: regPhone.trim(),
+      password: regPassword,
+      birthDate: regBirthDate.trim() || undefined,
+      fatherName: regFatherName.trim() || undefined,
+      motherName: regMotherName.trim() || undefined,
+    });
+
+    if (res.success && res.user) {
+      showToast(res.message, false, true);
+      const registeredPhone = res.user.phone;
+      const registeredPwd = regPassword;
+      // Pre-populate credentials login inputs
+      setPhoneInput(registeredPhone);
+      setPasswordInput(registeredPwd);
+      setActiveTab('credentials');
+      // Reset form
+      setRegName('');
+      setRegHanja('');
+      setRegPhone('');
+      setRegPassword('');
+      setRegPasswordConfirm('');
+      setRegBirthDate('');
+      setRegFatherName('');
+      setRegMotherName('');
     } else {
       showToast(res.message, true);
     }
@@ -179,7 +256,7 @@ export const SecurityLoginModal: React.FC<SecurityLoginModalProps> = ({
             </View>
           )}
 
-          {/* 3 Nav Tabs */}
+          {/* 4 Nav Tabs */}
           <View style={styles.tabBar}>
             <TouchableOpacity
               style={[styles.tabBtn, activeTab === 'demo' && styles.tabBtnActive]}
@@ -192,7 +269,7 @@ export const SecurityLoginModal: React.FC<SecurityLoginModalProps> = ({
                   activeTab === 'demo' && styles.tabBtnTextActive,
                 ]}
               >
-                🧪 [테스트] 빠른 계정 전환
+                🧪 [테스트] 빠른 전환
               </Text>
             </TouchableOpacity>
 
@@ -210,7 +287,25 @@ export const SecurityLoginModal: React.FC<SecurityLoginModalProps> = ({
                   activeTab === 'credentials' && styles.tabBtnTextActive,
                 ]}
               >
-                📱 휴대폰 & 2단계 인증 (실제 로그인)
+                📱 휴대폰 로그인
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[
+                styles.tabBtn,
+                activeTab === 'register' && styles.tabBtnActive,
+              ]}
+              onPress={() => setActiveTab('register')}
+              activeOpacity={0.8}
+            >
+              <Text
+                style={[
+                  styles.tabBtnText,
+                  activeTab === 'register' && styles.tabBtnTextActive,
+                ]}
+              >
+                📝 신규 가입 (등재)
               </Text>
             </TouchableOpacity>
 
@@ -228,7 +323,7 @@ export const SecurityLoginModal: React.FC<SecurityLoginModalProps> = ({
                   activeTab === 'clan_code' && styles.tabBtnTextActive,
                 ]}
               >
-                🔑 가문 초대 코드 등록
+                🔑 가문 초대 코드
               </Text>
             </TouchableOpacity>
           </View>
@@ -247,9 +342,95 @@ export const SecurityLoginModal: React.FC<SecurityLoginModalProps> = ({
                     🧪 <Text style={{ fontWeight: '800' }}>[시뮬레이션 테스트 전용]</Text> 현재는 개발 및 개인정보 마스킹 검증 단계이므로, 권한별(직계 vs 방계 vs 종손) 열람 차이를 원클릭으로 비교할 수 있는 모의 계정입니다.
                   </Text>
                   <Text style={[styles.infoBannerText, { marginTop: 4, color: '#991b1b', fontWeight: '700' }]}>
-                    ※ 실제 상용 서비스 배포 시 본 탭은 완전히 제거되며, 오직 [📱 휴대폰 & 2단계 인증]과 [🔑 가문 초대 코드]를 거친 본인만 로그인할 수 있습니다.
+                    ※ 실제 상용 서비스 배포 시 본 탭은 완전히 제거되며, 오직 [📱 휴대폰 로그인]과 [📝 가문 신규 가입]을 거친 사용자만 접속할 수 있습니다.
                   </Text>
                 </View>
+
+                {/* Custom Accounts Registered by User */}
+                {customAccounts && customAccounts.length > 0 && (
+                  <View style={styles.customSectionBox}>
+                    <View style={styles.customSectionHeader}>
+                      <Text style={styles.customSectionTitle}>
+                        ✨ 브라우저 DB에 직접 등록된 계정 ({customAccounts.length}명)
+                      </Text>
+                      <TouchableOpacity
+                        style={styles.clearDbBtn}
+                        onPress={() => {
+                          clearAllCustomAccounts();
+                          showToast('직접 등록한 계정이 초기화되었습니다.');
+                        }}
+                      >
+                        <Text style={styles.clearDbBtnText}>🗑️ 등록 데이터 초기화</Text>
+                      </TouchableOpacity>
+                    </View>
+                    <View style={styles.accountList}>
+                      {customAccounts.map((acc) => {
+                        const isSelected = currentUser.id === acc.id && isAuthenticated;
+                        return (
+                          <TouchableOpacity
+                            key={acc.id}
+                            style={[
+                              styles.accountCard,
+                              styles.customAccountCard,
+                              isSelected && styles.accountCardSelected,
+                            ]}
+                            onPress={() => handleDemoLogin(acc.id)}
+                            activeOpacity={0.8}
+                          >
+                            <View style={styles.accountCardTop}>
+                              <View style={styles.accountCardTitleGroup}>
+                                <Text style={styles.accountName}>
+                                  {acc.name} {acc.hanja && `(${acc.hanja})`}
+                                </Text>
+                                <View style={[styles.roleBadge, { backgroundColor: '#fef3c7', borderColor: '#f59e0b' }]}>
+                                  <Text style={[styles.roleBadgeText, { color: '#b45309' }]}>
+                                    {acc.roleLabel}
+                                  </Text>
+                                </View>
+                                <View style={{ backgroundColor: '#e0f2fe', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 }}>
+                                  <Text style={{ fontSize: 10, color: '#0369a1', fontWeight: '800' }}>💾 LocalStorage DB 저장됨</Text>
+                                </View>
+                              </View>
+                              {isSelected && (
+                                <View style={styles.activeCheckBadge}>
+                                  <Text style={styles.activeCheckText}>✓ 현재 로그인됨</Text>
+                                </View>
+                              )}
+                            </View>
+
+                            <Text style={styles.accountClan}>{acc.clan}</Text>
+
+                            <View style={styles.accountDetails}>
+                              <Text style={styles.accountDetailItem}>
+                                📱 연락처: {acc.phone}
+                              </Text>
+                              {acc.birthDate && (
+                                <Text style={styles.accountDetailItem}>
+                                  🎂 생년월일: {acc.birthDate}
+                                </Text>
+                              )}
+                              {acc.fatherName && (
+                                <Text style={styles.accountDetailItem}>
+                                  👨 부: {acc.fatherName}
+                                </Text>
+                              )}
+                            </View>
+
+                            <View style={styles.cardActionRow}>
+                              <Text style={styles.cardActionHint}>
+                                {isSelected ? '✓ 현재 선택된 계정입니다' : '🧪 [테스트] 이 계정으로 전환 ➔'}
+                              </Text>
+                            </View>
+                          </TouchableOpacity>
+                        );
+                      })}
+                    </View>
+                  </View>
+                )}
+
+                <Text style={{ fontSize: 13, fontWeight: '800', color: '#475569', marginTop: 14, marginBottom: 8 }}>
+                  👥 기본 제공 시뮬레이션 계정
+                </Text>
 
                 <View style={styles.accountList}>
                   {DEMO_SECURITY_ACCOUNTS.map((acc) => {
@@ -372,6 +553,22 @@ export const SecurityLoginModal: React.FC<SecurityLoginModalProps> = ({
                           : '📱 1차 확인 및 6자리 2FA 보안 OTP 발송'}
                       </Text>
                     </TouchableOpacity>
+
+                    {/* Link to Registration */}
+                    <View style={styles.registerPromptRow}>
+                      <Text style={styles.registerPromptLabel}>
+                        가문에 등록된 계정이 없으신가요?
+                      </Text>
+                      <TouchableOpacity
+                        style={styles.registerPromptLinkBtn}
+                        onPress={() => setActiveTab('register')}
+                        activeOpacity={0.8}
+                      >
+                        <Text style={styles.registerPromptLinkText}>
+                          📝 가문 신규 회원 등록 (족보 등재 신청) ➔
+                        </Text>
+                      </TouchableOpacity>
+                    </View>
                   </View>
                 ) : (
                   <View style={styles.formCard}>
@@ -424,7 +621,250 @@ export const SecurityLoginModal: React.FC<SecurityLoginModalProps> = ({
               </View>
             )}
 
-            {/* ================= TAB 3: CLAN INVITE CODE ================= */}
+            {/* ================= TAB 3: REGISTER NEW MEMBER ================= */}
+            {activeTab === 'register' && (
+              <View style={styles.tabContent}>
+                <View style={styles.formCard}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                    <Text style={{ fontSize: 20 }}>📝</Text>
+                    <Text style={styles.formTitle}>가문 신규 회원 등록 (족보 등재 신청)</Text>
+                  </View>
+                  <Text style={styles.formDesc}>
+                    스마트폰으로 본인 정보를 등록하여 가문 족보에 등재하고, 안전한 2단계 보안 로그인을 생성합니다.
+                  </Text>
+
+                  <View style={styles.infoBanner}>
+                    <Text style={styles.infoBannerText}>
+                      💾 <Text style={{ fontWeight: '800' }}>[로컬 데이터베이스 영구 저장]</Text> 등록하신 정보는 브라우저 보안 저장소(LocalStorage)에 영구 보존되며, 가입 즉시 등록된 휴대폰 번호와 비밀번호로 2FA 로그인이 가능합니다.
+                    </Text>
+                  </View>
+
+                  {/* 실명 & 한자 성명 */}
+                  <View style={styles.formRow}>
+                    <View style={[styles.fieldGroup, { flex: 1 }]}>
+                      <Text style={styles.fieldLabel}>
+                        성명 (실명) <Text style={{ color: '#ef4444' }}>*</Text>
+                      </Text>
+                      <TextInput
+                        style={styles.input}
+                        value={regName}
+                        onChangeText={setRegName}
+                        placeholder="예: 김동현"
+                        placeholderTextColor="#94a3b8"
+                      />
+                    </View>
+                    <View style={[styles.fieldGroup, { flex: 1 }]}>
+                      <Text style={styles.fieldLabel}>한자 성명 (선택)</Text>
+                      <TextInput
+                        style={styles.input}
+                        value={regHanja}
+                        onChangeText={setRegHanja}
+                        placeholder="예: 金東炫"
+                        placeholderTextColor="#94a3b8"
+                      />
+                    </View>
+                  </View>
+
+                  {/* 가문 / 본관 선택 */}
+                  <View style={styles.fieldGroup}>
+                    <Text style={styles.fieldLabel}>
+                      가문 본관 및 파 <Text style={{ color: '#ef4444' }}>*</Text>
+                    </Text>
+                    <TextInput
+                      style={styles.input}
+                      value={regClan}
+                      onChangeText={setRegClan}
+                      placeholder="예: 경주 김씨 판도판서공파"
+                      placeholderTextColor="#94a3b8"
+                    />
+                    <View style={styles.codePillRow}>
+                      {['경주 김씨 판도판서공파', '전주 이씨 효령대군파', '동래 정씨 직제학공파', '남원 양씨'].map((c) => (
+                        <TouchableOpacity
+                          key={c}
+                          style={[styles.codePill, regClan === c && { backgroundColor: '#e0f2fe', borderColor: '#0284c7' }]}
+                          onPress={() => setRegClan(c)}
+                        >
+                          <Text style={[styles.codePillText, regClan === c && { color: '#0369a1', fontWeight: '800' }]}>
+                            {c.split(' ')[0]} {c.split(' ')[1] || ''}
+                          </Text>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                  </View>
+
+                  {/* 가문 내 혈통 구분 */}
+                  <View style={styles.fieldGroup}>
+                    <Text style={styles.fieldLabel}>
+                      가문 내 관계 (권한 구분) <Text style={{ color: '#ef4444' }}>*</Text>
+                    </Text>
+                    <View style={styles.roleBtnRow}>
+                      <TouchableOpacity
+                        style={[
+                          styles.roleSelectBtn,
+                          regRoleType === 'direct_family' && regRoleLabel === '가문 직계 자손' && styles.roleSelectBtnActive,
+                        ]}
+                        onPress={() => {
+                          setRegRoleType('direct_family');
+                          setRegRoleLabel('가문 직계 자손');
+                        }}
+                      >
+                        <Text style={[
+                          styles.roleSelectBtnText,
+                          regRoleType === 'direct_family' && regRoleLabel === '가문 직계 자손' && styles.roleSelectBtnTextActive,
+                        ]}>
+                          👑 직계 혈족 (자손)
+                        </Text>
+                        <Text style={styles.roleSelectBtnSub}>직계 상호 전체 열람</Text>
+                      </TouchableOpacity>
+
+                      <TouchableOpacity
+                        style={[
+                          styles.roleSelectBtn,
+                          regRoleType === 'direct_family' && regRoleLabel === '직계 배우자' && styles.roleSelectBtnActive,
+                        ]}
+                        onPress={() => {
+                          setRegRoleType('direct_family');
+                          setRegRoleLabel('직계 배우자');
+                        }}
+                      >
+                        <Text style={[
+                          styles.roleSelectBtnText,
+                          regRoleType === 'direct_family' && regRoleLabel === '직계 배우자' && styles.roleSelectBtnTextActive,
+                        ]}>
+                          💍 직계 배우자
+                        </Text>
+                        <Text style={styles.roleSelectBtnSub}>직계 상호 전체 열람</Text>
+                      </TouchableOpacity>
+
+                      <TouchableOpacity
+                        style={[
+                          styles.roleSelectBtn,
+                          regRoleType === 'collateral' && styles.roleSelectBtnActive,
+                        ]}
+                        onPress={() => {
+                          setRegRoleType('collateral');
+                          setRegRoleLabel('방계 친족 (친척)');
+                        }}
+                      >
+                        <Text style={[
+                          styles.roleSelectBtnText,
+                          regRoleType === 'collateral' && styles.roleSelectBtnTextActive,
+                        ]}>
+                          🌳 방계 친족
+                        </Text>
+                        <Text style={styles.roleSelectBtnSub}>연락처 보안 마스킹</Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+
+                  {/* 휴대전화 번호 */}
+                  <View style={styles.fieldGroup}>
+                    <Text style={styles.fieldLabel}>
+                      휴대전화 번호 (로그인 ID) <Text style={{ color: '#ef4444' }}>*</Text>
+                    </Text>
+                    <TextInput
+                      style={styles.input}
+                      value={regPhone}
+                      onChangeText={setRegPhone}
+                      placeholder="010-0000-0000"
+                      placeholderTextColor="#94a3b8"
+                      keyboardType="phone-pad"
+                    />
+                    <Text style={styles.fieldHint}>
+                      향후 2단계 SMS 본인 인증 및 로그인 식별자로 사용됩니다.
+                    </Text>
+                  </View>
+
+                  {/* 비밀번호 & 비밀번호 확인 */}
+                  <View style={styles.formRow}>
+                    <View style={[styles.fieldGroup, { flex: 1 }]}>
+                      <Text style={styles.fieldLabel}>
+                        접속 비밀번호 <Text style={{ color: '#ef4444' }}>*</Text>
+                      </Text>
+                      <TextInput
+                        style={styles.input}
+                        value={regPassword}
+                        onChangeText={setRegPassword}
+                        placeholder="4자리 이상"
+                        placeholderTextColor="#94a3b8"
+                        secureTextEntry
+                      />
+                    </View>
+                    <View style={[styles.fieldGroup, { flex: 1 }]}>
+                      <Text style={styles.fieldLabel}>
+                        비밀번호 확인 <Text style={{ color: '#ef4444' }}>*</Text>
+                      </Text>
+                      <TextInput
+                        style={styles.input}
+                        value={regPasswordConfirm}
+                        onChangeText={setRegPasswordConfirm}
+                        placeholder="동일 비밀번호 재입력"
+                        placeholderTextColor="#94a3b8"
+                        secureTextEntry
+                      />
+                    </View>
+                  </View>
+
+                  {/* 생년월일 & 부모님 성함 */}
+                  <View style={styles.formRow}>
+                    <View style={[styles.fieldGroup, { flex: 1 }]}>
+                      <Text style={styles.fieldLabel}>생년월일 (선택)</Text>
+                      <TextInput
+                        style={styles.input}
+                        value={regBirthDate}
+                        onChangeText={setRegBirthDate}
+                        placeholder="1995-08-15"
+                        placeholderTextColor="#94a3b8"
+                      />
+                    </View>
+                    <View style={[styles.fieldGroup, { flex: 1 }]}>
+                      <Text style={styles.fieldLabel}>부(아버지) 성함 (선택)</Text>
+                      <TextInput
+                        style={styles.input}
+                        value={regFatherName}
+                        onChangeText={setRegFatherName}
+                        placeholder="예: 김영호"
+                        placeholderTextColor="#94a3b8"
+                      />
+                    </View>
+                  </View>
+
+                  {/* 개인정보 규약 동의 */}
+                  <TouchableOpacity
+                    style={styles.policyRow}
+                    onPress={() => setRegAgreePolicy(!regAgreePolicy)}
+                    activeOpacity={0.8}
+                  >
+                    <Text style={{ fontSize: 18 }}>{regAgreePolicy ? '☑️' : '⬜'}</Text>
+                    <Text style={styles.policyText}>
+                      [필수] 대한민국 개인정보보호법 및 가문 족보 보안 규약에 동의하며, 가문 구성원 정보 등록에 동의합니다.
+                    </Text>
+                  </TouchableOpacity>
+
+                  {/* Submit button */}
+                  <TouchableOpacity
+                    style={styles.submitBtn}
+                    onPress={handleRegisterSubmit}
+                    activeOpacity={0.85}
+                  >
+                    <Text style={styles.submitBtnText}>
+                      📝 가문 데이터베이스 등록 및 즉시 로그인 ➔
+                    </Text>
+                  </TouchableOpacity>
+
+                  {/* Link to login */}
+                  <View style={{ alignItems: 'center', marginTop: 14 }}>
+                    <TouchableOpacity onPress={() => setActiveTab('credentials')} activeOpacity={0.7}>
+                      <Text style={{ fontSize: 12.5, color: '#0284c7', fontWeight: '700' }}>
+                        이미 가문에 등록된 계정이 있으신가요? 📱 휴대폰 로그인 ➔
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              </View>
+            )}
+
+            {/* ================= TAB 4: CLAN INVITE CODE ================= */}
             {activeTab === 'clan_code' && (
               <View style={styles.tabContent}>
                 <View style={styles.formCard}>
@@ -934,6 +1374,118 @@ const styles = StyleSheet.create({
   privacyNoticeText: {
     fontSize: 10.5,
     color: '#78716c',
+    lineHeight: 15,
+  },
+  customSectionBox: {
+    marginBottom: 16,
+    padding: 12,
+    backgroundColor: '#fffbeb',
+    borderWidth: 1.5,
+    borderColor: '#fde68a',
+    borderRadius: 10,
+  },
+  customSectionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+  customSectionTitle: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#92400e',
+  },
+  clearDbBtn: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    backgroundColor: '#fee2e2',
+    borderRadius: 4,
+    borderWidth: 1,
+    borderColor: '#fca5a5',
+  },
+  clearDbBtnText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#b91c1c',
+  },
+  customAccountCard: {
+    borderColor: '#f59e0b',
+    backgroundColor: '#ffffff',
+  },
+  registerPromptRow: {
+    marginTop: 14,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#f1f5f9',
+    alignItems: 'center',
+    gap: 4,
+  },
+  registerPromptLabel: {
+    fontSize: 11.5,
+    color: '#64748b',
+  },
+  registerPromptLinkBtn: {
+    paddingVertical: 4,
+  },
+  registerPromptLinkText: {
+    fontSize: 12.5,
+    fontWeight: '800',
+    color: '#0284c7',
+  },
+  formRow: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  roleBtnRow: {
+    flexDirection: 'row',
+    gap: 6,
+    marginTop: 4,
+  },
+  roleSelectBtn: {
+    flex: 1,
+    paddingVertical: 8,
+    paddingHorizontal: 6,
+    borderRadius: 8,
+    borderWidth: 1.5,
+    borderColor: '#e2e8f0',
+    backgroundColor: '#f8fafc',
+    alignItems: 'center',
+  },
+  roleSelectBtnActive: {
+    borderColor: '#0284c7',
+    backgroundColor: '#f0f9ff',
+  },
+  roleSelectBtnText: {
+    fontSize: 11.5,
+    fontWeight: '700',
+    color: '#475569',
+    textAlign: 'center',
+  },
+  roleSelectBtnTextActive: {
+    color: '#0284c7',
+    fontWeight: '800',
+  },
+  roleSelectBtnSub: {
+    fontSize: 9.5,
+    color: '#94a3b8',
+    marginTop: 2,
+    textAlign: 'center',
+  },
+  policyRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginVertical: 10,
+    padding: 8,
+    backgroundColor: '#f8fafc',
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+  },
+  policyText: {
+    fontSize: 11,
+    color: '#334155',
+    flex: 1,
     lineHeight: 15,
   },
 });

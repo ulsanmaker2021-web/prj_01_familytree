@@ -64,6 +64,51 @@ export const DEMO_SECURITY_ACCOUNTS: (UserProfile & { password: string })[] = [
   },
 ];
 
+// 1-1. 사용자 직접 등록 영구 저장소 (LocalStorage 기반 가문 DB)
+export const STORAGE_KEY_CUSTOM_ACCOUNTS = 'jokbo_registered_accounts_v1';
+
+export function getCustomRegisteredAccounts(): (UserProfile & { password: string })[] {
+  if (typeof window === 'undefined' || !window.localStorage) {
+    return [];
+  }
+  try {
+    const raw = window.localStorage.getItem(STORAGE_KEY_CUSTOM_ACCOUNTS);
+    if (!raw) return [];
+    return JSON.parse(raw);
+  } catch (e) {
+    console.error('Failed to read custom accounts from localStorage:', e);
+    return [];
+  }
+}
+
+export function getAllSecurityAccounts(): (UserProfile & { password: string })[] {
+  const custom = getCustomRegisteredAccounts();
+  return [...DEMO_SECURITY_ACCOUNTS, ...custom];
+}
+
+export function saveCustomAccount(account: UserProfile & { password: string }): boolean {
+  if (typeof window === 'undefined' || !window.localStorage) {
+    return false;
+  }
+  try {
+    const current = getCustomRegisteredAccounts();
+    const cleanPhone = account.phone.replace(/[^0-9]/g, '');
+    const filtered = current.filter((a) => a.phone.replace(/[^0-9]/g, '') !== cleanPhone);
+    filtered.push(account);
+    window.localStorage.setItem(STORAGE_KEY_CUSTOM_ACCOUNTS, JSON.stringify(filtered));
+    return true;
+  } catch (e) {
+    console.error('Failed to save custom account:', e);
+    return false;
+  }
+}
+
+export function clearCustomAccounts(): void {
+  if (typeof window !== 'undefined' && window.localStorage) {
+    window.localStorage.removeItem(STORAGE_KEY_CUSTOM_ACCOUNTS);
+  }
+}
+
 // 2. 가문 폐쇄형 공인 보안 초대 토큰 목록
 export const VALID_CLAN_INVITE_TOKENS: Record<string, ClanInviteToken> = {
   'KJ-KIM-2026-9872X': {
