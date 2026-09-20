@@ -7,6 +7,7 @@ import { StatusBar } from 'expo-status-bar';
 import HomeScreen from './src/screens/HomeScreen';
 import FamilyScreen from './src/screens/FamilyScreen';
 import PataScreen from './src/screens/PataScreen';
+import GenealogyMasterScreen from './src/screens/GenealogyMasterScreen';
 import SettingsScreen from './src/screens/SettingsScreen';
 import { TabIcon } from './src/components/TabIcon';
 import { inkTheme } from './src/theme/inkTheme';
@@ -15,6 +16,7 @@ export type RootTabParamList = {
   Home: undefined;
   Family: undefined;
   Pata: undefined;
+  GenealogyMaster: undefined;
   Settings: undefined;
 };
 
@@ -91,6 +93,14 @@ export default function App() {
             options={{
               title: '무관심 타파 (친족 안부 챙김)',
               tabBarLabel: '안부 챙김',
+            }}
+          />
+          <Tab.Screen
+            name="GenealogyMaster"
+            component={GenealogyMasterScreen}
+            options={{
+              title: '성씨별 족보 마스터 검증 센터',
+              tabBarLabel: '족보 마스터',
             }}
           />
           <Tab.Screen

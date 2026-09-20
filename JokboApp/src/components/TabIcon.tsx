@@ -4,7 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { inkTheme } from '../theme/inkTheme';
 
 interface TabIconProps {
-  name: 'Home' | 'Family' | 'Pata' | 'Settings';
+  name: 'Home' | 'Family' | 'Pata' | 'GenealogyMaster' | 'Settings';
   focused: boolean;
   color: string;
   size?: number;
@@ -22,6 +22,9 @@ export const TabIcon: React.FC<TabIconProps> = ({ name, focused, color, size = 2
       break;
     case 'Pata':
       iconName = focused ? 'heart' : 'heart-outline';
+      break;
+    case 'GenealogyMaster':
+      iconName = focused ? 'shield-checkmark' : 'shield-checkmark-outline';
       break;
     case 'Settings':
       iconName = focused ? 'settings' : 'settings-outline';
