@@ -12,6 +12,7 @@ import { FamilyMember } from '../types/family';
 import { INITIAL_FAMILY_DATA } from '../utils/mockFamilyData';
 import { getMemberAvatar } from '../utils/avatarGenerator';
 import { verifyMemberLineage } from '../utils/genealogyVerification';
+import { MasterTrackingDashboardModal } from './MasterTrackingDashboardModal';
 
 interface FramedMasterpieceViewProps {
   members: FamilyMember[];
@@ -32,6 +33,7 @@ export const FramedMasterpieceView: React.FC<FramedMasterpieceViewProps> = ({
   // 'lineage_direct' (부계 혈통 직계 중심: 조부모 ➔ 부친 ➔ 본인/형제 ➔ 자녀)
   // 'bilateral' (친가·외가 양가 조부모 대등 배치)
   const [lineageMode, setLineageMode] = useState<'lineage_direct' | 'bilateral'>('lineage_direct');
+  const [isMasterDashboardVisible, setIsMasterDashboardVisible] = useState(false);
 
   // Trigger browser print dialog
   const handlePrint = () => {
@@ -217,6 +219,15 @@ export const FramedMasterpieceView: React.FC<FramedMasterpieceViewProps> = ({
               </Text>
             </TouchableOpacity>
           </View>
+
+          {/* Master Verification Service Center Button */}
+          <TouchableOpacity
+            style={styles.masterCenterBtn}
+            onPress={() => setIsMasterDashboardVisible(true)}
+            activeOpacity={0.85}
+          >
+            <Text style={styles.masterCenterBtnText}>🏛️ 족보 마스터 감정 센터</Text>
+          </TouchableOpacity>
 
           {/* Return to Main Menu */}
           {onReturnToMain && (
@@ -511,6 +522,12 @@ export const FramedMasterpieceView: React.FC<FramedMasterpieceViewProps> = ({
           </View>
         </View>
       </ScrollView>
+
+      {/* Clan Master Paid Verification Center Modal */}
+      <MasterTrackingDashboardModal
+        visible={isMasterDashboardVisible}
+        onClose={() => setIsMasterDashboardVisible(false)}
+      />
     </View>
   );
 };
@@ -601,6 +618,19 @@ const styles = StyleSheet.create({
   },
   modeBtnTextActive: {
     color: '#ffffff',
+    fontWeight: '800',
+  },
+  masterCenterBtn: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 6,
+    backgroundColor: '#065f46',
+    borderWidth: 1,
+    borderColor: '#34d399',
+  },
+  masterCenterBtnText: {
+    color: '#ecfdf5',
+    fontSize: 11,
     fontWeight: '800',
   },
   returnMainBtn: {

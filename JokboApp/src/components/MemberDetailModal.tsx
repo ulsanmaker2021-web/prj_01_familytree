@@ -14,6 +14,9 @@ import { LINEAGES, getDaysSinceContact, getLifeStatus } from '../utils/mockFamil
 import { inkTheme } from '../theme/inkTheme';
 import { getMemberAvatar, hasCustomPhoto } from '../utils/avatarGenerator';
 import { verifyMemberLineage } from '../utils/genealogyVerification';
+import { MasterVerificationModal } from './MasterVerificationModal';
+import { MasterTrackingDashboardModal } from './MasterTrackingDashboardModal';
+import { getRequestsForMember } from '../utils/genealogyMasterData';
 
 interface MemberDetailModalProps {
   member: FamilyMember | null;
@@ -40,6 +43,8 @@ export const MemberDetailModal: React.FC<MemberDetailModalProps> = ({
 }) => {
   const [isEditingPhoto, setIsEditingPhoto] = useState(false);
   const [photoInput, setPhotoInput] = useState('');
+  const [isMasterModalVisible, setIsMasterModalVisible] = useState(false);
+  const [isDashboardVisible, setIsDashboardVisible] = useState(false);
 
   if (!member) return null;
 
@@ -320,6 +325,86 @@ export const MemberDetailModal: React.FC<MemberDetailModalProps> = ({
                   </Text>
                 ))}
               </View>
+
+              {/* Master Paid Verification Service Callout */}
+              {(() => {
+                const memberRequests = getRequestsForMember(member.id);
+                const activeReq = memberRequests[0];
+
+                if (activeReq) {
+                  const isApproved = activeReq.status === 'approved';
+                  return (
+                    <View style={[styles.activeMasterReqBox, isApproved && styles.activeMasterReqBoxApproved]}>
+                      <View style={styles.activeMasterHeader}>
+                        <Text style={styles.activeMasterTitle}>
+                          {isApproved ? '🛡️ 족보 마스터 최종 공인 완료' : '⏳ 족보 마스터 정밀 실사 진행중'}
+                        </Text>
+                        <Text style={styles.activeMasterIdText}>{activeReq.id}</Text>
+                      </View>
+                      <Text style={styles.activeMasterDesc}>
+                        담당: {activeReq.masterName} 수석위원장 ({activeReq.masterOrganization})
+                      </Text>
+                      {activeReq.masterReviewNote ? (
+                        <Text style={styles.activeMasterNote}>
+                          {activeReq.masterReviewNote}
+                        </Text>
+                      ) : null}
+                      {isApproved && activeReq.issuedCertificateNo ? (
+                        <View style={styles.certPill}>
+                          <Text style={styles.certPillText}>
+                            가문 공인 번호: {activeReq.issuedCertificateNo}
+                          </Text>
+                        </View>
+                      ) : null}
+                      <TouchableOpacity
+                        style={styles.viewProgressBtn}
+                        onPress={() => setIsDashboardVisible(true)}
+                        activeOpacity={0.8}
+                      >
+                        <Text style={styles.viewProgressBtnText}>
+                          📊 실시간 감정 진행 단계 확인하기 ➔
+                        </Text>
+                      </TouchableOpacity>
+                    </View>
+                  );
+                }
+
+                return (
+                  <View style={styles.masterCalloutBox}>
+                    <View style={styles.masterCalloutTitleRow}>
+                      <Text style={styles.masterCalloutTitle}>
+                        🏛️ 순한글·종교적 성명: 족보 마스터 정밀 감정
+                      </Text>
+                      <View style={styles.masterPaidTag}>
+                        <Text style={styles.masterPaidTagText}>유료 전문 서비스</Text>
+                      </View>
+                    </View>
+                    <Text style={styles.masterCalloutDesc}>
+                      현대 사회의 순우리말 이름이나 종교적 작명은 전통 항렬표와 글자가 다를 수 있습니다. 성씨별 문중 대종회 족보 편찬위원장(마스터)에게 대동보(大同譜) 원전 수기 실사를 요청하여 공식 세손을 확정받으실 수 있습니다.
+                    </Text>
+                    <View style={styles.masterActionRow}>
+                      <TouchableOpacity
+                        style={styles.requestMasterBtn}
+                        onPress={() => setIsMasterModalVisible(true)}
+                        activeOpacity={0.8}
+                      >
+                        <Text style={styles.requestMasterBtnText}>
+                          📜 족보 마스터 정밀 고증 의뢰 (3만~10만원)
+                        </Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={styles.openMasterDashBtn}
+                        onPress={() => setIsDashboardVisible(true)}
+                        activeOpacity={0.8}
+                      >
+                        <Text style={styles.openMasterDashBtnText}>
+                          👥 마스터 명부 / 현황
+                        </Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                );
+              })()}
             </View>
 
             {/* Living Elder Approval Kinship Information */}
@@ -442,6 +527,21 @@ export const MemberDetailModal: React.FC<MemberDetailModalProps> = ({
           </ScrollView>
         </View>
       </View>
+
+      <MasterVerificationModal
+        visible={isMasterModalVisible}
+        member={member}
+        onClose={() => setIsMasterModalVisible(false)}
+        onOpenDashboard={() => {
+          setIsMasterModalVisible(false);
+          setIsDashboardVisible(true);
+        }}
+      />
+
+      <MasterTrackingDashboardModal
+        visible={isDashboardVisible}
+        onClose={() => setIsDashboardVisible(false)}
+      />
     </Modal>
   );
 };
@@ -994,5 +1094,143 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: '#475569',
     lineHeight: 16,
+  },
+  activeMasterReqBox: {
+    backgroundColor: '#f0fdf4',
+    borderRadius: 8,
+    borderWidth: 1.5,
+    borderColor: '#86efac',
+    padding: 12,
+    marginTop: 12,
+    gap: 6,
+  },
+  activeMasterReqBoxApproved: {
+    backgroundColor: '#ecfdf5',
+    borderColor: '#10b981',
+  },
+  activeMasterHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    borderBottomWidth: 0.8,
+    borderBottomColor: '#bbf7d0',
+    paddingBottom: 4,
+  },
+  activeMasterTitle: {
+    fontSize: 12.5,
+    fontWeight: '800',
+    color: '#15803d',
+  },
+  activeMasterIdText: {
+    fontSize: 10.5,
+    fontWeight: '800',
+    color: '#166534',
+  },
+  activeMasterDesc: {
+    fontSize: 11.5,
+    color: '#166534',
+    fontWeight: '700',
+  },
+  activeMasterNote: {
+    fontSize: 11,
+    color: '#14532d',
+    backgroundColor: '#ffffff',
+    padding: 8,
+    borderRadius: 6,
+    lineHeight: 15,
+  },
+  certPill: {
+    backgroundColor: '#dcfce7',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 4,
+    alignSelf: 'flex-start',
+  },
+  certPillText: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#15803d',
+  },
+  viewProgressBtn: {
+    backgroundColor: '#0284c7',
+    paddingVertical: 8,
+    borderRadius: 6,
+    alignItems: 'center',
+    marginTop: 4,
+  },
+  viewProgressBtnText: {
+    fontSize: 11.5,
+    fontWeight: '800',
+    color: '#ffffff',
+  },
+  masterCalloutBox: {
+    backgroundColor: '#f8fafc',
+    borderRadius: 8,
+    borderWidth: 1.5,
+    borderColor: '#cbd5e1',
+    padding: 12,
+    marginTop: 12,
+  },
+  masterCalloutTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    flexWrap: 'wrap',
+    gap: 6,
+    marginBottom: 6,
+  },
+  masterCalloutTitle: {
+    fontSize: 12.5,
+    fontWeight: '800',
+    color: '#0f172a',
+  },
+  masterPaidTag: {
+    backgroundColor: '#fee2e2',
+    paddingHorizontal: 5,
+    paddingVertical: 2,
+    borderRadius: 4,
+    borderWidth: 0.8,
+    borderColor: '#fca5a5',
+  },
+  masterPaidTagText: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: '#991b1b',
+  },
+  masterCalloutDesc: {
+    fontSize: 11,
+    color: '#475569',
+    lineHeight: 16,
+    marginBottom: 10,
+  },
+  masterActionRow: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  requestMasterBtn: {
+    flex: 1,
+    backgroundColor: '#2563eb',
+    paddingVertical: 8,
+    borderRadius: 6,
+    alignItems: 'center',
+  },
+  requestMasterBtnText: {
+    fontSize: 11.5,
+    fontWeight: '800',
+    color: '#ffffff',
+  },
+  openMasterDashBtn: {
+    backgroundColor: '#f1f5f9',
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    borderRadius: 6,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#cbd5e1',
+  },
+  openMasterDashBtnText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#475569',
   },
 });

@@ -14,6 +14,8 @@ import { inkTheme } from '../theme/inkTheme';
 import { getLifeStatus, getKinshipRelation } from '../utils/mockFamilyData';
 import { getMemberAvatar } from '../utils/avatarGenerator';
 import { verifyMemberLineage } from '../utils/genealogyVerification';
+import { MasterTrackingDashboardModal } from './MasterTrackingDashboardModal';
+import { getRequestsForMember } from '../utils/genealogyMasterData';
 
 interface HorizontalMindmapViewProps {
   members: FamilyMember[];
@@ -55,6 +57,7 @@ export const HorizontalMindmapView: React.FC<HorizontalMindmapViewProps> = ({
 
   // Toggle extended kin (방계: 백부, 숙부, 고모, 외숙, 이모, 사촌 포함 여부)
   const [showExtendedKin, setShowExtendedKin] = useState<boolean>(true);
+  const [isMasterDashboardVisible, setIsMasterDashboardVisible] = useState<boolean>(false);
 
   // Previous person in history if any
   const prevMember = useMemo(() => {
@@ -420,6 +423,24 @@ export const HorizontalMindmapView: React.FC<HorizontalMindmapViewProps> = ({
                 </Text>
               </View>
 
+              {/* Clan Master Verification Status if active */}
+              {(() => {
+                const reqs = getRequestsForMember(member.id);
+                const activeReq = reqs[0];
+                if (!activeReq) return null;
+                const isApproved = activeReq.status === 'approved';
+                return (
+                  <View style={styles.detailRow}>
+                    <Text style={[styles.detailLabel, { color: subtextColor }]}>마스터실사:</Text>
+                    <TouchableOpacity onPress={() => setIsMasterDashboardVisible(true)}>
+                      <Text style={[styles.detailValue, { color: isApproved ? '#10b981' : '#f59e0b', fontWeight: '800' }]}>
+                        {isApproved ? '🛡️ 마스터 최종공인 완료' : '⏳ 대동보 수기 실사중'} (확인 ➔)
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                );
+              })()}
+
               {/* Action Buttons in Drawer */}
               <View style={styles.drawerActionsRow}>
                 {!isCenter && (
@@ -572,6 +593,15 @@ export const HorizontalMindmapView: React.FC<HorizontalMindmapViewProps> = ({
             >
               <Text style={[styles.modePillText, currentViewMode === 'mindmap' && styles.modePillTextActiveMindmap]}>
                 🧠 수평 마인드맵
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.modePill, { backgroundColor: '#065f46', borderColor: '#34d399' }]}
+              onPress={() => setIsMasterDashboardVisible(true)}
+            >
+              <Text style={[styles.modePillText, { color: '#ecfdf5', fontWeight: '800' }]}>
+                🏛️ 족보 마스터 센터
               </Text>
             </TouchableOpacity>
           </View>
@@ -973,6 +1003,12 @@ export const HorizontalMindmapView: React.FC<HorizontalMindmapViewProps> = ({
           </View>
         </ScrollView>
       </ScrollView>
+
+      {/* Clan Master Paid Verification Center Modal */}
+      <MasterTrackingDashboardModal
+        visible={isMasterDashboardVisible}
+        onClose={() => setIsMasterDashboardVisible(false)}
+      />
     </View>
   );
 };
