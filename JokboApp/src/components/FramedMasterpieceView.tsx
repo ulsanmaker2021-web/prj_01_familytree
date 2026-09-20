@@ -14,6 +14,7 @@ import { INITIAL_FAMILY_DATA } from '../utils/mockFamilyData';
 import { getMemberAvatar } from '../utils/avatarGenerator';
 import { verifyMemberLineage } from '../utils/genealogyVerification';
 import { MasterTrackingDashboardModal } from './MasterTrackingDashboardModal';
+import html2canvas from 'html2canvas';
 
 interface FramedMasterpieceViewProps {
   members: FamilyMember[];
@@ -38,6 +39,7 @@ export const FramedMasterpieceView: React.FC<FramedMasterpieceViewProps> = ({
   const [isPrintModalOpen, setIsPrintModalOpen] = useState(false);
   const [printOrientation, setPrintOrientation] = useState<'landscape' | 'portrait'>('landscape');
   const [includeOuterFrame, setIncludeOuterFrame] = useState(true);
+  const [isCapturing, setIsCapturing] = useState(false);
 
   // In-page fallback print styles
   useEffect(() => {
@@ -65,8 +67,8 @@ export const FramedMasterpieceView: React.FC<FramedMasterpieceViewProps> = ({
     `;
   }, []);
 
-  // Isolated High-Resolution Print Handler (가계도 액자만 단독 1장 인쇄)
-  const handlePrintMasterpiece = (
+  // High-Resolution Image Capture & Print Handler (html2canvas 기반 100% 무결 이미지화 인쇄)
+  const handlePrintMasterpiece = async (
     orientation: 'landscape' | 'portrait' = 'landscape',
     withOuterFrame: boolean = true
   ) => {
@@ -85,133 +87,192 @@ export const FramedMasterpieceView: React.FC<FramedMasterpieceViewProps> = ({
       return;
     }
 
-    // Remove existing print iframe if any
-    let iframe = document.getElementById('jokbo-print-iframe') as HTMLIFrameElement | null;
-    if (iframe) {
-      iframe.remove();
-    }
+    setIsCapturing(true);
 
-    iframe = document.createElement('iframe');
-    iframe.id = 'jokbo-print-iframe';
-    iframe.style.position = 'fixed';
-    iframe.style.right = '0';
-    iframe.style.bottom = '0';
-    iframe.style.width = '0';
-    iframe.style.height = '0';
-    iframe.style.border = '0';
-    iframe.style.opacity = '0';
-    iframe.style.pointerEvents = 'none';
-    iframe.style.zIndex = '-9999';
-    document.body.appendChild(iframe);
+    try {
+      // Capture the exact DOM layout into a high-resolution canvas
+      const canvas = await html2canvas(targetEl, {
+        scale: 2, // 2x for ultra-sharp crisp text, portraits, and calligraphy
+        useCORS: true,
+        allowTaint: true,
+        backgroundColor: withOuterFrame ? '#451a03' : '#fdfbf7',
+        logging: false,
+        scrollX: 0,
+        scrollY: 0,
+      });
 
-    const doc = iframe.contentWindow?.document;
-    if (!doc) {
+      const imgDataUrl = canvas.toDataURL('image/png');
+
+      // Remove existing print iframe if any
+      let iframe = document.getElementById('jokbo-print-iframe') as HTMLIFrameElement | null;
+      if (iframe) {
+        iframe.remove();
+      }
+
+      iframe = document.createElement('iframe');
+      iframe.id = 'jokbo-print-iframe';
+      iframe.style.position = 'fixed';
+      iframe.style.right = '0';
+      iframe.style.bottom = '0';
+      iframe.style.width = '0';
+      iframe.style.height = '0';
+      iframe.style.border = '0';
+      iframe.style.opacity = '0';
+      iframe.style.pointerEvents = 'none';
+      iframe.style.zIndex = '-9999';
+      document.body.appendChild(iframe);
+
+      const doc = iframe.contentWindow?.document;
+      if (!doc) {
+        window.print();
+        setIsCapturing(false);
+        return;
+      }
+
+      const htmlContent = '<!DOCTYPE html>' +
+        '<html lang="ko">' +
+        '<head>' +
+        '<meta charset="utf-8">' +
+        '<title>가족 가계도 거실 표구 액자 (家 族 家 系 圖)</title>' +
+        '<style>' +
+        '@page {' +
+        '  size: ' + orientation + ';' +
+        '  margin: 6mm;' +
+        '}' +
+        '*, *::before, *::after {' +
+        '  box-sizing: border-box !important;' +
+        '  -webkit-print-color-adjust: exact !important;' +
+        '  print-color-adjust: exact !important;' +
+        '}' +
+        'html, body {' +
+        '  margin: 0 !important;' +
+        '  padding: 0 !important;' +
+        '  width: 100vw !important;' +
+        '  height: 100vh !important;' +
+        '  overflow: hidden !important;' +
+        '  background-color: #ffffff !important;' +
+        '  display: flex !important;' +
+        '  align-items: center !important;' +
+        '  justify-content: center !important;' +
+        '}' +
+        '.print-img-wrapper {' +
+        '  width: 100vw;' +
+        '  height: 100vh;' +
+        '  display: flex;' +
+        '  align-items: center;' +
+        '  justify-content: center;' +
+        '  overflow: hidden;' +
+        '  page-break-inside: avoid !important;' +
+        '  page-break-after: avoid !important;' +
+        '  page-break-before: avoid !important;' +
+        '}' +
+        '.print-img {' +
+        '  max-width: calc(100vw - 12mm);' +
+        '  max-height: calc(100vh - 12mm);' +
+        '  width: auto;' +
+        '  height: auto;' +
+        '  object-fit: contain;' +
+        '  display: block;' +
+        '  margin: auto;' +
+        '  border-radius: 4px;' +
+        '  box-shadow: 0 4px 12px rgba(0,0,0,0.15);' +
+        '}' +
+        '@media print {' +
+        '  @page {' +
+        '    size: ' + orientation + ';' +
+        '    margin: 6mm;' +
+        '  }' +
+        '  html, body {' +
+        '    width: 100vw !important;' +
+        '    height: 100vh !important;' +
+        '    overflow: hidden !important;' +
+        '    background: #ffffff !important;' +
+        '  }' +
+        '  .print-img-wrapper {' +
+        '    width: 100vw !important;' +
+        '    height: 100vh !important;' +
+        '    page-break-inside: avoid !important;' +
+        '    page-break-after: avoid !important;' +
+        '  }' +
+        '  .print-img {' +
+        '    max-width: calc(100vw - 12mm) !important;' +
+        '    max-height: calc(100vh - 12mm) !important;' +
+        '    object-fit: contain !important;' +
+        '    box-shadow: none !important;' +
+        '  }' +
+        '}' +
+        '</style>' +
+        '</head>' +
+        '<body class="orientation-' + orientation + '">' +
+        '<div class="print-img-wrapper">' +
+        '<img src="' + imgDataUrl + '" class="print-img" alt="가족 가계도 거실 표구 액자" />' +
+        '</div>' +
+        '</body>' +
+        '</html>';
+
+      doc.open();
+      doc.write(htmlContent);
+      doc.close();
+
+      setTimeout(() => {
+        setIsCapturing(false);
+        try {
+          iframe.contentWindow?.focus();
+          iframe.contentWindow?.print();
+        } catch (e) {
+          console.error('Print error:', e);
+          window.print();
+        }
+      }, 400);
+
+      iframe.contentWindow?.addEventListener('afterprint', () => {
+        setTimeout(() => {
+          iframe?.remove();
+        }, 1000);
+      });
+    } catch (err) {
+      console.error('html2canvas capture error:', err);
+      setIsCapturing(false);
       window.print();
+    }
+  };
+
+  // Direct High-Resolution Image (PNG) Download (디지털 액자 파일 다운로드)
+  const handleDownloadImage = async (withOuterFrame: boolean = true) => {
+    if (Platform.OS !== 'web' || typeof window === 'undefined' || typeof document === 'undefined') {
       return;
     }
 
-    // Collect all stylesheets and style tags from current document
-    const styleTags = Array.from(document.querySelectorAll('style, link[rel="stylesheet"]'))
-      .map((el) => el.outerHTML)
-      .join('\\n');
+    const targetId = withOuterFrame ? 'framed-masterpiece-canvas' : 'framed-canvas-parchment';
+    let targetEl = document.getElementById(targetId);
+    if (!targetEl) {
+      targetEl = document.getElementById('framed-masterpiece-canvas');
+    }
+    if (!targetEl) return;
 
-    const htmlContent = '<!DOCTYPE html>' +
-      '<html lang="ko">' +
-      '<head>' +
-      '<meta charset="utf-8">' +
-      '<title>가족 가계도 거실 표구 액자 (家 族 家 系 圖)</title>' +
-      styleTags +
-      '<style>' +
-      '@page {' +
-      '  size: ' + orientation + ';' +
-      '  margin: 6mm;' +
-      '}' +
-      '*, *::before, *::after {' +
-      '  box-sizing: border-box !important;' +
-      '  -webkit-print-color-adjust: exact !important;' +
-      '  print-color-adjust: exact !important;' +
-      '}' +
-      'html, body {' +
-      '  margin: 0 !important;' +
-      '  padding: 0 !important;' +
-      '  width: 100% !important;' +
-      '  height: 100% !important;' +
-      '  overflow: hidden !important;' +
-      '  background-color: #ffffff !important;' +
-      '  display: flex !important;' +
-      '  align-items: center !important;' +
-      '  justify-content: center !important;' +
-      '}' +
-      '.print-artwork-container {' +
-      '  width: 100vw;' +
-      '  height: 100vh;' +
-      '  display: flex;' +
-      '  align-items: center;' +
-      '  justify-content: center;' +
-      '  overflow: hidden;' +
-      '  page-break-inside: avoid !important;' +
-      '  page-break-after: avoid !important;' +
-      '  page-break-before: avoid !important;' +
-      '}' +
-      '.print-scaler-box {' +
-      '  width: ' + FRAME_WIDTH + 'px;' +
-      '  height: ' + FRAME_HEIGHT + 'px;' +
-      '  transform-origin: center center;' +
-      '  display: flex;' +
-      '  align-items: center;' +
-      '  justify-content: center;' +
-      '  transform: scale(calc(min((100vw - 12mm) / ' + FRAME_WIDTH + ', (100vh - 12mm) / ' + FRAME_HEIGHT + '))) !important;' +
-      '}' +
-      '#framed-masterpiece-canvas,' +
-      '#framed-canvas-parchment {' +
-      '  margin: 0 !important;' +
-      '  box-shadow: none !important;' +
-      '}' +
-      '@media print {' +
-      '  @page {' +
-      '    size: ' + orientation + ';' +
-      '    margin: 6mm;' +
-      '  }' +
-      '  html, body {' +
-      '    width: 100vw !important;' +
-      '    height: 100vh !important;' +
-      '    overflow: hidden !important;' +
-      '  }' +
-      '  .print-artwork-container {' +
-      '    width: 100vw !important;' +
-      '    height: 100vh !important;' +
-      '  }' +
-      '}' +
-      '</style>' +
-      '</head>' +
-      '<body class="orientation-' + orientation + '">' +
-      '<div class="print-artwork-container">' +
-      '<div class="print-scaler-box">' +
-      targetEl.outerHTML +
-      '</div>' +
-      '</div>' +
-      '</body>' +
-      '</html>';
+    setIsCapturing(true);
 
-    doc.open();
-    doc.write(htmlContent);
-    doc.close();
+    try {
+      const canvas = await html2canvas(targetEl, {
+        scale: 2,
+        useCORS: true,
+        allowTaint: true,
+        backgroundColor: withOuterFrame ? '#451a03' : '#fdfbf7',
+        logging: false,
+        scrollX: 0,
+        scrollY: 0,
+      });
 
-    setTimeout(() => {
-      try {
-        iframe.contentWindow?.focus();
-        iframe.contentWindow?.print();
-      } catch (e) {
-        console.error('Print error:', e);
-        window.print();
-      }
-    }, 450);
-
-    iframe.contentWindow?.addEventListener('afterprint', () => {
-      setTimeout(() => {
-        iframe?.remove();
-      }, 1000);
-    });
+      const imgDataUrl = canvas.toDataURL('image/png');
+      const link = document.createElement('a');
+      link.download = '가족가계도_거실표구액자_명작.png';
+      link.href = imgDataUrl;
+      link.click();
+    } catch (err) {
+      console.error('Download error:', err);
+    } finally {
+      setIsCapturing(false);
+    }
   };
 
   // Fallback to INITIAL_FAMILY_DATA so historical ancestors are never missing
@@ -417,13 +478,27 @@ export const FramedMasterpieceView: React.FC<FramedMasterpieceViewProps> = ({
             <TouchableOpacity
               style={styles.printBtn}
               onPress={() => handlePrintMasterpiece('landscape', true)}
+              disabled={isCapturing}
               activeOpacity={0.85}
             >
-              <Text style={styles.printBtnText}>🖨️ 액자 인쇄 / PDF (가로형 1장)</Text>
+              <Text style={styles.printBtnText}>
+                {isCapturing ? '⏳ 액자 이미지화 중...' : '🖨️ 액자 인쇄 / PDF (가로형 1장)'}
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.downloadImgBtn}
+              onPress={() => handleDownloadImage(true)}
+              disabled={isCapturing}
+              activeOpacity={0.85}
+            >
+              <Text style={styles.downloadImgBtnText}>
+                {isCapturing ? '⏳ 생성 중...' : '🖼️ 액자 이미지(PNG) 저장'}
+              </Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={styles.printOptionBtn}
               onPress={() => setIsPrintModalOpen(true)}
+              disabled={isCapturing}
               activeOpacity={0.85}
             >
               <Text style={styles.printOptionBtnText}>⚙️ 인쇄 설정</Text>
@@ -852,10 +927,24 @@ export const FramedMasterpieceView: React.FC<FramedMasterpieceViewProps> = ({
                   setIsPrintModalOpen(false);
                   handlePrintMasterpiece(printOrientation, includeOuterFrame);
                 }}
+                disabled={isCapturing}
                 activeOpacity={0.85}
               >
                 <Text style={styles.printExecuteBtnText}>
-                  🖨️ {printOrientation === 'landscape' ? '가로 방향' : '세로 방향'}으로 1페이지 인쇄 / PDF 창 열기
+                  🖨️ {printOrientation === 'landscape' ? '가로 방향' : '세로 방향'} 1장 인쇄 / PDF
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.modalDownloadBtn}
+                onPress={() => {
+                  setIsPrintModalOpen(false);
+                  handleDownloadImage(includeOuterFrame);
+                }}
+                disabled={isCapturing}
+                activeOpacity={0.85}
+              >
+                <Text style={styles.modalDownloadBtnText}>
+                  🖼️ 이미지(PNG) 저장
                 </Text>
               </TouchableOpacity>
               <TouchableOpacity
@@ -998,6 +1087,19 @@ const styles = StyleSheet.create({
   },
   printBtnText: {
     color: '#ffffff',
+    fontSize: 11,
+    fontWeight: '800',
+  },
+  downloadImgBtn: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 6,
+    backgroundColor: '#78350f',
+    borderWidth: 1,
+    borderColor: '#b45309',
+  },
+  downloadImgBtnText: {
+    color: '#fef3c7',
     fontSize: 11,
     fontWeight: '800',
   },
@@ -1183,6 +1285,20 @@ const styles = StyleSheet.create({
   },
   printExecuteBtnText: {
     color: '#ffffff',
+    fontSize: 13,
+    fontWeight: '800',
+  },
+  modalDownloadBtn: {
+    backgroundColor: '#78350f',
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    borderRadius: 8,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#b45309',
+  },
+  modalDownloadBtnText: {
+    color: '#fef3c7',
     fontSize: 13,
     fontWeight: '800',
   },
