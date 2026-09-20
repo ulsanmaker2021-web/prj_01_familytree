@@ -60,6 +60,13 @@ export const SecurityLoginModal: React.FC<SecurityLoginModalProps> = ({
   const [regMotherName, setRegMotherName] = useState('');
   const [regAgreePolicy, setRegAgreePolicy] = useState(true);
 
+  // Phone OTP Verification State for Registration
+  const [regOtpSent, setRegOtpSent] = useState(false);
+  const [regOtpCode, setRegOtpCode] = useState('');
+  const [regOtpInput, setRegOtpInput] = useState('');
+  const [regIsPhoneVerified, setRegIsPhoneVerified] = useState(false);
+  const [unregisteredPhoneAlert, setUnregisteredPhoneAlert] = useState<string | null>(null);
+
   const [statusMessage, setStatusMessage] = useState<{
     text: string;
     isError?: boolean;
@@ -92,8 +99,14 @@ export const SecurityLoginModal: React.FC<SecurityLoginModalProps> = ({
   const handleCredentialsSubmit = () => {
     const res = loginWithCredentials(phoneInput, passwordInput);
     if (!res.success) {
+      if (res.isNotRegistered) {
+        setUnregisteredPhoneAlert(phoneInput);
+      } else {
+        setUnregisteredPhoneAlert(null);
+      }
       showToast(res.message, true);
     } else {
+      setUnregisteredPhoneAlert(null);
       showToast(res.message, false, true);
       if (res.otpCode) {
         setOtpInput(res.otpCode);
@@ -119,6 +132,36 @@ export const SecurityLoginModal: React.FC<SecurityLoginModalProps> = ({
     }
   };
 
+  const handleSendRegOtp = () => {
+    const clean = regPhone.trim().replace(/[^0-9]/g, '');
+    if (clean.length < 10) {
+      showToast('올바른 휴대전화 번호(10~11자리)를 먼저 입력해주세요.', true);
+      return;
+    }
+    const allAccounts = registeredAccounts;
+    const exists = allAccounts.some((a) => a.phone.replace(/[^0-9]/g, '') === clean);
+    if (exists) {
+      showToast('이미 등록된 번호입니다. [📱 휴대폰 로그인] 탭을 이용해주세요.', true);
+      return;
+    }
+
+    const generated = Math.floor(100000 + Math.random() * 900000).toString();
+    setRegOtpCode(generated);
+    setRegOtpSent(true);
+    setRegOtpInput(generated); // auto-fill for testing ease
+    setRegIsPhoneVerified(false);
+    showToast(`[${regPhone}] 번호로 6자리 SMS 가입 인증번호가 발송되었습니다.`, false, true);
+  };
+
+  const handleVerifyRegOtp = () => {
+    if (!regOtpInput.trim() || regOtpInput.trim() !== regOtpCode) {
+      showToast('SMS 인증번호가 일치하지 않습니다. 다시 확인해주세요.', true);
+      return;
+    }
+    setRegIsPhoneVerified(true);
+    showToast('✅ 휴대전화 본인 확인이 완료되었습니다!', false, true);
+  };
+
   const handleRegisterSubmit = () => {
     if (!regName.trim()) {
       showToast('성명(실명)을 입력해주세요.', true);
@@ -127,6 +170,10 @@ export const SecurityLoginModal: React.FC<SecurityLoginModalProps> = ({
     const cleanPhone = regPhone.trim().replace(/[^0-9]/g, '');
     if (cleanPhone.length < 10) {
       showToast('올바른 휴대전화 번호(10~11자리)를 입력해주세요.', true);
+      return;
+    }
+    if (!regIsPhoneVerified) {
+      showToast('휴대전화 SMS 본인인증(OTP 확인)을 먼저 완료해주세요.', true);
       return;
     }
     if (!regPassword || regPassword.length < 4) {
@@ -157,12 +204,6 @@ export const SecurityLoginModal: React.FC<SecurityLoginModalProps> = ({
 
     if (res.success && res.user) {
       showToast(res.message, false, true);
-      const registeredPhone = res.user.phone;
-      const registeredPwd = regPassword;
-      // Pre-populate credentials login inputs
-      setPhoneInput(registeredPhone);
-      setPasswordInput(registeredPwd);
-      setActiveTab('credentials');
       // Reset form
       setRegName('');
       setRegHanja('');
@@ -172,6 +213,8 @@ export const SecurityLoginModal: React.FC<SecurityLoginModalProps> = ({
       setRegBirthDate('');
       setRegFatherName('');
       setRegMotherName('');
+      setRegOtpSent(false);
+      setRegIsPhoneVerified(false);
     } else {
       showToast(res.message, true);
     }
@@ -554,6 +597,31 @@ export const SecurityLoginModal: React.FC<SecurityLoginModalProps> = ({
                       </Text>
                     </TouchableOpacity>
 
+                    {/* Unregistered Phone Alert Box */}
+                    {unregisteredPhoneAlert && (
+                      <View style={styles.notRegisteredAlertBox}>
+                        <Text style={styles.notRegisteredAlertTitle}>
+                          ⚠️ 가문에 등록되지 않은 휴대전화 번호입니다
+                        </Text>
+                        <Text style={styles.notRegisteredAlertDesc}>
+                          [{unregisteredPhoneAlert}] 번호는 아직 가문 족보 시스템에 등록되어 있지 않습니다. 신규 가입을 통해 본인 정보를 등록해주세요.
+                        </Text>
+                        <TouchableOpacity
+                          style={styles.notRegisteredAlertBtn}
+                          onPress={() => {
+                            setRegPhone(unregisteredPhoneAlert);
+                            setUnregisteredPhoneAlert(null);
+                            setActiveTab('register');
+                          }}
+                          activeOpacity={0.85}
+                        >
+                          <Text style={styles.notRegisteredAlertBtnText}>
+                            📝 [{unregisteredPhoneAlert}] 번호로 즉시 가입 신청 ➔
+                          </Text>
+                        </TouchableOpacity>
+                      </View>
+                    )}
+
                     {/* Link to Registration */}
                     <View style={styles.registerPromptRow}>
                       <Text style={styles.registerPromptLabel}>
@@ -757,22 +825,87 @@ export const SecurityLoginModal: React.FC<SecurityLoginModalProps> = ({
                     </View>
                   </View>
 
-                  {/* 휴대전화 번호 */}
+                  {/* 휴대전화 번호 및 SMS 본인인증 */}
                   <View style={styles.fieldGroup}>
                     <Text style={styles.fieldLabel}>
                       휴대전화 번호 (로그인 ID) <Text style={{ color: '#ef4444' }}>*</Text>
                     </Text>
-                    <TextInput
-                      style={styles.input}
-                      value={regPhone}
-                      onChangeText={setRegPhone}
-                      placeholder="010-0000-0000"
-                      placeholderTextColor="#94a3b8"
-                      keyboardType="phone-pad"
-                    />
-                    <Text style={styles.fieldHint}>
-                      향후 2단계 SMS 본인 인증 및 로그인 식별자로 사용됩니다.
-                    </Text>
+                    <View style={{ flexDirection: 'row', gap: 8 }}>
+                      <TextInput
+                        style={[
+                          styles.input,
+                          { flex: 1 },
+                          regIsPhoneVerified && { backgroundColor: '#f0fdf4', borderColor: '#22c55e' },
+                        ]}
+                        value={regPhone}
+                        onChangeText={(txt) => {
+                          setRegPhone(txt);
+                          setRegIsPhoneVerified(false);
+                          setRegOtpSent(false);
+                        }}
+                        placeholder="010-0000-0000"
+                        placeholderTextColor="#94a3b8"
+                        keyboardType="phone-pad"
+                        editable={!regIsPhoneVerified}
+                      />
+                      <TouchableOpacity
+                        style={[
+                          styles.otpRequestBtn,
+                          regIsPhoneVerified && { backgroundColor: '#15803d' },
+                        ]}
+                        onPress={handleSendRegOtp}
+                        activeOpacity={0.8}
+                      >
+                        <Text style={styles.otpRequestBtnText}>
+                          {regIsPhoneVerified ? '✅ 인증완료' : regOtpSent ? '재전송' : '📱 OTP 발송'}
+                        </Text>
+                      </TouchableOpacity>
+                    </View>
+
+                    {/* Simulated SMS Alert Box for Registration */}
+                    {regOtpSent && !regIsPhoneVerified && (
+                      <View style={{ marginTop: 8 }}>
+                        <View style={styles.smsSimBox}>
+                          <Text style={styles.smsSimTitle}>
+                            📬 [모의 SMS 수신] 가문 신규 가입 본인인증
+                          </Text>
+                          <Text style={styles.smsSimContent}>
+                            인증번호는 [<Text style={styles.smsSimOtp}>{regOtpCode}</Text>] 입니다. 타인에게 노출하지 마십시오.
+                          </Text>
+                        </View>
+
+                        <View style={{ flexDirection: 'row', gap: 8, marginTop: 4 }}>
+                          <TextInput
+                            style={[styles.input, styles.otpInput, { flex: 1 }]}
+                            value={regOtpInput}
+                            onChangeText={setRegOtpInput}
+                            placeholder="6자리 인증번호"
+                            placeholderTextColor="#94a3b8"
+                            keyboardType="number-pad"
+                            maxLength={6}
+                          />
+                          <TouchableOpacity
+                            style={styles.verifyOtpSmallBtn}
+                            onPress={handleVerifyRegOtp}
+                            activeOpacity={0.85}
+                          >
+                            <Text style={styles.verifyOtpSmallBtnText}>
+                              🔐 인증 확인
+                            </Text>
+                          </TouchableOpacity>
+                        </View>
+                      </View>
+                    )}
+
+                    {regIsPhoneVerified ? (
+                      <Text style={{ fontSize: 11.5, color: '#16a34a', fontWeight: '800', marginTop: 4 }}>
+                        ✅ 휴대전화 본인 확인이 완료되었습니다. (로그인 ID로 지정됨)
+                      </Text>
+                    ) : (
+                      <Text style={styles.fieldHint}>
+                        휴대전화 번호를 입력 후 [📱 OTP 발송]을 눌러 6자리 SMS 인증을 완료해주세요.
+                      </Text>
+                    )}
                   </View>
 
                   {/* 비밀번호 & 비밀번호 확인 */}
@@ -1487,5 +1620,61 @@ const styles = StyleSheet.create({
     color: '#334155',
     flex: 1,
     lineHeight: 15,
+  },
+  notRegisteredAlertBox: {
+    marginTop: 12,
+    padding: 12,
+    backgroundColor: '#fffbeb',
+    borderRadius: 8,
+    borderWidth: 1.5,
+    borderColor: '#f59e0b',
+  },
+  notRegisteredAlertTitle: {
+    fontSize: 12.5,
+    fontWeight: '800',
+    color: '#b45309',
+    marginBottom: 4,
+  },
+  notRegisteredAlertDesc: {
+    fontSize: 11.5,
+    color: '#78350f',
+    lineHeight: 16,
+    marginBottom: 8,
+  },
+  notRegisteredAlertBtn: {
+    backgroundColor: '#0284c7',
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 6,
+    alignItems: 'center',
+  },
+  notRegisteredAlertBtnText: {
+    color: '#ffffff',
+    fontSize: 12,
+    fontWeight: '800',
+  },
+  otpRequestBtn: {
+    backgroundColor: '#0284c7',
+    paddingHorizontal: 14,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderRadius: 8,
+  },
+  otpRequestBtnText: {
+    color: '#ffffff',
+    fontSize: 12,
+    fontWeight: '800',
+  },
+  verifyOtpSmallBtn: {
+    backgroundColor: '#059669',
+    paddingHorizontal: 14,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderRadius: 8,
+  },
+  verifyOtpSmallBtnText: {
+    color: '#ffffff',
+    fontSize: 12,
+    fontWeight: '800',
   },
 });

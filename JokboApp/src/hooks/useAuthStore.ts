@@ -99,7 +99,16 @@ export function useAuthStore() {
       (acc) => acc.phone.replace(/[^0-9]/g, '') === cleanPhone
     );
 
-    if (!account || account.password !== password) {
+    if (!account) {
+      return {
+        success: false,
+        isLocked: false,
+        isNotRegistered: true,
+        message: `가문에 등록되지 않은 휴대전화 번호입니다. [📝 신규 가입 (등재)] 메뉴에서 회원 등록을 먼저 진행해주세요.`,
+      };
+    }
+
+    if (account.password !== password) {
       const lockRes = recordFailedLogin();
       notifyAuth();
 
