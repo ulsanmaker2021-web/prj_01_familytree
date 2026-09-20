@@ -291,13 +291,13 @@ export const FramedMasterpieceView: React.FC<FramedMasterpieceViewProps> = ({
                   <circle cx="595" cy="175" r="4" fill="#dc2626" />
                   <circle cx="595" cy="235" r="4" fill="#dc2626" />
 
-                  {/* If Bilateral mode: 외가 조부모 중간(X=1050, Y=175) ➔ 모친 이은경(X=855, Y=235) */}
+                  {/* If Bilateral mode: 외가 조부모 부부 중간 하단(X=1215, Y=175) ➔ 모친 이은경(X=855, Y=235) */}
                   {lineageMode === 'bilateral' && (
                     <>
-                      <line x1="1100" y1="175" x2="1100" y2="205" stroke="#2563eb" strokeWidth="2.5" />
-                      <line x1="855" y1="205" x2="1100" y2="205" stroke="#2563eb" strokeWidth="2.5" />
+                      <line x1="1215" y1="175" x2="1215" y2="205" stroke="#2563eb" strokeWidth="2.5" />
+                      <line x1="855" y1="205" x2="1215" y2="205" stroke="#2563eb" strokeWidth="2.5" />
                       <line x1="855" y1="205" x2="855" y2="235" stroke="#2563eb" strokeWidth="2.5" />
-                      <circle cx="1100" cy="175" r="3.5" fill="#2563eb" />
+                      <circle cx="1215" cy="175" r="4" fill="#2563eb" />
                       <circle cx="855" cy="235" r="3.5" fill="#2563eb" />
                     </>
                   )}
