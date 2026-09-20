@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   StyleSheet,
   Text,
@@ -7,6 +7,7 @@ import {
   ScrollView,
   Platform,
   Image,
+  Modal,
 } from 'react-native';
 import { FamilyMember } from '../types/family';
 import { INITIAL_FAMILY_DATA } from '../utils/mockFamilyData';
@@ -34,12 +35,183 @@ export const FramedMasterpieceView: React.FC<FramedMasterpieceViewProps> = ({
   // 'bilateral' (친가·외가 양가 조부모 대등 배치)
   const [lineageMode, setLineageMode] = useState<'lineage_direct' | 'bilateral'>('lineage_direct');
   const [isMasterDashboardVisible, setIsMasterDashboardVisible] = useState(false);
+  const [isPrintModalOpen, setIsPrintModalOpen] = useState(false);
+  const [printOrientation, setPrintOrientation] = useState<'landscape' | 'portrait'>('landscape');
+  const [includeOuterFrame, setIncludeOuterFrame] = useState(true);
 
-  // Trigger browser print dialog
-  const handlePrint = () => {
-    if (Platform.OS === 'web' && typeof window !== 'undefined') {
-      window.print();
+  // In-page fallback print styles
+  useEffect(() => {
+    if (Platform.OS !== 'web' || typeof document === 'undefined') return;
+
+    const styleId = 'framed-masterpiece-global-print-style';
+    let styleEl = document.getElementById(styleId);
+    if (!styleEl) {
+      styleEl = document.createElement('style');
+      styleEl.id = styleId;
+      document.head.appendChild(styleEl);
     }
+
+    styleEl.innerHTML = `
+      @page {
+        size: landscape;
+        margin: 6mm;
+      }
+      @media print {
+        header, nav, [role="tablist"], [data-testid="device-simulator-bar"],
+        .no-print, [role="navigation"] {
+          display: none !important;
+        }
+      }
+    `;
+  }, []);
+
+  // Isolated High-Resolution Print Handler (가계도 액자만 단독 1장 인쇄)
+  const handlePrintMasterpiece = (
+    orientation: 'landscape' | 'portrait' = 'landscape',
+    withOuterFrame: boolean = true
+  ) => {
+    if (Platform.OS !== 'web' || typeof window === 'undefined' || typeof document === 'undefined') {
+      return;
+    }
+
+    const targetId = withOuterFrame ? 'framed-masterpiece-canvas' : 'framed-canvas-parchment';
+    let targetEl = document.getElementById(targetId);
+    if (!targetEl) {
+      targetEl = document.getElementById('framed-masterpiece-canvas');
+    }
+
+    if (!targetEl) {
+      window.print();
+      return;
+    }
+
+    // Remove existing print iframe if any
+    let iframe = document.getElementById('jokbo-print-iframe') as HTMLIFrameElement | null;
+    if (iframe) {
+      iframe.remove();
+    }
+
+    iframe = document.createElement('iframe');
+    iframe.id = 'jokbo-print-iframe';
+    iframe.style.position = 'fixed';
+    iframe.style.right = '0';
+    iframe.style.bottom = '0';
+    iframe.style.width = '0';
+    iframe.style.height = '0';
+    iframe.style.border = '0';
+    iframe.style.opacity = '0';
+    iframe.style.pointerEvents = 'none';
+    iframe.style.zIndex = '-9999';
+    document.body.appendChild(iframe);
+
+    const doc = iframe.contentWindow?.document;
+    if (!doc) {
+      window.print();
+      return;
+    }
+
+    // Collect all stylesheets and style tags from current document
+    const styleTags = Array.from(document.querySelectorAll('style, link[rel="stylesheet"]'))
+      .map((el) => el.outerHTML)
+      .join('\\n');
+
+    const htmlContent = '<!DOCTYPE html>' +
+      '<html lang="ko">' +
+      '<head>' +
+      '<meta charset="utf-8">' +
+      '<title>가족 가계도 거실 표구 액자 (家 族 家 系 圖)</title>' +
+      styleTags +
+      '<style>' +
+      '@page {' +
+      '  size: ' + orientation + ';' +
+      '  margin: 6mm;' +
+      '}' +
+      '*, *::before, *::after {' +
+      '  box-sizing: border-box !important;' +
+      '  -webkit-print-color-adjust: exact !important;' +
+      '  print-color-adjust: exact !important;' +
+      '}' +
+      'html, body {' +
+      '  margin: 0 !important;' +
+      '  padding: 0 !important;' +
+      '  width: 100% !important;' +
+      '  height: 100% !important;' +
+      '  overflow: hidden !important;' +
+      '  background-color: #ffffff !important;' +
+      '  display: flex !important;' +
+      '  align-items: center !important;' +
+      '  justify-content: center !important;' +
+      '}' +
+      '.print-artwork-container {' +
+      '  width: 100vw;' +
+      '  height: 100vh;' +
+      '  display: flex;' +
+      '  align-items: center;' +
+      '  justify-content: center;' +
+      '  overflow: hidden;' +
+      '  page-break-inside: avoid !important;' +
+      '  page-break-after: avoid !important;' +
+      '  page-break-before: avoid !important;' +
+      '}' +
+      '.print-scaler-box {' +
+      '  width: ' + FRAME_WIDTH + 'px;' +
+      '  height: ' + FRAME_HEIGHT + 'px;' +
+      '  transform-origin: center center;' +
+      '  display: flex;' +
+      '  align-items: center;' +
+      '  justify-content: center;' +
+      '  transform: scale(calc(min((100vw - 12mm) / ' + FRAME_WIDTH + ', (100vh - 12mm) / ' + FRAME_HEIGHT + '))) !important;' +
+      '}' +
+      '#framed-masterpiece-canvas,' +
+      '#framed-canvas-parchment {' +
+      '  margin: 0 !important;' +
+      '  box-shadow: none !important;' +
+      '}' +
+      '@media print {' +
+      '  @page {' +
+      '    size: ' + orientation + ';' +
+      '    margin: 6mm;' +
+      '  }' +
+      '  html, body {' +
+      '    width: 100vw !important;' +
+      '    height: 100vh !important;' +
+      '    overflow: hidden !important;' +
+      '  }' +
+      '  .print-artwork-container {' +
+      '    width: 100vw !important;' +
+      '    height: 100vh !important;' +
+      '  }' +
+      '}' +
+      '</style>' +
+      '</head>' +
+      '<body class="orientation-' + orientation + '">' +
+      '<div class="print-artwork-container">' +
+      '<div class="print-scaler-box">' +
+      targetEl.outerHTML +
+      '</div>' +
+      '</div>' +
+      '</body>' +
+      '</html>';
+
+    doc.open();
+    doc.write(htmlContent);
+    doc.close();
+
+    setTimeout(() => {
+      try {
+        iframe.contentWindow?.focus();
+        iframe.contentWindow?.print();
+      } catch (e) {
+        console.error('Print error:', e);
+        window.print();
+      }
+    }, 450);
+
+    iframe.contentWindow?.addEventListener('afterprint', () => {
+      setTimeout(() => {
+        iframe?.remove();
+      }, 1000);
+    });
   };
 
   // Fallback to INITIAL_FAMILY_DATA so historical ancestors are never missing
@@ -240,10 +412,23 @@ export const FramedMasterpieceView: React.FC<FramedMasterpieceViewProps> = ({
             </TouchableOpacity>
           )}
 
-          {/* Print Button */}
-          <TouchableOpacity style={styles.printBtn} onPress={handlePrint} activeOpacity={0.85}>
-            <Text style={styles.printBtnText}>🖨️ 액자 인쇄 / PDF</Text>
-          </TouchableOpacity>
+          {/* Print Button Group */}
+          <View style={styles.printButtonGroup}>
+            <TouchableOpacity
+              style={styles.printBtn}
+              onPress={() => handlePrintMasterpiece('landscape', true)}
+              activeOpacity={0.85}
+            >
+              <Text style={styles.printBtnText}>🖨️ 액자 인쇄 / PDF (가로형 1장)</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.printOptionBtn}
+              onPress={() => setIsPrintModalOpen(true)}
+              activeOpacity={0.85}
+            >
+              <Text style={styles.printOptionBtnText}>⚙️ 인쇄 설정</Text>
+            </TouchableOpacity>
+          </View>
         </View>
       </View>
 
@@ -253,9 +438,17 @@ export const FramedMasterpieceView: React.FC<FramedMasterpieceViewProps> = ({
         showsHorizontalScrollIndicator={false}
         contentContainerStyle={styles.canvasScrollContent}
       >
-        <View style={styles.frameOuter}>
+        <View
+          nativeID="framed-masterpiece-canvas"
+          {...({ id: 'framed-masterpiece-canvas' } as any)}
+          style={styles.frameOuter}
+        >
           <View style={styles.frameWoodMatting}>
-            <View style={styles.canvasParchment}>
+            <View
+              nativeID="framed-canvas-parchment"
+              {...({ id: 'framed-canvas-parchment' } as any)}
+              style={styles.canvasParchment}
+            >
               {/* ================= HEADER: CALLIGRAPHY TITLE ================= */}
               <View style={styles.calligraphyHeader}>
                 <View style={styles.headerDecoLine} />
@@ -523,6 +716,159 @@ export const FramedMasterpieceView: React.FC<FramedMasterpieceViewProps> = ({
         </View>
       </ScrollView>
 
+      {/* Print Options & Preview Guidance Modal */}
+      <Modal visible={isPrintModalOpen} transparent animationType="fade" onRequestClose={() => setIsPrintModalOpen(false)}>
+        <View style={styles.printModalOverlay}>
+          <View style={styles.printModalCard}>
+            <View style={styles.printModalHeader}>
+              <View style={styles.printModalBadge}>
+                <Text style={styles.printModalBadgeText}>거실 벽걸이 액자 인쇄 / PDF</Text>
+              </View>
+              <Text style={styles.printModalTitle}>🖨️ 액자 전용 1페이지 출력 설정</Text>
+              <Text style={styles.printModalSubtitle}>
+                주변 메뉴, 상단바, 시뮬레이터, 하단 탭바를 100% 자동 제외하고 가계도 액자만 고해상도로 출력합니다.
+              </Text>
+            </View>
+
+            {/* Option 1: Orientation */}
+            <View style={styles.printSection}>
+              <Text style={styles.printSectionLabel}>용지 출력 방향 (기본: 가로형 권장)</Text>
+              <View style={styles.orientationOptionRow}>
+                <TouchableOpacity
+                  style={[
+                    styles.orientationBtn,
+                    printOrientation === 'landscape' && styles.orientationBtnActive,
+                  ]}
+                  onPress={() => setPrintOrientation('landscape')}
+                  activeOpacity={0.8}
+                >
+                  <Text style={styles.orientationBtnIcon}>🖼️</Text>
+                  <Text
+                    style={[
+                      styles.orientationBtnTitle,
+                      printOrientation === 'landscape' && styles.orientationBtnTitleActive,
+                    ]}
+                  >
+                    가로 방향 (Landscape)
+                  </Text>
+                  <Text style={styles.orientationBtnDesc}>
+                    거실 벽걸이 16:9 와이드 규격 · 추천
+                  </Text>
+                  {printOrientation === 'landscape' && (
+                    <View style={styles.orientationCheck}>
+                      <Text style={styles.orientationCheckText}>✓ 기본 선택</Text>
+                    </View>
+                  )}
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[
+                    styles.orientationBtn,
+                    printOrientation === 'portrait' && styles.orientationBtnActive,
+                  ]}
+                  onPress={() => setPrintOrientation('portrait')}
+                  activeOpacity={0.8}
+                >
+                  <Text style={styles.orientationBtnIcon}>📄</Text>
+                  <Text
+                    style={[
+                      styles.orientationBtnTitle,
+                      printOrientation === 'portrait' && styles.orientationBtnTitleActive,
+                    ]}
+                  >
+                    세로 방향 (Portrait)
+                  </Text>
+                  <Text style={styles.orientationBtnDesc}>
+                    상하 종서형 족보 배치 규격
+                  </Text>
+                  {printOrientation === 'portrait' && (
+                    <View style={styles.orientationCheck}>
+                      <Text style={styles.orientationCheckText}>✓ 선택됨</Text>
+                    </View>
+                  )}
+                </TouchableOpacity>
+              </View>
+            </View>
+
+            {/* Option 2: Framing Style */}
+            <View style={styles.printSection}>
+              <Text style={styles.printSectionLabel}>표구 테두리 옵션</Text>
+              <View style={styles.framingOptionRow}>
+                <TouchableOpacity
+                  style={[
+                    styles.framingBtn,
+                    includeOuterFrame && styles.framingBtnActive,
+                  ]}
+                  onPress={() => setIncludeOuterFrame(true)}
+                  activeOpacity={0.8}
+                >
+                  <Text
+                    style={[
+                      styles.framingBtnText,
+                      includeOuterFrame && styles.framingBtnTextActive,
+                    ]}
+                  >
+                    🪵 고급 원목 표구 테두리 포함 (거실 벽 부착용)
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[
+                    styles.framingBtn,
+                    !includeOuterFrame && styles.framingBtnActive,
+                  ]}
+                  onPress={() => setIncludeOuterFrame(false)}
+                  activeOpacity={0.8}
+                >
+                  <Text
+                    style={[
+                      styles.framingBtnText,
+                      !includeOuterFrame && styles.framingBtnTextActive,
+                    ]}
+                  >
+                    📜 내지(한지)만 깔끔하게 인쇄 (별도 액자 장착용)
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+
+            {/* Info Box */}
+            <View style={styles.printNoticeBox}>
+              <Text style={styles.printNoticeItem}>
+                • 브라우저 인쇄 창의 <Text style={{ fontWeight: '800' }}>[대상]</Text> 항목에서 <Text style={{ fontWeight: '800', color: '#0284c7' }}>'PDF로 저장'</Text>을 선택하시면 고해상도 디지털 가계도 파일로 평생 보관할 수 있습니다.
+              </Text>
+              <Text style={styles.printNoticeItem}>
+                • 브라우저 인쇄 창에서 레이아웃을 '가로 방향' 또는 '세로 방향'으로 자유롭게 전환하셔도 <Text style={{ fontWeight: '800' }}>1페이지 맞춤 비율</Text>이 자동으로 유지됩니다.
+              </Text>
+              <Text style={styles.printNoticeItem}>
+                • 더 선명한 원목 질감을 위해 인쇄 창 <Text style={{ fontWeight: '800' }}>[설정 더보기 ➔ 배경 그래픽]</Text> 체크를 권장합니다.
+              </Text>
+            </View>
+
+            {/* Action Buttons */}
+            <View style={styles.printModalBtnRow}>
+              <TouchableOpacity
+                style={styles.printExecuteBtn}
+                onPress={() => {
+                  setIsPrintModalOpen(false);
+                  handlePrintMasterpiece(printOrientation, includeOuterFrame);
+                }}
+                activeOpacity={0.85}
+              >
+                <Text style={styles.printExecuteBtnText}>
+                  🖨️ {printOrientation === 'landscape' ? '가로 방향' : '세로 방향'}으로 1페이지 인쇄 / PDF 창 열기
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.printCancelBtn}
+                onPress={() => setIsPrintModalOpen(false)}
+              >
+                <Text style={styles.printCancelBtnText}>닫기</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
       {/* Clan Master Paid Verification Center Modal */}
       <MasterTrackingDashboardModal
         visible={isMasterDashboardVisible}
@@ -654,6 +1000,204 @@ const styles = StyleSheet.create({
     color: '#ffffff',
     fontSize: 11,
     fontWeight: '800',
+  },
+  printButtonGroup: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  printOptionBtn: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 6,
+    backgroundColor: '#334155',
+    borderWidth: 1,
+    borderColor: '#475569',
+  },
+  printOptionBtnText: {
+    color: '#e2e8f0',
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  printModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.65)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  printModalCard: {
+    width: '100%',
+    maxWidth: 520,
+    backgroundColor: '#ffffff',
+    borderRadius: 12,
+    padding: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.25,
+    shadowRadius: 12,
+  },
+  printModalHeader: {
+    marginBottom: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f1f5f9',
+    paddingBottom: 12,
+  },
+  printModalBadge: {
+    alignSelf: 'flex-start',
+    backgroundColor: '#eff6ff',
+    borderWidth: 1,
+    borderColor: '#bfdbfe',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 4,
+    marginBottom: 6,
+  },
+  printModalBadgeText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#1d4ed8',
+  },
+  printModalTitle: {
+    fontSize: 17,
+    fontWeight: '900',
+    color: '#0f172a',
+  },
+  printModalSubtitle: {
+    fontSize: 12,
+    color: '#64748b',
+    marginTop: 4,
+    lineHeight: 16,
+  },
+  printSection: {
+    marginBottom: 14,
+  },
+  printSectionLabel: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#334155',
+    marginBottom: 8,
+  },
+  orientationOptionRow: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  orientationBtn: {
+    flex: 1,
+    backgroundColor: '#f8fafc',
+    borderWidth: 1.5,
+    borderColor: '#e2e8f0',
+    borderRadius: 8,
+    padding: 12,
+    alignItems: 'center',
+  },
+  orientationBtnActive: {
+    backgroundColor: '#f0f9ff',
+    borderColor: '#0284c7',
+  },
+  orientationBtnIcon: {
+    fontSize: 22,
+    marginBottom: 4,
+  },
+  orientationBtnTitle: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#334155',
+  },
+  orientationBtnTitleActive: {
+    color: '#0284c7',
+    fontWeight: '800',
+  },
+  orientationBtnDesc: {
+    fontSize: 10.5,
+    color: '#64748b',
+    textAlign: 'center',
+    marginTop: 2,
+  },
+  orientationCheck: {
+    marginTop: 6,
+    backgroundColor: '#0284c7',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  orientationCheckText: {
+    fontSize: 9.5,
+    fontWeight: '800',
+    color: '#ffffff',
+  },
+  framingOptionRow: {
+    gap: 8,
+  },
+  framingBtn: {
+    backgroundColor: '#f8fafc',
+    borderWidth: 1,
+    borderColor: '#cbd5e1',
+    paddingVertical: 9,
+    paddingHorizontal: 12,
+    borderRadius: 6,
+  },
+  framingBtnActive: {
+    backgroundColor: '#f0fdf4',
+    borderColor: '#10b981',
+  },
+  framingBtnText: {
+    fontSize: 12,
+    color: '#475569',
+    fontWeight: '600',
+  },
+  framingBtnTextActive: {
+    color: '#15803d',
+    fontWeight: '800',
+  },
+  printNoticeBox: {
+    backgroundColor: '#f0f9ff',
+    borderLeftWidth: 3,
+    borderLeftColor: '#0284c7',
+    borderRadius: 4,
+    padding: 10,
+    marginBottom: 16,
+    gap: 4,
+  },
+  printNoticeItem: {
+    fontSize: 11.5,
+    color: '#334155',
+    lineHeight: 16,
+  },
+  printModalBtnRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  printExecuteBtn: {
+    flex: 1,
+    backgroundColor: '#0284c7',
+    paddingVertical: 12,
+    borderRadius: 8,
+    alignItems: 'center',
+    shadowColor: '#0284c7',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  printExecuteBtnText: {
+    color: '#ffffff',
+    fontSize: 13,
+    fontWeight: '800',
+  },
+  printCancelBtn: {
+    backgroundColor: '#f1f5f9',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#cbd5e1',
+  },
+  printCancelBtnText: {
+    color: '#475569',
+    fontSize: 13,
+    fontWeight: '700',
   },
   canvasScrollContent: {
     padding: 20,
