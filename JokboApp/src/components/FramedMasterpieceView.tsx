@@ -363,9 +363,33 @@ export const FramedMasterpieceView: React.FC<FramedMasterpieceViewProps> = ({
     accentColor: string = '#b45309'
   ) => {
     if (!member) {
+      const cleanTitle = roleTitle ? roleTitle.split('(')[0].trim() : '가족';
       return (
-        <View style={[styles.cardContainer, { width, height, borderColor: '#e7e5e4' }]}>
-          <Text style={styles.emptyCardText}>정보 미등록</Text>
+        <View
+          style={[
+            styles.cardContainer,
+            {
+              width,
+              height,
+              borderColor: accentColor,
+              borderWidth: 1.5,
+              borderStyle: 'dashed',
+              backgroundColor: 'rgba(255, 255, 255, 0.4)',
+              justifyContent: 'center',
+              alignItems: 'center',
+              padding: 8,
+            },
+          ]}
+        >
+          <Text style={[styles.emptyCardText, { color: '#64748b', fontWeight: '700' }]}>
+            정보 미등록
+          </Text>
+          <Text style={{ fontSize: 11, color: accentColor, marginTop: 3, fontWeight: '700' }}>
+            [{cleanTitle} 등록 대기]
+          </Text>
+          <Text style={{ fontSize: 9, color: '#94a3b8', marginTop: 2 }}>
+            ➕ 상단 가족추가 이용
+          </Text>
         </View>
       );
     }

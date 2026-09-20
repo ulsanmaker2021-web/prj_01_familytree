@@ -30,7 +30,11 @@ type RelativeCategory =
   | 'sibling_brother'
   | 'sibling_sister'
   | 'parent_father'
-  | 'parent_mother';
+  | 'parent_mother'
+  | 'gparent_gfather'
+  | 'gparent_gmother'
+  | 'gparent_mat_gfather'
+  | 'gparent_mat_gmother';
 
 export const AddFamilyMemberModal: React.FC<AddFamilyMemberModalProps> = ({
   visible,
@@ -131,11 +135,36 @@ export const AddFamilyMemberModal: React.FC<AddFamilyMemberModalProps> = ({
         gender = 'M';
         generation = 2;
         relationship = '부 (아버지)';
+        lineage = 'paternal';
         break;
       case 'parent_mother':
         gender = 'F';
         generation = 2;
         relationship = '모 (어머니)';
+        lineage = 'maternal';
+        break;
+      case 'gparent_gfather':
+        gender = 'M';
+        generation = 1;
+        relationship = '조부 (친할아버지)';
+        lineage = 'paternal';
+        break;
+      case 'gparent_gmother':
+        gender = 'F';
+        generation = 1;
+        relationship = '조모 (친할머니)';
+        lineage = 'paternal';
+        break;
+      case 'gparent_mat_gfather':
+        gender = 'M';
+        generation = 1;
+        relationship = '외조부 (외할아버지)';
+        lineage = 'maternal';
+        break;
+      case 'gparent_mat_gmother':
+        gender = 'F';
+        generation = 1;
+        relationship = '외조모 (외할머니)';
         lineage = 'maternal';
         break;
     }
@@ -204,20 +233,20 @@ export const AddFamilyMemberModal: React.FC<AddFamilyMemberModalProps> = ({
             <Text style={styles.fieldLabel}>가족 관계 (호칭) <Text style={{ color: '#ef4444' }}>*</Text></Text>
             <View style={styles.categoryGrid}>
               <TouchableOpacity
-                style={[styles.categoryPill, category === 'child_son' && styles.categoryPillActive]}
-                onPress={() => setCategory('child_son')}
+                style={[styles.categoryPill, category === 'parent_father' && styles.categoryPillActive]}
+                onPress={() => setCategory('parent_father')}
               >
-                <Text style={[styles.categoryPillText, category === 'child_son' && styles.categoryPillTextActive]}>
-                  👶 아들 (자녀)
+                <Text style={[styles.categoryPillText, category === 'parent_father' && styles.categoryPillTextActive]}>
+                  👨 부 (아버지)
                 </Text>
               </TouchableOpacity>
 
               <TouchableOpacity
-                style={[styles.categoryPill, category === 'child_daughter' && styles.categoryPillActive]}
-                onPress={() => setCategory('child_daughter')}
+                style={[styles.categoryPill, category === 'parent_mother' && styles.categoryPillActive]}
+                onPress={() => setCategory('parent_mother')}
               >
-                <Text style={[styles.categoryPillText, category === 'child_daughter' && styles.categoryPillTextActive]}>
-                  👧 딸 (자녀)
+                <Text style={[styles.categoryPillText, category === 'parent_mother' && styles.categoryPillTextActive]}>
+                  👩 모 (어머니)
                 </Text>
               </TouchableOpacity>
 
@@ -240,6 +269,24 @@ export const AddFamilyMemberModal: React.FC<AddFamilyMemberModalProps> = ({
               </TouchableOpacity>
 
               <TouchableOpacity
+                style={[styles.categoryPill, category === 'child_son' && styles.categoryPillActive]}
+                onPress={() => setCategory('child_son')}
+              >
+                <Text style={[styles.categoryPillText, category === 'child_son' && styles.categoryPillTextActive]}>
+                  👶 아들 (자녀)
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.categoryPill, category === 'child_daughter' && styles.categoryPillActive]}
+                onPress={() => setCategory('child_daughter')}
+              >
+                <Text style={[styles.categoryPillText, category === 'child_daughter' && styles.categoryPillTextActive]}>
+                  👧 딸 (자녀)
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
                 style={[styles.categoryPill, category === 'sibling_brother' && styles.categoryPillActive]}
                 onPress={() => setCategory('sibling_brother')}
               >
@@ -254,6 +301,42 @@ export const AddFamilyMemberModal: React.FC<AddFamilyMemberModalProps> = ({
               >
                 <Text style={[styles.categoryPillText, category === 'sibling_sister' && styles.categoryPillTextActive]}>
                   👧 자매 (누나/동생)
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.categoryPill, category === 'gparent_gfather' && styles.categoryPillActive]}
+                onPress={() => setCategory('gparent_gfather')}
+              >
+                <Text style={[styles.categoryPillText, category === 'gparent_gfather' && styles.categoryPillTextActive]}>
+                  👴 친조부 (할아버지)
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.categoryPill, category === 'gparent_gmother' && styles.categoryPillActive]}
+                onPress={() => setCategory('gparent_gmother')}
+              >
+                <Text style={[styles.categoryPillText, category === 'gparent_gmother' && styles.categoryPillTextActive]}>
+                  👵 친조모 (할머니)
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.categoryPill, category === 'gparent_mat_gfather' && styles.categoryPillActive]}
+                onPress={() => setCategory('gparent_mat_gfather')}
+              >
+                <Text style={[styles.categoryPillText, category === 'gparent_mat_gfather' && styles.categoryPillTextActive]}>
+                  👴 외조부 (외할아버지)
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.categoryPill, category === 'gparent_mat_gmother' && styles.categoryPillActive]}
+                onPress={() => setCategory('gparent_mat_gmother')}
+              >
+                <Text style={[styles.categoryPillText, category === 'gparent_mat_gmother' && styles.categoryPillTextActive]}>
+                  👵 외조모 (외할머니)
                 </Text>
               </TouchableOpacity>
             </View>

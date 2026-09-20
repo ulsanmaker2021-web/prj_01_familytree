@@ -79,14 +79,13 @@ export function createInitialFamilyForUser(user: UserProfile): FamilyMember[] {
   const selfMemberId = user.memberId || `mem-${user.id}`;
   const fatherId = `father-${user.id}`;
   const motherId = `mother-${user.id}`;
-  const gfatherId = `gfather-${user.id}`;
-  const gmotherId = `gmother-${user.id}`;
 
-  const fatherName = user.fatherName?.trim() || `${surname}진우`;
-  const motherName = user.motherName?.trim() || `이정옥`;
-  const motherSurname = extractSurname(motherName) || '이';
-  const gfatherName = `${surname}태환`;
-  const gmotherName = `박순자`;
+  const hasFather = Boolean(user.fatherName && user.fatherName.trim().length > 0);
+  const hasMother = Boolean(user.motherName && user.motherName.trim().length > 0);
+
+  const parentIds: string[] = [];
+  if (hasFather) parentIds.push(fatherId);
+  if (hasMother) parentIds.push(motherId);
 
   const selfMember: FamilyMember = {
     id: selfMemberId,
@@ -94,12 +93,12 @@ export function createInitialFamilyForUser(user: UserProfile): FamilyMember[] {
     hanja: user.hanja,
     gender: 'M',
     generation: 3,
-    lineage: 'paternal',
+    lineage: 'paternal', // 부계: 붉은 계열 테두리/라인
     relationship: '본인',
     clan: clan,
     birthDate: user.birthDate || '1990-01-01',
     isAlive: true,
-    parentIds: [fatherId, motherId],
+    parentIds,
     phone: user.phone,
     clanGeneration: 30,
     descendantOrder: 29,
@@ -109,70 +108,52 @@ export function createInitialFamilyForUser(user: UserProfile): FamilyMember[] {
     memo: '스마트폰 가문 족보 실시간 등재 완료',
   };
 
-  const fatherMember: FamilyMember = {
-    id: fatherId,
-    name: fatherName,
-    gender: 'M',
-    generation: 2,
-    lineage: 'paternal',
-    relationship: '부 (아버지)',
-    clan: clan,
-    birthDate: '1963-03-12',
-    isAlive: true,
-    parentIds: [gfatherId, gmotherId],
-    spouseId: motherId,
-    clanGeneration: 29,
-    descendantOrder: 28,
-    isVerifiedLineage: true,
-    achievements: ['가문 29세손 어르신'],
-  };
+  const initialTree: FamilyMember[] = [selfMember];
 
-  const motherMember: FamilyMember = {
-    id: motherId,
-    name: motherName,
-    gender: 'F',
-    generation: 2,
-    lineage: 'paternal',
-    relationship: '모 (어머니)',
-    clan: user.motherName ? `${motherSurname}씨 배위` : '외가 배위',
-    birthDate: '1966-08-20',
-    isAlive: true,
-    spouseId: fatherId,
-    isVerifiedLineage: true,
-  };
+  // 1대 가상 조부모는 절대 임의 생성하지 않음 (실존 인물 등록 원칙)
+  // 2대 부모는 사용자가 가입 시 직접 성함을 입력한 경우에만 등재
+  if (hasFather) {
+    const fatherName = user.fatherName!.trim();
+    const fatherMember: FamilyMember = {
+      id: fatherId,
+      name: fatherName,
+      gender: 'M',
+      generation: 2,
+      lineage: 'paternal', // 부계: 붉은 계열 테두리/라인
+      relationship: '부 (아버지)',
+      clan: clan,
+      birthDate: '1963-03-12',
+      isAlive: true,
+      parentIds: [],
+      spouseId: hasMother ? motherId : undefined,
+      clanGeneration: 29,
+      descendantOrder: 28,
+      isVerifiedLineage: true,
+      achievements: ['가문 29세손 어르신'],
+    };
+    initialTree.push(fatherMember);
+  }
 
-  const gfatherMember: FamilyMember = {
-    id: gfatherId,
-    name: gfatherName,
-    gender: 'M',
-    generation: 1,
-    lineage: 'paternal',
-    relationship: '조부 (할아버지)',
-    clan: clan,
-    birthDate: '1935-10-04',
-    isAlive: false,
-    spouseId: gmotherId,
-    clanGeneration: 28,
-    descendantOrder: 27,
-    isVerifiedLineage: true,
-    achievements: ['가문 28세 선대 중시조'],
-  };
+  if (hasMother) {
+    const motherName = user.motherName!.trim();
+    const motherSurname = extractSurname(motherName) || '이';
+    const motherMember: FamilyMember = {
+      id: motherId,
+      name: motherName,
+      gender: 'F',
+      generation: 2,
+      lineage: 'maternal', // 모계: 푸른 계열 테두리/라인
+      relationship: '모 (어머니)',
+      clan: `${motherSurname}씨 배위`,
+      birthDate: '1966-08-20',
+      isAlive: true,
+      spouseId: hasFather ? fatherId : undefined,
+      isVerifiedLineage: true,
+    };
+    initialTree.push(motherMember);
+  }
 
-  const gmotherMember: FamilyMember = {
-    id: gmotherId,
-    name: gmotherName,
-    gender: 'F',
-    generation: 1,
-    lineage: 'paternal',
-    relationship: '조모 (할머니)',
-    clan: '선대 배위',
-    birthDate: '1938-12-15',
-    isAlive: false,
-    spouseId: gfatherId,
-    isVerifiedLineage: true,
-  };
-
-  return [selfMember, fatherMember, motherMember, gfatherMember, gmotherMember];
+  return initialTree;
 }
 
 let globalIsViewingDemo: boolean = false;
@@ -181,6 +162,23 @@ function syncWithAuth() {
   const currentUser = getGlobalCurrentUser();
   if (currentUser && currentUser.isCustomRegistered && !globalIsViewingDemo) {
     let customTree = getStoredCustomFamily(currentUser.id);
+    // 가상의 미등록 선조(gfather, gmother) 및 미입력 부모가 저장소에 남아있다면 자동 정리
+    if (customTree && customTree.length > 0) {
+      customTree = customTree.filter((m) => {
+        if (m.id.startsWith('gfather-') || m.id.startsWith('gmother-')) return false;
+        if (!currentUser.fatherName && m.id.startsWith('father-')) return false;
+        if (!currentUser.motherName && m.id.startsWith('mother-')) return false;
+        return true;
+      });
+      // 모친이 있는 경우 lineage를 maternal로 보정
+      customTree = customTree.map((m) => {
+        if (m.id.startsWith('mother-')) {
+          return { ...m, lineage: 'maternal' as LineageType };
+        }
+        return m;
+      });
+      saveStoredCustomFamily(currentUser.id, customTree);
+    }
     if (!customTree || customTree.length === 0) {
       customTree = createInitialFamilyForUser(currentUser);
       saveStoredCustomFamily(currentUser.id, customTree);

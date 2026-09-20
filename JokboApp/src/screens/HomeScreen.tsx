@@ -198,11 +198,24 @@ export default function HomeScreen() {
     const life = getLifeStatus(member);
     const relInfo = centerPerson ? getKinshipRelation(centerPerson.id, member.id) : null;
 
+    // 부계는 붉은 계열 테두리, 모계는 푸른 계열 테두리, 사돈/처가는 황금 앰버 테두리
+    const isPaternal = member.lineage === 'paternal';
+    const isMaternal = member.lineage === 'maternal';
+    const lineageBorderColor = isPaternal
+      ? (isCenter ? '#b91c1c' : '#ef4444')
+      : isMaternal
+      ? (isCenter ? '#1d4ed8' : '#3b82f6')
+      : (isCenter ? '#b45309' : '#f59e0b');
+
     return (
       <TouchableOpacity
         key={member.id}
         style={[
           styles.nodeCard,
+          {
+            borderColor: lineageBorderColor,
+            borderWidth: isCenter ? 2.5 : 1.5,
+          },
           isCenter && styles.centerNodeCard,
           !member.isAlive && styles.deceasedNodeCard,
           cardWidth ? { width: cardWidth } : null,
@@ -231,16 +244,25 @@ export default function HomeScreen() {
           <View
             style={[
               styles.lineageBadgeSmall,
-              { backgroundColor: lineage?.badgeColor || inkTheme.ink3 },
+              {
+                backgroundColor: isPaternal ? '#fee2e2' : isMaternal ? '#dbeafe' : '#fef3c7',
+                borderColor: lineageBorderColor,
+                borderWidth: 1,
+              },
             ]}
           >
-            <Text style={styles.lineageBadgeTextSmall}>
-              {lineage?.shortLabel || '친족'}
+            <Text
+              style={[
+                styles.lineageBadgeTextSmall,
+                { color: isPaternal ? '#b91c1c' : isMaternal ? '#1e40af' : '#92400e', fontWeight: '800' },
+              ]}
+            >
+              {isPaternal ? '부계 (친가)' : isMaternal ? '모계 (외가)' : (lineage?.shortLabel || '배우자')}
             </Text>
           </View>
         </View>
 
-        {/* Center Name and Hanja */}
+        {/* Center Name and Hanja - Strictly BLACK ink, NEVER red! */}
         <View style={styles.nameRow}>
           <Text style={[styles.nodeName, isCenter && styles.centerName]}>
             {member.name}
@@ -715,6 +737,24 @@ export default function HomeScreen() {
                   </View>
                 </View>
               )}
+
+              {/* Only registered user with no other members yet guidance */}
+              {isCustomUserMode && !isViewingDemo && members.length === 1 && (
+                <View style={styles.singleMemberGuideCard}>
+                  <Text style={styles.singleMemberGuideTitle}>🌱 [가문 족보의 첫 출발점]</Text>
+                  <Text style={styles.singleMemberGuideDesc}>
+                    현재 {currentUser.name} 님이 가문의 기준 인물로 등재되었습니다.{'\n'}
+                    상단의 [➕ 가족 구성원 추가] 버튼을 눌러 부모님, 배우자, 자녀를 등록하시면 나만의 가계도가 완성됩니다.
+                  </Text>
+                  <TouchableOpacity
+                    style={styles.singleMemberAddBtn}
+                    onPress={() => setIsAddMemberModalOpen(true)}
+                    activeOpacity={0.8}
+                  >
+                    <Text style={styles.singleMemberAddBtnText}>➕ 가족 구성원 (부모·배우자·자녀) 등록하기 ➔</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
             </View>
 
             {/* Lower Tier: Children & Descendants (자녀 및 아랫대) */}
@@ -1178,11 +1218,12 @@ const styles = StyleSheet.create({
   nodeName: {
     fontSize: 14,
     fontWeight: '800',
-    color: inkTheme.ink0,
+    color: '#0d0d0d', // Strictly deep black
   },
   centerName: {
     fontSize: 16,
-    color: inkTheme.seal,
+    fontWeight: '900',
+    color: '#0d0d0d', // Strictly deep black, never red!
   },
   nodeHanja: {
     fontSize: 11,
@@ -1206,7 +1247,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   centerRelText: {
-    color: inkTheme.seal,
+    color: '#b45309', // Warm dark gold for relation title
     fontWeight: '900',
   },
   chonBadgeText: {
@@ -1457,6 +1498,51 @@ const styles = StyleSheet.create({
   returnMyJokboBtnText: {
     color: '#ffffff',
     fontSize: 11.5,
+    fontWeight: '800',
+  },
+  singleMemberGuideCard: {
+    marginTop: 14,
+    backgroundColor: '#f0fdf4',
+    borderWidth: 1.5,
+    borderColor: '#86efac',
+    borderRadius: 12,
+    padding: 14,
+    alignItems: 'center',
+    width: '100%',
+    maxWidth: 420,
+    shadowColor: '#15803d',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  singleMemberGuideTitle: {
+    fontSize: 13.5,
+    fontWeight: '900',
+    color: '#15803d',
+    marginBottom: 6,
+  },
+  singleMemberGuideDesc: {
+    fontSize: 12,
+    color: '#334155',
+    textAlign: 'center',
+    lineHeight: 18,
+    marginBottom: 12,
+  },
+  singleMemberAddBtn: {
+    backgroundColor: '#15803d',
+    paddingHorizontal: 16,
+    paddingVertical: 9,
+    borderRadius: 8,
+    shadowColor: '#15803d',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 3,
+    elevation: 3,
+  },
+  singleMemberAddBtnText: {
+    color: '#ffffff',
+    fontSize: 12.5,
     fontWeight: '800',
   },
 });
