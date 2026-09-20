@@ -192,7 +192,7 @@ export const SecurityLoginModal: React.FC<SecurityLoginModalProps> = ({
                   activeTab === 'demo' && styles.tabBtnTextActive,
                 ]}
               >
-                👥 가문 정회원 빠른 선택
+                🧪 [테스트] 빠른 계정 전환
               </Text>
             </TouchableOpacity>
 
@@ -210,7 +210,7 @@ export const SecurityLoginModal: React.FC<SecurityLoginModalProps> = ({
                   activeTab === 'credentials' && styles.tabBtnTextActive,
                 ]}
               >
-                📱 휴대폰 & 2단계 인증
+                📱 휴대폰 & 2단계 인증 (실제 로그인)
               </Text>
             </TouchableOpacity>
 
@@ -244,8 +244,10 @@ export const SecurityLoginModal: React.FC<SecurityLoginModalProps> = ({
               <View style={styles.tabContent}>
                 <View style={styles.infoBanner}>
                   <Text style={styles.infoBannerText}>
-                    💡 <Text style={{ fontWeight: '800' }}>권한별 개인정보 마스킹 체험</Text>:
-                    직계 가족과 방계 친족(5촌)의 개인정보 열람 권한 차이를 즉시 확인할 수 있습니다.
+                    🧪 <Text style={{ fontWeight: '800' }}>[시뮬레이션 테스트 전용]</Text> 현재는 개발 및 개인정보 마스킹 검증 단계이므로, 권한별(직계 vs 방계 vs 종손) 열람 차이를 원클릭으로 비교할 수 있는 모의 계정입니다.
+                  </Text>
+                  <Text style={[styles.infoBannerText, { marginTop: 4, color: '#991b1b', fontWeight: '700' }]}>
+                    ※ 실제 상용 서비스 배포 시 본 탭은 완전히 제거되며, 오직 [📱 휴대폰 & 2단계 인증]과 [🔑 가문 초대 코드]를 거친 본인만 로그인할 수 있습니다.
                   </Text>
                 </View>
 
@@ -305,7 +307,7 @@ export const SecurityLoginModal: React.FC<SecurityLoginModalProps> = ({
 
                         <View style={styles.cardActionRow}>
                           <Text style={styles.cardActionHint}>
-                            {isSelected ? '현재 사용 중인 계정입니다' : '이 계정으로 1초 로그인 ➔'}
+                            {isSelected ? '✓ 현재 선택된 계정입니다' : '🧪 [테스트] 이 계정으로 전환 ➔'}
                           </Text>
                         </View>
                       </TouchableOpacity>
