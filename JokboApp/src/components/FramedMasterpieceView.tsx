@@ -10,6 +10,7 @@ import {
 } from 'react-native';
 import { FamilyMember } from '../types/family';
 import { INITIAL_FAMILY_DATA } from '../utils/mockFamilyData';
+import { getMemberAvatar } from '../utils/avatarGenerator';
 
 interface FramedMasterpieceViewProps {
   members: FamilyMember[];
@@ -103,19 +104,11 @@ export const FramedMasterpieceView: React.FC<FramedMasterpieceViewProps> = ({
         <View style={styles.cardHeaderRow}>
           {/* Profile Photo / Dignified Avatar Ring */}
           <View style={[styles.avatarFrame, { borderColor: accentColor }]}>
-            {member.photoUrl ? (
-              <Image
-                source={{ uri: member.photoUrl }}
-                style={styles.avatarImg}
-                resizeMode="cover"
-              />
-            ) : (
-              <View style={[styles.avatarFallback, { backgroundColor: isMale ? '#fee2e2' : '#dbeafe' }]}>
-                <Text style={[styles.avatarFallbackText, { color: isMale ? '#dc2626' : '#2563eb' }]}>
-                  {isMale ? '父' : '母'}
-                </Text>
-              </View>
-            )}
+            <Image
+              source={{ uri: getMemberAvatar(member) }}
+              style={styles.avatarImg}
+              resizeMode="cover"
+            />
           </View>
 
           {/* Identity */}

@@ -47,6 +47,7 @@ export default function HomeScreen() {
     resetCenterToOwner,
     logContact,
     syncProgress,
+    updateMemberPhoto,
   } = useFamilyStore();
 
   const [kinshipScope, setKinshipScope] = useState<KinshipScope>('cousin4');
@@ -745,6 +746,10 @@ export default function HomeScreen() {
         onOpenRelationshipStudio={(memberId) => {
           setStudioPreselectedPersonAId(memberId);
           setStudioVisible(true);
+        }}
+        onUpdatePhoto={(memberId, newPhotoUrl) => {
+          updateMemberPhoto(memberId, newPhotoUrl);
+          setSelectedMember((prev) => (prev && prev.id === memberId ? { ...prev, photoUrl: newPhotoUrl } : prev));
         }}
       />
 

@@ -7,10 +7,12 @@ import {
   ScrollView,
   Platform,
   Dimensions,
+  Image,
 } from 'react-native';
 import { FamilyMember } from '../types/family';
 import { inkTheme } from '../theme/inkTheme';
 import { getLifeStatus, getKinshipRelation } from '../utils/mockFamilyData';
+import { getMemberAvatar } from '../utils/avatarGenerator';
 
 interface HorizontalMindmapViewProps {
   members: FamilyMember[];
@@ -253,11 +255,13 @@ export const HorizontalMindmapView: React.FC<HorizontalMindmapViewProps> = ({
             onPress={() => toggleNodeExpand(member.id)}
             activeOpacity={0.7}
           >
-            {/* Gender Icon Badge */}
-            <View style={[styles.genderBadge, { backgroundColor: genderBg }]}>
-              <Text style={[styles.genderIconText, { color: genderColor }]}>
-                {isMale ? '남' : '여'}
-              </Text>
+            {/* Avatar / Character Portrait */}
+            <View style={[styles.genderBadge, { backgroundColor: genderBg, overflow: 'hidden' }]}>
+              <Image
+                source={{ uri: getMemberAvatar(member) }}
+                style={styles.compactAvatarImg}
+                resizeMode="cover"
+              />
             </View>
 
             {/* Name + Hanja */}
@@ -1302,11 +1306,15 @@ const styles = StyleSheet.create({
     minHeight: 38,
   },
   genderBadge: {
-    width: 22,
-    height: 22,
-    borderRadius: 11,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  compactAvatarImg: {
+    width: '100%',
+    height: '100%',
   },
   genderIconText: {
     fontSize: 11,

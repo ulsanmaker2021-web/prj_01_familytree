@@ -584,6 +584,24 @@ export function useFamilyStore() {
     return newMember;
   };
 
+  // 🖼️ Update member photo (stores photo URL or base64 string in data layer)
+  const updateMemberPhoto = (memberId: string, photoUrl: string) => {
+    globalMembers = globalMembers.map((m) =>
+      m.id === memberId ? { ...m, photoUrl } : m
+    );
+    globalUnconnectedMembers = globalUnconnectedMembers.map((m) =>
+      m.id === memberId ? { ...m, photoUrl } : m
+    );
+    notify();
+  };
+
+  // 🧹 Clear all simulation test photos before production deployment
+  const clearSimulationPhotos = () => {
+    globalMembers = globalMembers.map((m) => ({ ...m, photoUrl: undefined }));
+    globalUnconnectedMembers = globalUnconnectedMembers.map((m) => ({ ...m, photoUrl: undefined }));
+    notify();
+  };
+
   return {
     // All members in database
     allMembers: members,
@@ -605,6 +623,9 @@ export function useFamilyStore() {
     disconnectLink,
     resetEstablishedLinks,
     addCustomUnconnectedMember,
+    // Photo management APIs
+    updateMemberPhoto,
+    clearSimulationPhotos,
     // Device simulation state
     currentDeviceId,
     currentDevice: DEVICE_PROFILES[currentDeviceId],

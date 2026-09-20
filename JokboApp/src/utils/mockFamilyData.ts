@@ -1,4 +1,5 @@
 import { FamilyMember, LineageInfo, LineageType } from '../types/family';
+import { generateVirtualAvatarSvg } from './avatarGenerator';
 
 export type DeviceId = 'device_A' | 'device_B' | 'device_C' | 'device_D';
 
@@ -113,7 +114,7 @@ export const DEVICE_PROFILES: Record<DeviceId, DeviceProfile> = {
   },
 };
 
-export const INITIAL_FAMILY_DATA: FamilyMember[] = [
+const RAW_FAMILY_DATA: FamilyMember[] = [
   // ==========================================
   // 1. 부친쪽 (친가 - 경주 김씨)
   // ==========================================
@@ -822,6 +823,15 @@ export const INITIAL_FAMILY_DATA: FamilyMember[] = [
   },
 ];
 
+// Initialize with generation-tailored webtoon illustration SVG avatars for simulation testing.
+// Real photos uploaded by users will replace these, and simulation data can be purged before production.
+export const INITIAL_FAMILY_DATA: FamilyMember[] = RAW_FAMILY_DATA.map((member) => ({
+  ...member,
+  photoUrl: member.photoUrl && !member.photoUrl.includes('unsplash')
+    ? member.photoUrl
+    : generateVirtualAvatarSvg(member),
+}));
+
 // Helper Functions
 export function getDaysSinceContact(dateStr?: string): number {
   if (!dateStr) return 999;
@@ -965,7 +975,7 @@ export function getKinshipRelation(centerId: string, targetId: string): KinshipR
 // ==========================================
 // 4. 관계 형성을 위한 미연결 가상 친족 데이터 (테스트용)
 // ==========================================
-export const UNCONNECTED_TEST_MEMBERS: FamilyMember[] = [
+const RAW_UNCONNECTED_MEMBERS: FamilyMember[] = [
   {
     id: 'unc-1',
     name: '김태성',
@@ -1018,6 +1028,11 @@ export const UNCONNECTED_TEST_MEMBERS: FamilyMember[] = [
     memo: '남동생 김민혁의 예비 신부. 양가 상견례 후 가계도 혼인 결연 대기 중.',
   },
 ];
+
+export const UNCONNECTED_TEST_MEMBERS: FamilyMember[] = RAW_UNCONNECTED_MEMBERS.map((member) => ({
+  ...member,
+  photoUrl: generateVirtualAvatarSvg(member),
+}));
 
 export interface KinshipAnalysisResult {
   chonText: string;

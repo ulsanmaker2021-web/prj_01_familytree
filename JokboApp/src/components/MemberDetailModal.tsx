@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   Modal,
   StyleSheet,
@@ -6,10 +6,13 @@ import {
   TouchableOpacity,
   View,
   ScrollView,
+  Image,
+  TextInput,
 } from 'react-native';
 import { FamilyMember, EstablishedLink } from '../types/family';
 import { LINEAGES, getDaysSinceContact, getLifeStatus } from '../utils/mockFamilyData';
 import { inkTheme } from '../theme/inkTheme';
+import { getMemberAvatar, hasCustomPhoto } from '../utils/avatarGenerator';
 
 interface MemberDetailModalProps {
   member: FamilyMember | null;
@@ -20,6 +23,7 @@ interface MemberDetailModalProps {
   onOpenRelationshipStudio?: (memberId: string) => void;
   establishedLinks?: EstablishedLink[];
   onOpenCertificate?: (link: EstablishedLink) => void;
+  onUpdatePhoto?: (memberId: string, newPhotoUrl: string) => void;
 }
 
 export const MemberDetailModal: React.FC<MemberDetailModalProps> = ({
@@ -31,7 +35,11 @@ export const MemberDetailModal: React.FC<MemberDetailModalProps> = ({
   onOpenRelationshipStudio,
   establishedLinks = [],
   onOpenCertificate,
+  onUpdatePhoto,
 }) => {
+  const [isEditingPhoto, setIsEditingPhoto] = useState(false);
+  const [photoInput, setPhotoInput] = useState('');
+
   if (!member) return null;
 
   const lineageInfo = LINEAGES[member.lineage];
@@ -89,19 +97,106 @@ export const MemberDetailModal: React.FC<MemberDetailModalProps> = ({
               </Text>
             </View>
 
-            {/* Name Section */}
-            <View style={styles.titleSection}>
-              <View style={styles.nameRow}>
-                <Text style={styles.name}>{member.name}</Text>
-                {member.hanja ? (
-                  <Text style={styles.hanja}>({member.hanja})</Text>
-                ) : null}
+            {/* Profile Avatar Header & Photo Registration */}
+            <View style={styles.profileHeaderBox}>
+              <View style={[styles.avatarCircle, { borderColor: lineageInfo.badgeColor }]}>
+                <Image
+                  source={{ uri: getMemberAvatar(member) }}
+                  style={styles.avatarImg}
+                  resizeMode="cover"
+                />
               </View>
-              <Text style={styles.relationship}>{member.relationship}</Text>
-              {member.clan ? (
-                <Text style={styles.clan}>{member.clan}</Text>
-              ) : null}
+              <View style={styles.profileIdentityCol}>
+                <View style={styles.nameRow}>
+                  <Text style={styles.name}>{member.name}</Text>
+                  {member.hanja ? (
+                    <Text style={styles.hanja}>({member.hanja})</Text>
+                  ) : null}
+                </View>
+                <Text style={styles.relationship}>{member.relationship}</Text>
+                {member.clan ? (
+                  <Text style={styles.clan}>{member.clan}</Text>
+                ) : null}
+                <View style={styles.avatarBadgeRow}>
+                  <View
+                    style={[
+                      styles.avatarBadgePill,
+                      {
+                        backgroundColor: hasCustomPhoto(member) ? '#ecfdf5' : '#eff6ff',
+                        borderColor: hasCustomPhoto(member) ? '#a7f3d0' : '#bfdbfe',
+                      },
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.avatarBadgePillText,
+                        { color: hasCustomPhoto(member) ? '#047857' : '#1d4ed8' },
+                      ]}
+                    >
+                      {hasCustomPhoto(member) ? '📸 실사 사진 등록됨' : '🎨 가상 일러스트 아바타'}
+                    </Text>
+                  </View>
+                  {onUpdatePhoto && (
+                    <TouchableOpacity
+                      style={styles.photoEditBtn}
+                      onPress={() => {
+                        setPhotoInput(hasCustomPhoto(member) ? (member.photoUrl || '') : '');
+                        setIsEditingPhoto(!isEditingPhoto);
+                      }}
+                      activeOpacity={0.7}
+                    >
+                      <Text style={styles.photoEditBtnText}>
+                        {isEditingPhoto ? '닫기' : '사진 변경/등록'}
+                      </Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
+              </View>
             </View>
+
+            {/* Photo Edit Input Drawer */}
+            {isEditingPhoto && (
+              <View style={styles.photoEditDrawer}>
+                <Text style={styles.photoEditLabel}>인물 사진 URL 또는 이미지 링크 입력:</Text>
+                <TextInput
+                  style={styles.photoInputField}
+                  placeholder="https://... 또는 실사 사진 링크"
+                  placeholderTextColor="#94a3b8"
+                  value={photoInput}
+                  onChangeText={setPhotoInput}
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                />
+                <View style={styles.photoEditActionRow}>
+                  <TouchableOpacity
+                    style={styles.photoSaveBtn}
+                    onPress={() => {
+                      if (onUpdatePhoto && photoInput.trim()) {
+                        onUpdatePhoto(member.id, photoInput.trim());
+                        setIsEditingPhoto(false);
+                      }
+                    }}
+                    activeOpacity={0.8}
+                  >
+                    <Text style={styles.photoSaveBtnText}>사진 저장</Text>
+                  </TouchableOpacity>
+                  {hasCustomPhoto(member) && (
+                    <TouchableOpacity
+                      style={styles.photoResetBtn}
+                      onPress={() => {
+                        if (onUpdatePhoto) {
+                          onUpdatePhoto(member.id, '');
+                          setIsEditingPhoto(false);
+                        }
+                      }}
+                      activeOpacity={0.8}
+                    >
+                      <Text style={styles.photoResetBtnText}>가상 일러스트로 초기화</Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
+              </View>
+            )}
 
             {/* Info Grid */}
             <View style={styles.infoSection}>
@@ -605,5 +700,119 @@ const styles = StyleSheet.create({
     color: '#ffffff',
     fontSize: 14,
     fontWeight: '800',
+  },
+  profileHeaderBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
+    paddingVertical: 14,
+    paddingHorizontal: 6,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f1f5f9',
+    marginBottom: 12,
+  },
+  avatarCircle: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    borderWidth: 2.5,
+    overflow: 'hidden',
+    backgroundColor: '#f5f5f4',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.12,
+    shadowRadius: 3,
+    elevation: 3,
+  },
+  avatarImg: {
+    width: '100%',
+    height: '100%',
+  },
+  profileIdentityCol: {
+    flex: 1,
+  },
+  avatarBadgeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 6,
+    flexWrap: 'wrap',
+  },
+  avatarBadgePill: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 12,
+    borderWidth: 1,
+  },
+  avatarBadgePillText: {
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  photoEditBtn: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 12,
+    backgroundColor: '#f1f5f9',
+    borderWidth: 1,
+    borderColor: '#cbd5e1',
+  },
+  photoEditBtnText: {
+    fontSize: 11,
+    color: '#475569',
+    fontWeight: '600',
+  },
+  photoEditDrawer: {
+    backgroundColor: '#f8fafc',
+    padding: 12,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    marginBottom: 14,
+  },
+  photoEditLabel: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#334155',
+    marginBottom: 6,
+  },
+  photoInputField: {
+    backgroundColor: '#ffffff',
+    borderWidth: 1,
+    borderColor: '#cbd5e1',
+    borderRadius: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    fontSize: 13,
+    color: '#1e293b',
+    marginBottom: 8,
+  },
+  photoEditActionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  photoSaveBtn: {
+    backgroundColor: '#2563eb',
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    borderRadius: 6,
+  },
+  photoSaveBtnText: {
+    color: '#ffffff',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  photoResetBtn: {
+    backgroundColor: '#f1f5f9',
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#cbd5e1',
+  },
+  photoResetBtnText: {
+    color: '#475569',
+    fontSize: 12,
+    fontWeight: '600',
   },
 });
