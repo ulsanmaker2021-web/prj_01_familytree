@@ -17,6 +17,20 @@ import {
   stripPhoneNumber,
 } from '../utils/securityAuth';
 import {
+  getSavedFirebaseConfig,
+  saveFirebaseConfig,
+  clearFirebaseConfig,
+  isFirebaseConfigured,
+  JokboFirebaseConfig,
+  DEFAULT_FIREBASE_PLACEHOLDER,
+} from '../config/firebaseConfig';
+import {
+  sendFirebasePhoneOtp,
+  verifyFirebasePhoneOtp,
+  ensureRecaptchaContainer,
+  toE164Format,
+} from '../services/firebaseAuthService';
+import {
   extractSurname,
   getHanjaCandidates,
   getRecommendedClans,
@@ -55,6 +69,15 @@ export const SecurityLoginModal: React.FC<SecurityLoginModalProps> = ({
   const [clanCodeInput, setClanCodeInput] = useState('KJ-KIM-2026-9872X');
   const [newUserName, setNewUserName] = useState('김동현');
   const [newUserPhone, setNewUserPhone] = useState('010-3344-9988');
+
+  // Firebase Phone Auth State
+  const [isFirebaseConfiguredState, setIsFirebaseConfiguredState] = useState(isFirebaseConfigured());
+  const [isFirebaseMode, setIsFirebaseMode] = useState(isFirebaseConfigured());
+  const [isFirebaseConfigModalOpen, setIsFirebaseConfigModalOpen] = useState(false);
+  const [fbConfigInput, setFbConfigInput] = useState<JokboFirebaseConfig>(
+    getSavedFirebaseConfig() || DEFAULT_FIREBASE_PLACEHOLDER
+  );
+  const [isFirebaseLoading, setIsFirebaseLoading] = useState(false);
 
   // Registration form state
   const [regName, setRegName] = useState('');
@@ -136,10 +159,17 @@ export const SecurityLoginModal: React.FC<SecurityLoginModalProps> = ({
     isSuccess?: boolean;
   } | null>(null);
 
+  // Ensure reCAPTCHA container DOM element is ready
+  useEffect(() => {
+    ensureRecaptchaContainer();
+  }, []);
+
   // Auto-fill OTP when simulated
   useEffect(() => {
-    if (pending2FA) {
+    if (pending2FA && !pending2FA.isFirebase) {
       setOtpInput(pending2FA.expectedOtp);
+    } else if (pending2FA && pending2FA.isFirebase) {
+      setOtpInput(''); // Wait for user to enter SMS code
     }
   }, [pending2FA]);
 
@@ -148,6 +178,40 @@ export const SecurityLoginModal: React.FC<SecurityLoginModalProps> = ({
     setTimeout(() => {
       setStatusMessage(null);
     }, 4000);
+  };
+
+  // Firebase Config Save
+  const handleSaveFirebaseConfig = () => {
+    if (!fbConfigInput.apiKey.trim() || !fbConfigInput.projectId.trim()) {
+      showToast('Firebase API Key와 Project ID는 필수입니다.', true);
+      return;
+    }
+    const cleanConfig: JokboFirebaseConfig = {
+      apiKey: fbConfigInput.apiKey.trim(),
+      authDomain: fbConfigInput.authDomain.trim() || `${fbConfigInput.projectId.trim()}.firebaseapp.com`,
+      projectId: fbConfigInput.projectId.trim(),
+      storageBucket: fbConfigInput.storageBucket?.trim() || `${fbConfigInput.projectId.trim()}.appspot.com`,
+      messagingSenderId: fbConfigInput.messagingSenderId?.trim() || '',
+      appId: fbConfigInput.appId.trim(),
+    };
+    const ok = saveFirebaseConfig(cleanConfig);
+    if (ok) {
+      setIsFirebaseConfiguredState(true);
+      setIsFirebaseMode(true);
+      setIsFirebaseConfigModalOpen(false);
+      showToast('🔥 Firebase 연동 설정이 저장되었습니다! 이제 실제 스마트폰 SMS가 발송됩니다.', false, true);
+    } else {
+      showToast('설정 저장 중 오류가 발생했습니다.', true);
+    }
+  };
+
+  const handleClearFirebaseConfig = () => {
+    clearFirebaseConfig();
+    setFbConfigInput(DEFAULT_FIREBASE_PLACEHOLDER);
+    setIsFirebaseConfiguredState(false);
+    setIsFirebaseMode(false);
+    setIsFirebaseConfigModalOpen(false);
+    showToast('Firebase 설정이 초기화되었습니다. 모의 시뮬레이션 모드로 전환되었습니다.');
   };
 
   const handleDemoLogin = (accountId: string) => {
@@ -159,8 +223,12 @@ export const SecurityLoginModal: React.FC<SecurityLoginModalProps> = ({
     }
   };
 
-  const handleCredentialsSubmit = () => {
-    const res = loginWithCredentials(stripPhoneNumber(phoneInput), passwordInput);
+  const handleCredentialsSubmit = async () => {
+    setIsFirebaseLoading(true);
+    const res = await loginWithCredentials(stripPhoneNumber(phoneInput), passwordInput, {
+      useFirebase: isFirebaseMode && isFirebaseConfiguredState,
+    });
+    setIsFirebaseLoading(false);
     if (!res.success) {
       if (res.isNotRegistered) {
         setUnregisteredPhoneAlert(formatPhoneNumber(phoneInput));
@@ -173,12 +241,16 @@ export const SecurityLoginModal: React.FC<SecurityLoginModalProps> = ({
       showToast(res.message, false, true);
       if (res.otpCode) {
         setOtpInput(res.otpCode);
+      } else {
+        setOtpInput('');
       }
     }
   };
 
-  const handle2FASubmit = () => {
-    const res = verify2FA(otpInput);
+  const handle2FASubmit = async () => {
+    setIsFirebaseLoading(true);
+    const res = await verify2FA(otpInput);
+    setIsFirebaseLoading(false);
     if (res.success) {
       showToast(res.message, false, true);
     } else {
@@ -195,7 +267,7 @@ export const SecurityLoginModal: React.FC<SecurityLoginModalProps> = ({
     }
   };
 
-  const handleSendRegOtp = () => {
+  const handleSendRegOtp = async () => {
     const clean = stripPhoneNumber(regPhone);
     if (clean.length < 10) {
       showToast('올바른 휴대전화 번호(10~11자리)를 먼저 입력해주세요.', true);
@@ -208,6 +280,22 @@ export const SecurityLoginModal: React.FC<SecurityLoginModalProps> = ({
       return;
     }
 
+    if (isFirebaseMode && isFirebaseConfiguredState) {
+      setIsFirebaseLoading(true);
+      const fbRes = await sendFirebasePhoneOtp(clean);
+      setIsFirebaseLoading(false);
+      if (fbRes.success) {
+        setRegOtpCode('FIREBASE_ACTIVE');
+        setRegOtpSent(true);
+        setRegOtpInput('');
+        setRegIsPhoneVerified(false);
+        showToast(`🔥 [Firebase SMS] ${fbRes.e164Phone} 번호로 실제 6자리 인증 문자가 발송되었습니다!`, false, true);
+      } else {
+        showToast(fbRes.message, true);
+      }
+      return;
+    }
+
     const generated = Math.floor(100000 + Math.random() * 900000).toString();
     setRegOtpCode(generated);
     setRegOtpSent(true);
@@ -216,8 +304,26 @@ export const SecurityLoginModal: React.FC<SecurityLoginModalProps> = ({
     showToast(`[${formatPhoneNumber(regPhone)}] 번호로 6자리 SMS 가입 인증번호가 발송되었습니다.`, false, true);
   };
 
-  const handleVerifyRegOtp = () => {
-    if (!regOtpInput.trim() || regOtpInput.trim() !== regOtpCode) {
+  const handleVerifyRegOtp = async () => {
+    if (!regOtpInput.trim()) {
+      showToast('6자리 인증번호를 입력해주세요.', true);
+      return;
+    }
+
+    if (isFirebaseMode && regOtpCode === 'FIREBASE_ACTIVE') {
+      setIsFirebaseLoading(true);
+      const verifyRes = await verifyFirebasePhoneOtp(regOtpInput);
+      setIsFirebaseLoading(false);
+      if (verifyRes.success) {
+        setRegIsPhoneVerified(true);
+        showToast(`✅ [Firebase 공인인증 완료] ${verifyRes.message}`, false, true);
+      } else {
+        showToast(verifyRes.message, true);
+      }
+      return;
+    }
+
+    if (regOtpInput.trim() !== regOtpCode) {
       showToast('SMS 인증번호가 일치하지 않습니다. 다시 확인해주세요.', true);
       return;
     }
@@ -362,6 +468,76 @@ export const SecurityLoginModal: React.FC<SecurityLoginModalProps> = ({
               </View>
             </View>
           )}
+
+          {/* Firebase Phone Auth Engine Bar */}
+          <View style={styles.firebaseBar}>
+            <View style={styles.firebaseBarLeft}>
+              <View style={[
+                styles.firebaseBadge,
+                isFirebaseConfiguredState ? styles.firebaseBadgeActive : styles.firebaseBadgeReady
+              ]}>
+                <Text style={styles.firebaseBadgeText}>
+                  {isFirebaseConfiguredState ? '🔥 Firebase Auth 연동됨' : '🔥 Firebase Auth 준비됨'}
+                </Text>
+              </View>
+              <Text style={styles.firebaseBarTitle}>
+                {isFirebaseMode && isFirebaseConfiguredState
+                  ? '실제 6자리 SMS OTP 발송 모드 (Firebase)'
+                  : '모의 6자리 OTP 시뮬레이션 모드 (테스트용)'}
+              </Text>
+              <Text style={styles.firebaseBarDesc}>
+                {isFirebaseConfiguredState
+                  ? `프로젝트: ${fbConfigInput.projectId || '등록됨'} · 월 10,000건 무료 티어 적용`
+                  : '구글 Firebase 키를 등록하면 실제 스마트폰으로 6자리 인증 문자가 전송됩니다.'}
+              </Text>
+            </View>
+
+            <View style={styles.firebaseBarActions}>
+              <TouchableOpacity
+                style={[
+                  styles.firebaseModeSwitchBtn,
+                  isFirebaseMode && isFirebaseConfiguredState
+                    ? styles.firebaseModeSwitchActive
+                    : styles.firebaseModeSwitchSim,
+                ]}
+                onPress={() => {
+                  if (!isFirebaseConfiguredState) {
+                    setIsFirebaseConfigModalOpen(true);
+                  } else {
+                    const nextMode = !isFirebaseMode;
+                    setIsFirebaseMode(nextMode);
+                    showToast(
+                      nextMode
+                        ? '🔥 실제 Firebase SMS 발송 모드로 전환되었습니다.'
+                        : '🧪 모의 시뮬레이션 모드로 전환되었습니다.'
+                    );
+                  }
+                }}
+                activeOpacity={0.8}
+              >
+                <Text
+                  style={[
+                    styles.firebaseModeSwitchText,
+                    isFirebaseMode && isFirebaseConfiguredState && styles.firebaseModeSwitchTextActive,
+                  ]}
+                >
+                  {isFirebaseMode && isFirebaseConfiguredState
+                    ? '🔥 실제 SMS 발송 (ON)'
+                    : isFirebaseConfiguredState
+                    ? '🧪 모의 테스트 (OFF)'
+                    : '⚡ 실제 SMS 켜기'}
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.firebaseSettingBtn}
+                onPress={() => setIsFirebaseConfigModalOpen(true)}
+                activeOpacity={0.8}
+              >
+                <Text style={styles.firebaseSettingBtnText}>⚙️ Firebase 설정</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
 
           {/* 4 Nav Tabs */}
           <View style={styles.tabBar}>
@@ -719,15 +895,29 @@ export const SecurityLoginModal: React.FC<SecurityLoginModalProps> = ({
                       </View>
                     </View>
 
-                    {/* Simulated SMS Alert Box */}
-                    <View style={styles.smsSimBox}>
-                      <Text style={styles.smsSimTitle}>
-                        📬 [모의 SMS 수신] 가문 디지털 족보 보안 인증
-                      </Text>
-                      <Text style={styles.smsSimContent}>
-                        인증번호는 [<Text style={styles.smsSimOtp}>{pending2FA.expectedOtp}</Text>] 입니다. 타인에게 절대 노출하지 마십시오.
-                      </Text>
-                    </View>
+                    {/* SMS Alert Box (Firebase 실제 SMS vs 모의 SMS) */}
+                    {pending2FA.isFirebase ? (
+                      <View style={[styles.smsSimBox, { backgroundColor: '#fef2f2', borderColor: '#f87171' }]}>
+                        <Text style={[styles.smsSimTitle, { color: '#991b1b' }]}>
+                          🔥 [Firebase 실제 SMS 발송 완료]
+                        </Text>
+                        <Text style={[styles.smsSimContent, { color: '#7f1d1d' }]}>
+                          스마트폰으로 전송된 6자리 인증 문자를 확인하고 아래에 입력해주세요. (국제발신 규격: {toE164Format(pending2FA.phone)})
+                        </Text>
+                        <Text style={{ fontSize: 11, color: '#b91c1c', marginTop: 4 }}>
+                          ※ Firebase 콘솔의 무료 테스트 번호인 경우 지정한 테스트 인증번호(예: 123456)를 입력하시면 됩니다.
+                        </Text>
+                      </View>
+                    ) : (
+                      <View style={styles.smsSimBox}>
+                        <Text style={styles.smsSimTitle}>
+                          📬 [모의 SMS 수신] 가문 디지털 족보 보안 인증
+                        </Text>
+                        <Text style={styles.smsSimContent}>
+                          인증번호는 [<Text style={styles.smsSimOtp}>{pending2FA.expectedOtp}</Text>] 입니다. 타인에게 절대 노출하지 마십시오.
+                        </Text>
+                      </View>
+                    )}
 
                     <View style={styles.fieldGroup}>
                       <Text style={styles.fieldLabel}>6자리 보안 OTP 번호</Text>
@@ -1059,17 +1249,28 @@ export const SecurityLoginModal: React.FC<SecurityLoginModalProps> = ({
                       </Text>
                     </TouchableOpacity>
 
-                    {/* Simulated SMS Alert Box for Registration */}
+                    {/* SMS Alert Box for Registration (Firebase vs Simulated) */}
                     {regOtpSent && !regIsPhoneVerified && (
                       <View style={{ marginTop: 10 }}>
-                        <View style={styles.smsSimBox}>
-                          <Text style={styles.smsSimTitle}>
-                            📬 [모의 SMS 수신] 가문 신규 가입 본인인증
-                          </Text>
-                          <Text style={styles.smsSimContent}>
-                            인증번호는 [<Text style={styles.smsSimOtp}>{regOtpCode}</Text>] 입니다. 타인에게 노출하지 마십시오.
-                          </Text>
-                        </View>
+                        {regOtpCode === 'FIREBASE_ACTIVE' ? (
+                          <View style={[styles.smsSimBox, { backgroundColor: '#fef2f2', borderColor: '#f87171' }]}>
+                            <Text style={[styles.smsSimTitle, { color: '#991b1b' }]}>
+                              🔥 [Firebase 가입 인증 SMS 발송 완료]
+                            </Text>
+                            <Text style={[styles.smsSimContent, { color: '#7f1d1d' }]}>
+                              [{formatPhoneNumber(regPhone)}] ({toE164Format(regPhone)}) 번호로 전송된 6자리 인증 문자를 확인하고 아래에 입력해주세요.
+                            </Text>
+                          </View>
+                        ) : (
+                          <View style={styles.smsSimBox}>
+                            <Text style={styles.smsSimTitle}>
+                              📬 [모의 SMS 수신] 가문 신규 가입 본인인증
+                            </Text>
+                            <Text style={styles.smsSimContent}>
+                              인증번호는 [<Text style={styles.smsSimOtp}>{regOtpCode}</Text>] 입니다. 타인에게 노출하지 마십시오.
+                            </Text>
+                          </View>
+                        )}
 
                         <View style={{ marginTop: 8, gap: 8 }}>
                           <TextInput
@@ -1306,6 +1507,132 @@ export const SecurityLoginModal: React.FC<SecurityLoginModalProps> = ({
           </ScrollView>
         </View>
       </View>
+
+      {/* ================= FIREBASE CONFIG MODAL ================= */}
+      <Modal
+        visible={isFirebaseConfigModalOpen}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setIsFirebaseConfigModalOpen(false)}
+      >
+        <View style={styles.fbOverlay}>
+          <View style={styles.fbCard}>
+            <View style={styles.fbHeader}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1 }}>
+                <Text style={{ fontSize: 24 }}>🔥</Text>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.fbTitle}>Firebase Phone Auth 프로젝트 설정</Text>
+                  <Text style={styles.fbSub}>
+                    Google Firebase 콘솔의 웹 앱 설정 키를 등록하여 무료 6자리 SMS OTP를 활성화합니다.
+                  </Text>
+                </View>
+              </View>
+              <TouchableOpacity
+                onPress={() => setIsFirebaseConfigModalOpen(false)}
+                style={styles.closeBtn}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.closeBtnText}>✕</Text>
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView style={styles.fbScroll} showsVerticalScrollIndicator={false}>
+              {/* Step by step guide */}
+              <View style={styles.fbGuideBox}>
+                <Text style={styles.fbGuideTitle}>💡 3단계 초간단 연동 가이드 (비용 0원):</Text>
+                <Text style={styles.fbGuideStep}>
+                  1. <Text style={{ fontWeight: '700' }}>console.firebase.google.com</Text> 접속 후 무료 프로젝트 생성
+                </Text>
+                <Text style={styles.fbGuideStep}>
+                  2. <Text style={{ fontWeight: '700' }}>Authentication ➔ Sign-in method</Text>에서 <Text style={{ fontWeight: '700', color: '#0369a1' }}>[전화 (Phone)]</Text> 사용 설정
+                </Text>
+                <Text style={styles.fbGuideStep}>
+                  3. 프로젝트 설정 ➔ 일반 ➔ <Text style={{ fontWeight: '700' }}>내 앱 (웹 앱 &lt;/&gt;)</Text> 추가 후 표시되는 설정값을 아래에 복사/붙여넣기
+                </Text>
+              </View>
+
+              <View style={styles.fieldGroup}>
+                <Text style={styles.fieldLabel}>
+                  apiKey <Text style={{ color: '#ef4444' }}>*</Text>
+                </Text>
+                <TextInput
+                  style={styles.input}
+                  value={fbConfigInput.apiKey}
+                  onChangeText={(txt) => setFbConfigInput({ ...fbConfigInput, apiKey: txt })}
+                  placeholder="예: AIzaSyA1b2C3d4E5f6G7h8..."
+                  placeholderTextColor="#94a3b8"
+                  autoCapitalize="none"
+                />
+              </View>
+
+              <View style={styles.fieldGroup}>
+                <Text style={styles.fieldLabel}>authDomain</Text>
+                <TextInput
+                  style={styles.input}
+                  value={fbConfigInput.authDomain}
+                  onChangeText={(txt) => setFbConfigInput({ ...fbConfigInput, authDomain: txt })}
+                  placeholder="예: my-jokbo-project.firebaseapp.com"
+                  placeholderTextColor="#94a3b8"
+                  autoCapitalize="none"
+                />
+              </View>
+
+              <View style={styles.fieldGroup}>
+                <Text style={styles.fieldLabel}>
+                  projectId <Text style={{ color: '#ef4444' }}>*</Text>
+                </Text>
+                <TextInput
+                  style={styles.input}
+                  value={fbConfigInput.projectId}
+                  onChangeText={(txt) => setFbConfigInput({ ...fbConfigInput, projectId: txt })}
+                  placeholder="예: my-jokbo-project"
+                  placeholderTextColor="#94a3b8"
+                  autoCapitalize="none"
+                />
+              </View>
+
+              <View style={styles.fieldGroup}>
+                <Text style={styles.fieldLabel}>appId</Text>
+                <TextInput
+                  style={styles.input}
+                  value={fbConfigInput.appId}
+                  onChangeText={(txt) => setFbConfigInput({ ...fbConfigInput, appId: txt })}
+                  placeholder="예: 1:1234567890:web:abcdef123456"
+                  placeholderTextColor="#94a3b8"
+                  autoCapitalize="none"
+                />
+              </View>
+
+              {/* Free Test Numbers Tip */}
+              <View style={styles.fbTipBox}>
+                <Text style={styles.fbTipTitle}>🧪 통신비 0원 무료 테스트 꿀팁:</Text>
+                <Text style={styles.fbTipText}>
+                  Firebase Console의 [테스트용 전화번호]에 본인 번호(예: <Text style={{ fontWeight: '700' }}>+82 10-1234-5678</Text>)와 고정 인증번호(예: <Text style={{ fontWeight: '700' }}>123456</Text>)를 등록해 두시면 실제 SMS 발송량 차감 없이 완전 무료로 무한정 테스트할 수 있습니다!
+                </Text>
+              </View>
+            </ScrollView>
+
+            <View style={styles.fbActionRow}>
+              {isFirebaseConfiguredState && (
+                <TouchableOpacity
+                  style={styles.fbClearBtn}
+                  onPress={handleClearFirebaseConfig}
+                  activeOpacity={0.8}
+                >
+                  <Text style={styles.fbClearBtnText}>🗑️ 설정 삭제</Text>
+                </TouchableOpacity>
+              )}
+              <TouchableOpacity
+                style={styles.fbSaveBtn}
+                onPress={handleSaveFirebaseConfig}
+                activeOpacity={0.85}
+              >
+                <Text style={styles.fbSaveBtnText}>💾 설정 저장 및 실제 SMS 활성화</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </Modal>
   );
 };
@@ -2102,5 +2429,211 @@ const styles = StyleSheet.create({
     fontSize: 13.5,
     fontWeight: '800',
     letterSpacing: 0.5,
+  },
+  // Firebase Auth Styles
+  firebaseBar: {
+    backgroundColor: '#fff7ed',
+    borderBottomWidth: 1.5,
+    borderBottomColor: '#fed7aa',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    gap: 12,
+    flexWrap: 'wrap',
+  },
+  firebaseBarLeft: {
+    flex: 1,
+    minWidth: 240,
+  },
+  firebaseBadge: {
+    alignSelf: 'flex-start',
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderRadius: 4,
+    marginBottom: 4,
+  },
+  firebaseBadgeActive: {
+    backgroundColor: '#ea580c',
+  },
+  firebaseBadgeReady: {
+    backgroundColor: '#ca8a04',
+  },
+  firebaseBadgeText: {
+    color: '#ffffff',
+    fontSize: 11,
+    fontWeight: '800',
+  },
+  firebaseBarTitle: {
+    fontSize: 13.5,
+    fontWeight: '800',
+    color: '#9a3412',
+    marginBottom: 2,
+  },
+  firebaseBarDesc: {
+    fontSize: 11,
+    color: '#c2410c',
+    lineHeight: 15,
+  },
+  firebaseBarActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  firebaseModeSwitchBtn: {
+    paddingVertical: 7,
+    paddingHorizontal: 12,
+    borderRadius: 6,
+    borderWidth: 1.5,
+  },
+  firebaseModeSwitchActive: {
+    backgroundColor: '#ea580c',
+    borderColor: '#c2410c',
+  },
+  firebaseModeSwitchSim: {
+    backgroundColor: '#f1f5f9',
+    borderColor: '#cbd5e1',
+  },
+  firebaseModeSwitchText: {
+    fontSize: 11.5,
+    fontWeight: '700',
+    color: '#475569',
+  },
+  firebaseModeSwitchTextActive: {
+    color: '#ffffff',
+    fontWeight: '800',
+  },
+  firebaseSettingBtn: {
+    backgroundColor: '#ffffff',
+    borderWidth: 1.5,
+    borderColor: '#fdba74',
+    paddingVertical: 7,
+    paddingHorizontal: 10,
+    borderRadius: 6,
+  },
+  firebaseSettingBtnText: {
+    fontSize: 11.5,
+    fontWeight: '700',
+    color: '#c2410c',
+  },
+  // Firebase Config Modal Styles
+  fbOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(15, 23, 42, 0.75)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 16,
+  },
+  fbCard: {
+    width: '100%',
+    maxWidth: 540,
+    maxHeight: '90%',
+    backgroundColor: '#ffffff',
+    borderRadius: 16,
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.35,
+    shadowRadius: 20,
+    elevation: 10,
+  },
+  fbHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 18,
+    paddingVertical: 14,
+    backgroundColor: '#fff7ed',
+    borderBottomWidth: 1,
+    borderBottomColor: '#fed7aa',
+  },
+  fbTitle: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: '#9a3412',
+  },
+  fbSub: {
+    fontSize: 11,
+    color: '#c2410c',
+    marginTop: 2,
+  },
+  fbScroll: {
+    padding: 18,
+  },
+  fbGuideBox: {
+    backgroundColor: '#f0f9ff',
+    borderWidth: 1,
+    borderColor: '#bae6fd',
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 16,
+  },
+  fbGuideTitle: {
+    fontSize: 12.5,
+    fontWeight: '800',
+    color: '#0369a1',
+    marginBottom: 6,
+  },
+  fbGuideStep: {
+    fontSize: 11.5,
+    color: '#0c4a6e',
+    lineHeight: 17,
+    marginBottom: 3,
+  },
+  fbTipBox: {
+    backgroundColor: '#fefce8',
+    borderWidth: 1,
+    borderColor: '#fef08a',
+    borderRadius: 8,
+    padding: 12,
+    marginTop: 4,
+    marginBottom: 16,
+  },
+  fbTipTitle: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#854d0e',
+    marginBottom: 4,
+  },
+  fbTipText: {
+    fontSize: 11,
+    color: '#713f12',
+    lineHeight: 16,
+  },
+  fbActionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    gap: 10,
+    padding: 16,
+    backgroundColor: '#f8fafc',
+    borderTopWidth: 1,
+    borderTopColor: '#e2e8f0',
+  },
+  fbClearBtn: {
+    paddingVertical: 11,
+    paddingHorizontal: 14,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#ef4444',
+    backgroundColor: '#ffffff',
+  },
+  fbClearBtnText: {
+    color: '#ef4444',
+    fontSize: 12.5,
+    fontWeight: '800',
+  },
+  fbSaveBtn: {
+    paddingVertical: 11,
+    paddingHorizontal: 18,
+    borderRadius: 8,
+    backgroundColor: '#ea580c',
+    alignItems: 'center',
+  },
+  fbSaveBtnText: {
+    color: '#ffffff',
+    fontSize: 13,
+    fontWeight: '800',
   },
 });

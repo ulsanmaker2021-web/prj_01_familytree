@@ -14,6 +14,13 @@ import {
   stripPhoneNumber,
   formatPhoneNumber,
 } from '../utils/securityAuth';
+import { isFirebaseConfigured } from '../config/firebaseConfig';
+import {
+  sendFirebasePhoneOtp,
+  verifyFirebasePhoneOtp,
+  clearPhoneAuthSession,
+  hasActiveFirebaseSession,
+} from '../services/firebaseAuthService';
 
 export interface RegisterMemberParams {
   name: string;
@@ -36,6 +43,7 @@ let globalPending2FA: {
   phone: string;
   expectedOtp: string;
   user: UserProfile;
+  isFirebase?: boolean;
 } | null = null;
 
 const authListeners = new Set<() => void>();
@@ -101,7 +109,11 @@ export function useAuthStore() {
   };
 
   // 2. 휴대폰 번호 및 비밀번호로 1차 로그인 시도 (2FA OTP 발송 단계)
-  const loginWithCredentials = (phone: string, password: string) => {
+  const loginWithCredentials = async (
+    phone: string,
+    password: string,
+    options?: { useFirebase?: boolean }
+  ) => {
     const bfStatus = getBruteForceStatus();
     if (bfStatus.isLocked) {
       return {
@@ -144,34 +156,73 @@ export function useAuthStore() {
       };
     }
 
-    // 1차 인증 성공 ➔ 2단계 인증(2FA) 모의 SMS OTP 생성 (6자리)
+    // 1차 인증 성공 ➔ 2단계 인증(2FA) 발송 (Firebase 활성화 시 실제 SMS 발송, 미설정 시 모의 발송)
+    const useFirebase = options?.useFirebase ?? isFirebaseConfigured();
+
+    if (useFirebase) {
+      const fbRes = await sendFirebasePhoneOtp(account.phone);
+      if (fbRes.success) {
+        globalPending2FA = {
+          phone: account.phone,
+          expectedOtp: '', // Firebase가 내부적으로 관리
+          user: account,
+          isFirebase: true,
+        };
+        notifyAuth();
+        return {
+          success: true,
+          require2FA: true,
+          isFirebase: true,
+          message: fbRes.message,
+        };
+      } else {
+        return {
+          success: false,
+          require2FA: false,
+          isFirebase: true,
+          message: `${fbRes.message} (※ 아래 설정에서 [모의 시뮬레이션 모드]로 전환할 수 있습니다)`,
+        };
+      }
+    }
+
+    // 모의 시뮬레이션 모드 OTP 생성 (6자리)
     const generatedOtp = Math.floor(100000 + Math.random() * 900000).toString();
     globalPending2FA = {
       phone: account.phone,
       expectedOtp: generatedOtp,
       user: account,
+      isFirebase: false,
     };
     notifyAuth();
 
     return {
       success: true,
       require2FA: true,
+      isFirebase: false,
       otpCode: generatedOtp, // 시뮬레이션용 화면 노출용
       message: `2단계 인증: [${formatPhoneNumber(account.phone)}] 번호로 6자리 보안 OTP가 발송되었습니다.`,
     };
   };
 
   // 3. 2FA OTP 보안 코드 확인 및 최종 세션 승인
-  const verify2FA = (inputOtp: string) => {
+  const verify2FA = async (inputOtp: string) => {
     if (!globalPending2FA) {
       return { success: false, message: '진행 중인 2단계 인증 세션이 없습니다.' };
     }
 
-    if (inputOtp.trim() !== globalPending2FA.expectedOtp) {
-      return { success: false, message: '보안 OTP 번호가 일치하지 않습니다. 다시 확인해주세요.' };
+    if (globalPending2FA.isFirebase) {
+      const fbVerify = await verifyFirebasePhoneOtp(inputOtp);
+      if (!fbVerify.success) {
+        return { success: false, message: fbVerify.message };
+      }
+    } else {
+      if (inputOtp.trim() !== globalPending2FA.expectedOtp) {
+        return { success: false, message: '보안 OTP 번호가 일치하지 않습니다. 다시 확인해주세요.' };
+      }
     }
 
     resetBruteForceLock();
+    clearPhoneAuthSession();
     globalCurrentUser = {
       ...globalPending2FA.user,
       is2FAVerified: true,
@@ -317,6 +368,7 @@ export function useAuthStore() {
     bruteForce,
     registeredAccounts: getAllSecurityAccounts(),
     customAccounts: getCustomRegisteredAccounts(),
+    isFirebaseReady: isFirebaseConfigured(),
     registerNewMember,
     clearAllCustomAccounts: () => {
       clearCustomAccounts();
@@ -325,6 +377,11 @@ export function useAuthStore() {
     loginWithDemoAccount,
     loginWithCredentials,
     verify2FA,
+    cancelPending2FA: () => {
+      clearPhoneAuthSession();
+      globalPending2FA = null;
+      notifyAuth();
+    },
     registerWithClanCode,
     logout,
     openLoginModal,
