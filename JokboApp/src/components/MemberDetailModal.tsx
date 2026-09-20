@@ -17,6 +17,8 @@ import { verifyMemberLineage } from '../utils/genealogyVerification';
 import { MasterVerificationModal } from './MasterVerificationModal';
 import { MasterTrackingDashboardModal } from './MasterTrackingDashboardModal';
 import { getRequestsForMember } from '../utils/genealogyMasterData';
+import { useAuthStore } from '../hooks/useAuthStore';
+import { maskSensitiveInfo } from '../utils/securityAuth';
 
 interface MemberDetailModalProps {
   member: FamilyMember | null;
@@ -46,6 +48,7 @@ export const MemberDetailModal: React.FC<MemberDetailModalProps> = ({
   const [isMasterModalVisible, setIsMasterModalVisible] = useState(false);
   const [isDashboardVisible, setIsDashboardVisible] = useState(false);
   const [isVerificationReportExpanded, setIsVerificationReportExpanded] = useState(false);
+  const { currentUser } = useAuthStore();
 
   if (!member) return null;
 
@@ -53,6 +56,26 @@ export const MemberDetailModal: React.FC<MemberDetailModalProps> = ({
   const daysPassed = getDaysSinceContact(member.lastContactDate);
   const lifeStatus = getLifeStatus(member);
   const verification = verifyMemberLineage(member);
+
+  // Check if current user is direct family or admin
+  const isDirectRelation =
+    currentUser.role === 'admin' ||
+    currentUser.memberId === member.id ||
+    (currentUser.role === 'direct_family' &&
+      (member.lineage === 'paternal' || member.id === 'inlaw-pat-3-1'));
+
+  const displayPhone = maskSensitiveInfo(
+    member.phone,
+    'phone',
+    currentUser.role,
+    isDirectRelation
+  );
+  const displayBirthDate = maskSensitiveInfo(
+    member.birthDate,
+    'birthDate',
+    currentUser.role,
+    isDirectRelation
+  );
 
   return (
     <Modal
@@ -229,7 +252,7 @@ export const MemberDetailModal: React.FC<MemberDetailModalProps> = ({
               <View style={styles.infoRow}>
                 <Text style={styles.infoLabel}>생년월일</Text>
                 <Text style={styles.infoValue}>
-                  {member.birthDate || '미상'}
+                  {displayBirthDate || '미상'}
                   {member.deathDate ? ` ~ ${member.deathDate}` : ''}
                 </Text>
               </View>
@@ -242,9 +265,16 @@ export const MemberDetailModal: React.FC<MemberDetailModalProps> = ({
               {member.phone ? (
                 <View style={styles.infoRow}>
                   <Text style={styles.infoLabel}>연락처</Text>
-                  <Text style={[styles.infoValue, styles.phoneText]}>
-                    {member.phone}
-                  </Text>
+                  <View style={styles.phoneValGroup}>
+                    <Text style={[styles.infoValue, styles.phoneText]}>
+                      {displayPhone}
+                    </Text>
+                    {!isDirectRelation && currentUser.role === 'collateral' && (
+                      <View style={styles.privacyMaskTag}>
+                        <Text style={styles.privacyMaskTagText}>🔒 방계 마스킹</Text>
+                      </View>
+                    )}
+                  </View>
                 </View>
               ) : null}
               {member.lastContactDate ? (
@@ -1316,5 +1346,23 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '700',
     color: '#475569',
+  },
+  phoneValGroup: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  privacyMaskTag: {
+    backgroundColor: '#fef2f2',
+    borderWidth: 1,
+    borderColor: '#fca5a5',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  privacyMaskTagText: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: '#b91c1c',
   },
 });

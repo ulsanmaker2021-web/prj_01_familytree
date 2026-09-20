@@ -11,11 +11,13 @@ import {
 import { FamilyMember, LineageType, EstablishedLink } from '../types/family';
 import { LINEAGES, getLifeStatus } from '../utils/mockFamilyData';
 import { useFamilyStore } from '../hooks/useFamilyStore';
+import { useAuthStore } from '../hooks/useAuthStore';
 import { MemberDetailModal } from '../components/MemberDetailModal';
 import { inkTheme } from '../theme/inkTheme';
 
 export default function FamilyScreen() {
   const { members, establishedLinks, logContact } = useFamilyStore();
+  const { currentUser, openLoginModal } = useAuthStore();
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedLineage, setSelectedLineage] = useState<LineageType | 'all'>('all');
   const [aliveOnly, setAliveOnly] = useState(false);
@@ -59,6 +61,29 @@ export default function FamilyScreen() {
 
   return (
     <View style={styles.container}>
+      {/* Security & Access Tier Banner */}
+      <View style={styles.securityHeaderBanner}>
+        <View style={styles.securityHeaderLeft}>
+          <Text style={styles.securityHeaderRoleBadge}>
+            {currentUser.role === 'admin'
+              ? '👑 가문 종손 (관리자)'
+              : currentUser.role === 'direct_family'
+              ? '🛡️ 직계 정회원'
+              : '👥 방계 친족 (보호모드)'}
+          </Text>
+          <Text style={styles.securityHeaderUser}>
+            {currentUser.name} 님 열람 중 ({currentUser.role === 'collateral' ? '🔒 연락처 마스킹 활성' : '🔓 전체 정보 열람 가능'})
+          </Text>
+        </View>
+        <TouchableOpacity
+          style={styles.securitySwitchBtn}
+          onPress={openLoginModal}
+          activeOpacity={0.8}
+        >
+          <Text style={styles.securitySwitchBtnText}>🔐 계정 전환</Text>
+        </TouchableOpacity>
+      </View>
+
       {/* Search & Filter Header */}
       <View style={styles.headerArea}>
         {/* Search Input */}
@@ -824,5 +849,50 @@ const styles = StyleSheet.create({
     color: '#ffffff',
     fontWeight: '800',
     fontSize: 13,
+  },
+  securityHeaderBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#0f172a',
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: '#334155',
+  },
+  securityHeaderLeft: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    flexWrap: 'wrap',
+  },
+  securityHeaderRoleBadge: {
+    backgroundColor: '#1e293b',
+    borderWidth: 1,
+    borderColor: '#38bdf8',
+    color: '#38bdf8',
+    fontSize: 11,
+    fontWeight: '800',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  securityHeaderUser: {
+    color: '#cbd5e1',
+    fontSize: 11.5,
+  },
+  securitySwitchBtn: {
+    backgroundColor: '#1e293b',
+    borderWidth: 1,
+    borderColor: '#475569',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+  },
+  securitySwitchBtnText: {
+    color: '#f8fafc',
+    fontSize: 11,
+    fontWeight: '700',
   },
 });

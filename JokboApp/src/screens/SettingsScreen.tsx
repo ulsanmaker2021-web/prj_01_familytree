@@ -8,6 +8,7 @@ import {
   View,
 } from 'react-native';
 import { useFamilyStore } from '../hooks/useFamilyStore';
+import { useAuthStore } from '../hooks/useAuthStore';
 import { LINEAGES } from '../utils/mockFamilyData';
 import { LineageType } from '../types/family';
 import { inkTheme } from '../theme/inkTheme';
@@ -21,6 +22,7 @@ export default function SettingsScreen() {
     operationMode,
     resetData,
   } = useFamilyStore();
+  const { currentUser, openLoginModal, logout } = useAuthStore();
   const [statusMsg, setStatusMsg] = useState<string | null>(null);
 
   const handleReset = () => {
@@ -54,6 +56,71 @@ export default function SettingsScreen() {
         <Text style={styles.subtitle}>
           가계 데이터 초기화, 수묵화 테마 구성 및 동기화 상태를 확인합니다.
         </Text>
+      </View>
+
+      {/* 🛡️ 4-Tier Security & Privacy Status Section */}
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>🛡️ 가문 4중 보안 로그인 및 개인정보 보호 관리</Text>
+        <View style={styles.statsCard}>
+          <View style={styles.statRow}>
+            <Text style={styles.statKey}>현재 로그인 계정</Text>
+            <Text style={[styles.statVal, { fontWeight: '900', color: '#0f172a' }]}>
+              {currentUser.name} ({currentUser.roleLabel})
+            </Text>
+          </View>
+          <View style={styles.statRow}>
+            <Text style={styles.statKey}>보안 인증 등급</Text>
+            <Text style={[styles.statVal, { color: '#0284c7', fontWeight: '800' }]}>
+              {currentUser.securityTier}
+            </Text>
+          </View>
+          <View style={styles.statRow}>
+            <Text style={styles.statKey}>2단계(2FA) SMS 인증</Text>
+            <Text style={[styles.statVal, { color: '#059669', fontWeight: '800' }]}>
+              {currentUser.is2FAVerified ? '✅ 본인 인증 완료' : '⚠️ 미인증'}
+            </Text>
+          </View>
+          <View style={styles.statRow}>
+            <Text style={styles.statKey}>가문 보안 초대 코드</Text>
+            <Text style={[styles.statVal, { fontFamily: 'monospace', color: '#78350f', fontWeight: '800' }]}>
+              {currentUser.clanInviteCode}
+            </Text>
+          </View>
+          <View style={styles.statRow}>
+            <Text style={styles.statKey}>개인정보 열람 모드</Text>
+            <Text style={[styles.statVal, { color: currentUser.role === 'collateral' ? '#dc2626' : '#059669', fontWeight: '800' }]}>
+              {currentUser.role === 'collateral'
+                ? '🔒 방계 마스킹 (010-****)'
+                : '🔓 직계/관리자 (전체 열람)'}
+            </Text>
+          </View>
+
+          <View style={styles.divider} />
+
+          <View style={styles.securityBtnRow}>
+            <TouchableOpacity
+              style={styles.securitySwitchModalBtn}
+              onPress={openLoginModal}
+              activeOpacity={0.85}
+            >
+              <Text style={styles.securitySwitchModalBtnText}>
+                🔐 계정 전환 및 4중 보안 로그인 설정
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.securityLogoutBtn}
+              onPress={() => {
+                logout();
+                setStatusMsg('안전하게 로그아웃되었습니다.');
+                setTimeout(() => setStatusMsg(null), 3000);
+              }}
+              activeOpacity={0.85}
+            >
+              <Text style={styles.securityLogoutBtnText}>🚪 로그아웃</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
       </View>
 
       {/* Family Tree Data Overview Card */}
@@ -436,5 +503,38 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: '#065f46',
     fontWeight: '700',
+  },
+  securityBtnRow: {
+    flexDirection: 'row',
+    gap: 8,
+    flexWrap: 'wrap',
+  },
+  securitySwitchModalBtn: {
+    flex: 1,
+    minWidth: 180,
+    backgroundColor: '#0284c7',
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  securitySwitchModalBtnText: {
+    color: '#ffffff',
+    fontSize: 12,
+    fontWeight: '800',
+  },
+  securityLogoutBtn: {
+    backgroundColor: '#f1f5f9',
+    borderWidth: 1,
+    borderColor: '#cbd5e1',
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  securityLogoutBtnText: {
+    color: '#dc2626',
+    fontSize: 12,
+    fontWeight: '800',
   },
 });

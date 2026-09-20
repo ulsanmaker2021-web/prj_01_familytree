@@ -1,4 +1,5 @@
 import React from 'react';
+import { TouchableOpacity, Text } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
@@ -11,6 +12,8 @@ import GenealogyMasterScreen from './src/screens/GenealogyMasterScreen';
 import SettingsScreen from './src/screens/SettingsScreen';
 import { TabIcon } from './src/components/TabIcon';
 import { inkTheme } from './src/theme/inkTheme';
+import { useAuthStore } from './src/hooks/useAuthStore';
+import { SecurityLoginModal } from './src/components/SecurityLoginModal';
 
 export type RootTabParamList = {
   Home: undefined;
@@ -23,6 +26,13 @@ export type RootTabParamList = {
 const Tab = createBottomTabNavigator<RootTabParamList>();
 
 export default function App() {
+  const {
+    currentUser,
+    isAuthenticated,
+    isLoginModalOpen,
+    openLoginModal,
+    closeLoginModal,
+  } = useAuthStore();
   return (
     <SafeAreaProvider>
       <StatusBar style="dark" />
@@ -44,6 +54,25 @@ export default function App() {
               letterSpacing: 0.5,
             },
             headerTitleAlign: 'center',
+            headerRight: () => (
+              <TouchableOpacity
+                onPress={openLoginModal}
+                style={{
+                  marginRight: 14,
+                  backgroundColor: '#0f172a',
+                  paddingHorizontal: 9,
+                  paddingVertical: 5,
+                  borderRadius: 6,
+                  borderWidth: 1,
+                  borderColor: '#38bdf8',
+                }}
+                activeOpacity={0.8}
+              >
+                <Text style={{ color: '#38bdf8', fontSize: 11, fontWeight: '800' }}>
+                  🛡️ {currentUser.name} [{currentUser.roleLabel.split(' ')[0]}]
+                </Text>
+              </TouchableOpacity>
+            ),
             tabBarStyle: {
               backgroundColor: inkTheme.paperDark,
               borderTopColor: inkTheme.ink8,
@@ -113,6 +142,12 @@ export default function App() {
           />
         </Tab.Navigator>
       </NavigationContainer>
+
+      {/* 4-Tier Security Gate & Authentication Modal */}
+      <SecurityLoginModal
+        visible={isLoginModalOpen || !isAuthenticated}
+        onClose={closeLoginModal}
+      />
     </SafeAreaProvider>
   );
 }

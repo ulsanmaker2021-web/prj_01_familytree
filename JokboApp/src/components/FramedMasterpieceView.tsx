@@ -14,6 +14,7 @@ import { INITIAL_FAMILY_DATA } from '../utils/mockFamilyData';
 import { getMemberAvatar } from '../utils/avatarGenerator';
 import { verifyMemberLineage } from '../utils/genealogyVerification';
 import { MasterTrackingDashboardModal } from './MasterTrackingDashboardModal';
+import { useAuthStore } from '../hooks/useAuthStore';
 import html2canvas from 'html2canvas';
 
 interface FramedMasterpieceViewProps {
@@ -31,6 +32,7 @@ export const FramedMasterpieceView: React.FC<FramedMasterpieceViewProps> = ({
   onSelectMember,
   onReturnToMain,
 }) => {
+  const { currentUser, openLoginModal } = useAuthStore();
   // Lineage mode:
   // 'lineage_direct' (부계 혈통 직계 중심: 조부모 ➔ 부친 ➔ 본인/형제 ➔ 자녀)
   // 'bilateral' (친가·외가 양가 조부모 대등 배치)
@@ -409,6 +411,15 @@ export const FramedMasterpieceView: React.FC<FramedMasterpieceViewProps> = ({
                 🛡️ 족보 항렬·세손 자체 검증 공인
               </Text>
             </View>
+            <TouchableOpacity
+              style={styles.authStatusBadge}
+              onPress={openLoginModal}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.authStatusBadgeText}>
+                🔐 {currentUser.name} [{currentUser.roleLabel}]
+              </Text>
+            </TouchableOpacity>
           </View>
           <Text style={styles.toolbarDesc}>
             대동보(大同譜) 항렬자 오행 상생 검증 · [30세(世) = 29세손(孫)] 원전 기산법 공인 적용
@@ -1017,6 +1028,19 @@ const styles = StyleSheet.create({
   },
   verificationHeaderBadgeText: {
     color: '#a7f3d0',
+    fontSize: 11,
+    fontWeight: '800',
+  },
+  authStatusBadge: {
+    backgroundColor: '#1e293b',
+    borderWidth: 1,
+    borderColor: '#38bdf8',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 4,
+  },
+  authStatusBadgeText: {
+    color: '#38bdf8',
     fontSize: 11,
     fontWeight: '800',
   },
