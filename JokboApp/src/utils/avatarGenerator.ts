@@ -240,6 +240,9 @@ export function generateVirtualAvatarSvg(member: Partial<FamilyMember>): string 
   <circle cx="60" cy="60" r="57" fill="none" stroke="#ffffff" stroke-width="1.5" opacity="0.6"/>
 </svg>`;
 
+  if (typeof btoa !== 'undefined') {
+    return 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svg)));
+  }
   return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
 }
 

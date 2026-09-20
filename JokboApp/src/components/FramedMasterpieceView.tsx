@@ -720,9 +720,9 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   avatarFrame: {
-    width: 42,
-    height: 42,
-    borderRadius: 21,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     borderWidth: 2,
     overflow: 'hidden',
     backgroundColor: '#f5f5f4',
@@ -735,8 +735,9 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
   avatarImg: {
-    width: '100%',
-    height: '100%',
+    width: 40,
+    height: 40,
+    borderRadius: 20,
   },
   avatarFallback: {
     width: '100%',
