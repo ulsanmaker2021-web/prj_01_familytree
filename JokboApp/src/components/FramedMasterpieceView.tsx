@@ -11,6 +11,7 @@ import {
 import { FamilyMember } from '../types/family';
 import { INITIAL_FAMILY_DATA } from '../utils/mockFamilyData';
 import { getMemberAvatar } from '../utils/avatarGenerator';
+import { verifyMemberLineage } from '../utils/genealogyVerification';
 
 interface FramedMasterpieceViewProps {
   members: FamilyMember[];
@@ -91,6 +92,8 @@ export const FramedMasterpieceView: React.FC<FramedMasterpieceViewProps> = ({
 
     const isMale = member.gender === 'M';
 
+    const verification = verifyMemberLineage(member);
+
     return (
       <TouchableOpacity
         key={member.id}
@@ -118,19 +121,31 @@ export const FramedMasterpieceView: React.FC<FramedMasterpieceViewProps> = ({
               {member.hanja && <Text style={styles.cardHanja}>({member.hanja})</Text>}
             </View>
             <Text style={styles.lifespanText}>[{yearsText}]</Text>
-            <Text style={[styles.clanText, { color: accentColor }]}>
-              {member.clan || '본관'}
-            </Text>
+            <View style={styles.clanAndGenRow}>
+              <Text style={[styles.clanText, { color: accentColor }]}>
+                {member.clan || '본관'}
+              </Text>
+              <View style={styles.dualGenBadge}>
+                <Text style={styles.dualGenBadgeText}>{verification.shortBadge}</Text>
+              </View>
+            </View>
             <Text style={styles.roleTitleText}>
               {roleTitle || member.relationship}
             </Text>
           </View>
         </View>
 
+        {/* Lineage & Hangnyeol Verification Bar */}
+        <View style={styles.verificationBar}>
+          <Text style={styles.verificationBarText} numberOfLines={1}>
+            🛡️ {verification.hangnyeolStatus}
+          </Text>
+        </View>
+
         {/* Biography */}
         <View style={styles.bioBox}>
           {member.achievements && member.achievements.length > 0 ? (
-            member.achievements.slice(0, 2).map((ach, idx) => (
+            member.achievements.slice(0, 1).map((ach, idx) => (
               <Text key={idx} style={styles.bioText} numberOfLines={1}>
                 • {ach}
               </Text>
@@ -150,11 +165,18 @@ export const FramedMasterpieceView: React.FC<FramedMasterpieceViewProps> = ({
       {/* 1. Gallery Top Control Toolbar */}
       <View style={styles.topToolbar}>
         <View style={styles.toolbarLeft}>
-          <View style={styles.masterBadge}>
-            <Text style={styles.masterBadgeText}>🏛️ 가문 거실 액자형 가계도 (표구 명작)</Text>
+          <View style={styles.masterBadgeRow}>
+            <View style={styles.masterBadge}>
+              <Text style={styles.masterBadgeText}>🏛️ 가문 거실 액자형 가계도 (표구 명작)</Text>
+            </View>
+            <View style={styles.verificationHeaderBadge}>
+              <Text style={styles.verificationHeaderBadgeText}>
+                🛡️ 족보 항렬·세손 자체 검증 공인
+              </Text>
+            </View>
           </View>
           <Text style={styles.toolbarDesc}>
-            부계 혈통 라인이 조부모 중간에서 부친으로, 부모 중간에서 본인과 형제에게로, 본인과 부인 중간에서 자녀에게로 엄격히 흐릅니다.
+            대동보(大同譜) 항렬자 오행 상생 검증 · [30세(世) = 29세손(孫)] 원전 기산법 공인 적용
           </Text>
         </View>
 
@@ -514,17 +536,36 @@ const styles = StyleSheet.create({
     flex: 1,
     minWidth: 280,
   },
+  masterBadgeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 4,
+    flexWrap: 'wrap',
+  },
   masterBadge: {
     backgroundColor: '#78350f',
     alignSelf: 'flex-start',
     paddingHorizontal: 8,
     paddingVertical: 3,
     borderRadius: 4,
-    marginBottom: 4,
   },
   masterBadgeText: {
     color: '#fef3c7',
     fontSize: 12,
+    fontWeight: '800',
+  },
+  verificationHeaderBadge: {
+    backgroundColor: '#064e3b',
+    borderWidth: 1,
+    borderColor: '#10b981',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 4,
+  },
+  verificationHeaderBadgeText: {
+    color: '#a7f3d0',
+    fontSize: 11,
     fontWeight: '800',
   },
   toolbarDesc: {
@@ -770,14 +811,48 @@ const styles = StyleSheet.create({
     fontSize: 10,
     color: '#78716c',
   },
+  clanAndGenRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    flexWrap: 'wrap',
+    marginTop: 1,
+  },
   clanText: {
     fontSize: 10,
     fontWeight: '700',
+  },
+  dualGenBadge: {
+    backgroundColor: '#fef3c7',
+    paddingHorizontal: 4,
+    paddingVertical: 1,
+    borderRadius: 3,
+    borderWidth: 0.5,
+    borderColor: '#fde68a',
+  },
+  dualGenBadgeText: {
+    fontSize: 8.5,
+    fontWeight: '800',
+    color: '#b45309',
   },
   roleTitleText: {
     fontSize: 10,
     color: '#44403c',
     fontWeight: '600',
+  },
+  verificationBar: {
+    backgroundColor: '#ecfdf5',
+    borderWidth: 0.8,
+    borderColor: '#a7f3d0',
+    borderRadius: 3,
+    paddingHorizontal: 4,
+    paddingVertical: 1.5,
+    marginVertical: 2,
+  },
+  verificationBarText: {
+    fontSize: 8.5,
+    fontWeight: '700',
+    color: '#065f46',
   },
   bioBox: {
     borderTopWidth: 0.5,

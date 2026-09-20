@@ -20,6 +20,10 @@ export interface FamilyMember {
   memo?: string;
   photoUrl?: string; // 인물 사진 URL (거실 액자형 가계도 약전용)
   achievements?: string[]; // 가문 내 주요 약력, 직함, 업적 (예: 창업주, 신지식인, 종손 등)
+  clanGeneration?: number; // 시조 기준 세(世) (예: 29세 또는 30세)
+  descendantOrder?: number; // 시조 기준 세손/대손(孫) (예: 28세손 또는 29세손)
+  hangnyeolChar?: string; // 공인 항렬자(돌림자) (예: '赫')
+  isVerifiedLineage?: boolean; // 족보 항렬 및 세손 검증 공인 여부
 }
 
 export interface LineageInfo {

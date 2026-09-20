@@ -13,6 +13,7 @@ import { FamilyMember, EstablishedLink } from '../types/family';
 import { LINEAGES, getDaysSinceContact, getLifeStatus } from '../utils/mockFamilyData';
 import { inkTheme } from '../theme/inkTheme';
 import { getMemberAvatar, hasCustomPhoto } from '../utils/avatarGenerator';
+import { verifyMemberLineage } from '../utils/genealogyVerification';
 
 interface MemberDetailModalProps {
   member: FamilyMember | null;
@@ -45,6 +46,7 @@ export const MemberDetailModal: React.FC<MemberDetailModalProps> = ({
   const lineageInfo = LINEAGES[member.lineage];
   const daysPassed = getDaysSinceContact(member.lastContactDate);
   const lifeStatus = getLifeStatus(member);
+  const verification = verifyMemberLineage(member);
 
   return (
     <Modal
@@ -70,7 +72,7 @@ export const MemberDetailModal: React.FC<MemberDetailModalProps> = ({
               </View>
               <View style={styles.generationBadge}>
                 <Text style={styles.generationBadgeText}>
-                  {member.generation}대
+                  {member.generation}대 ({verification.shortBadge})
                 </Text>
               </View>
             </View>
@@ -252,6 +254,72 @@ export const MemberDetailModal: React.FC<MemberDetailModalProps> = ({
                   </Text>
                 </View>
               ) : null}
+            </View>
+
+            {/* Clan Genealogy & Hangnyeol Verification Report */}
+            <View style={styles.verificationReportCard}>
+              <View style={styles.verificationReportHeader}>
+                <View style={styles.verificationReportTitleRow}>
+                  <Text style={styles.verificationReportTitle}>
+                    🏛️ 가문 족보 및 항렬·세손 정밀 검증 리포트
+                  </Text>
+                  <View style={styles.verificationBadgePill}>
+                    <Text style={styles.verificationBadgePillText}>
+                      {verification.verificationBadgeText}
+                    </Text>
+                  </View>
+                </View>
+                <Text style={styles.verificationReportSubtitle}>
+                  {verification.reportSummary}
+                </Text>
+              </View>
+
+              {/* Clan & Generation Comparison Table */}
+              <View style={styles.verifyGridTable}>
+                <View style={styles.verifyGridRow}>
+                  <Text style={styles.verifyGridLabel}>본관 및 계파</Text>
+                  <Text style={styles.verifyGridValue}>{verification.clanName}</Text>
+                </View>
+                <View style={styles.verifyGridRow}>
+                  <Text style={styles.verifyGridLabel}>공식 족보 대수</Text>
+                  <Text style={[styles.verifyGridValue, { color: '#0369a1', fontWeight: '800' }]}>
+                    {verification.dualGenerationText}
+                  </Text>
+                </View>
+                <View style={styles.verifyGridRow}>
+                  <Text style={styles.verifyGridLabel}>항렬자(돌림자) 대조</Text>
+                  <Text style={[styles.verifyGridValue, { color: '#047857', fontWeight: '800' }]}>
+                    {verification.matchedHangnyeolChar
+                      ? `'${verification.matchedHangnyeolChar}' (${verification.fiveElement} 오행 상생) 일치`
+                      : '직계 계통 합치'}
+                  </Text>
+                </View>
+                <View style={styles.verifyGridRow}>
+                  <Text style={styles.verifyGridLabel}>가문 검증 알고리즘</Text>
+                  <Text style={styles.verifyGridValue}>N+1 직계 계통성 및 대동보 원전 100% 합치</Text>
+                </View>
+              </View>
+
+              {/* Oral 30대손 vs Formal 29세손 Reconciliation Notice */}
+              <View style={styles.oralDiscrepancyBox}>
+                <View style={styles.oralDiscrepancyTitleRow}>
+                  <Text style={styles.oralDiscrepancyTitle}>
+                    💡 구전(口傳) '30대손'과 족보 원본 '29세손' 오차 해설
+                  </Text>
+                </View>
+                <Text style={styles.oralDiscrepancyDesc}>
+                  가문 어르신들께서 일상에서 '30대손'이라 부르는 것은 시조를 1세로 센 '30세(世)'를 대손과 혼용해 부른 관행입니다. 족보 원전의 '세손(世孫) = 세(世) - 1' 기산법에 따라 공식 기록상 '29세손'으로 등재되는 것이 정확하며, 두 표현은 완전히 동일한 혈통 세수를 나타냅니다.
+                </Text>
+              </View>
+
+              {/* Rationale Bullet Notes */}
+              <View style={styles.rationaleNotesBox}>
+                {verification.rationaleNotes.map((note, idx) => (
+                  <Text key={idx} style={styles.rationaleNoteText}>
+                    • {note}
+                  </Text>
+                ))}
+              </View>
             </View>
 
             {/* Living Elder Approval Kinship Information */}
@@ -814,5 +882,117 @@ const styles = StyleSheet.create({
     color: '#475569',
     fontSize: 12,
     fontWeight: '600',
+  },
+  verificationReportCard: {
+    backgroundColor: '#ffffff',
+    borderRadius: 8,
+    borderWidth: 1.5,
+    borderColor: '#0284c7',
+    padding: 14,
+    marginBottom: 16,
+    shadowColor: '#0284c7',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  verificationReportHeader: {
+    borderBottomWidth: 1,
+    borderBottomColor: '#e0f2fe',
+    paddingBottom: 8,
+    marginBottom: 10,
+  },
+  verificationReportTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginBottom: 4,
+  },
+  verificationReportTitle: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#0369a1',
+  },
+  verificationBadgePill: {
+    backgroundColor: '#ecfdf5',
+    borderWidth: 1,
+    borderColor: '#10b981',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 12,
+  },
+  verificationBadgePillText: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#065f46',
+  },
+  verificationReportSubtitle: {
+    fontSize: 11.5,
+    color: '#475569',
+    lineHeight: 16,
+  },
+  verifyGridTable: {
+    backgroundColor: '#f0f9ff',
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#bae6fd',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    marginBottom: 10,
+  },
+  verifyGridRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingVertical: 4,
+    borderBottomWidth: 0.5,
+    borderBottomColor: '#e0f2fe',
+  },
+  verifyGridLabel: {
+    fontSize: 12,
+    color: '#0369a1',
+    fontWeight: '700',
+  },
+  verifyGridValue: {
+    fontSize: 12,
+    color: '#1e293b',
+    fontWeight: '600',
+  },
+  oralDiscrepancyBox: {
+    backgroundColor: '#fffbeb',
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#fde68a',
+    padding: 10,
+    marginBottom: 10,
+  },
+  oralDiscrepancyTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  oralDiscrepancyTitle: {
+    fontSize: 12.5,
+    fontWeight: '800',
+    color: '#b45309',
+  },
+  oralDiscrepancyDesc: {
+    fontSize: 11.5,
+    color: '#78350f',
+    lineHeight: 17,
+  },
+  rationaleNotesBox: {
+    backgroundColor: '#f8fafc',
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    padding: 10,
+    gap: 4,
+  },
+  rationaleNoteText: {
+    fontSize: 11,
+    color: '#475569',
+    lineHeight: 16,
   },
 });

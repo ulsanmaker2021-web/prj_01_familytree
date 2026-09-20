@@ -13,6 +13,7 @@ import { FamilyMember } from '../types/family';
 import { inkTheme } from '../theme/inkTheme';
 import { getLifeStatus, getKinshipRelation } from '../utils/mockFamilyData';
 import { getMemberAvatar } from '../utils/avatarGenerator';
+import { verifyMemberLineage } from '../utils/genealogyVerification';
 
 interface HorizontalMindmapViewProps {
   members: FamilyMember[];
@@ -223,6 +224,7 @@ export const HorizontalMindmapView: React.FC<HorizontalMindmapViewProps> = ({
     const accent = lineageColor || (member.lineage === 'maternal' ? '#3b82f6' : member.lineage === 'inlaw_paternal' || member.lineage === 'inlaw_maternal' ? '#d97706' : '#ef4444');
 
     const relationText = getDisplayRelationTag(member, roleTag);
+    const verification = verifyMemberLineage(member);
 
     return (
       <View
@@ -315,6 +317,11 @@ export const HorizontalMindmapView: React.FC<HorizontalMindmapViewProps> = ({
               </View>
             )}
 
+            {/* Dual generation short badge */}
+            <View style={[styles.lineageBadge, { backgroundColor: '#fef3c7', borderColor: '#fde68a' }]}>
+              <Text style={[styles.lineageBadgeText, { color: '#b45309', fontWeight: '800' }]}>{verification.shortBadge}</Text>
+            </View>
+
             {/* Life status dot */}
             <View
               style={[
@@ -380,6 +387,20 @@ export const HorizontalMindmapView: React.FC<HorizontalMindmapViewProps> = ({
                   </Text>
                 </View>
               )}
+
+              {/* Clan Genealogy Dual Generation & Hangnyeol */}
+              <View style={styles.detailRow}>
+                <Text style={[styles.detailLabel, { color: subtextColor }]}>족보세손:</Text>
+                <Text style={[styles.detailValue, { color: '#0284c7', fontWeight: '700' }]}>
+                  {verification.dualGenerationText}
+                </Text>
+              </View>
+              <View style={styles.detailRow}>
+                <Text style={[styles.detailLabel, { color: subtextColor }]}>항렬검증:</Text>
+                <Text style={[styles.detailValue, { color: verification.isVerified ? '#10b981' : '#f59e0b', fontWeight: '700' }]}>
+                  {verification.verificationBadgeText}
+                </Text>
+              </View>
 
               {/* Achievements / Bio */}
               {member.achievements && member.achievements.length > 0 ? (
