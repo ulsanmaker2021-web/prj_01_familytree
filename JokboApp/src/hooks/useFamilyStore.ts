@@ -1,4 +1,7 @@
 import { useState, useEffect } from 'react';
+import { getGlobalCurrentUser, addAuthListener } from './useAuthStore';
+import { UserProfile } from '../types/auth';
+import { extractSurname } from '../utils/koreanHanjaHelper';
 import {
   FamilyMember,
   LineageType,
@@ -41,6 +44,163 @@ const listeners = new Set<() => void>();
 function notify() {
   listeners.forEach((listener) => listener());
 }
+
+
+// ==========================================
+// 💾 [실제 등록 회원 가계도 저장소 (LocalStorage)]
+// ==========================================
+const CUSTOM_TREE_KEY_PREFIX = 'jokbo_custom_tree_v1_';
+
+export function getStoredCustomFamily(userId: string): FamilyMember[] | null {
+  if (typeof window === 'undefined' || !window.localStorage) return null;
+  try {
+    const raw = localStorage.getItem(CUSTOM_TREE_KEY_PREFIX + userId);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) && parsed.length > 0 ? parsed : null;
+  } catch (e) {
+    return null;
+  }
+}
+
+export function saveStoredCustomFamily(userId: string, tree: FamilyMember[]): boolean {
+  if (typeof window === 'undefined' || !window.localStorage) return false;
+  try {
+    localStorage.setItem(CUSTOM_TREE_KEY_PREFIX + userId, JSON.stringify(tree));
+    return true;
+  } catch (e) {
+    return false;
+  }
+}
+
+export function createInitialFamilyForUser(user: UserProfile): FamilyMember[] {
+  const surname = extractSurname(user.name) || '최';
+  const clan = user.clan || `${surname}씨 본가`;
+  const selfMemberId = user.memberId || `mem-${user.id}`;
+  const fatherId = `father-${user.id}`;
+  const motherId = `mother-${user.id}`;
+  const gfatherId = `gfather-${user.id}`;
+  const gmotherId = `gmother-${user.id}`;
+
+  const fatherName = user.fatherName?.trim() || `${surname}진우`;
+  const motherName = user.motherName?.trim() || `이정옥`;
+  const gfatherName = `${surname}태환`;
+  const gmotherName = `박순자`;
+
+  const selfMember: FamilyMember = {
+    id: selfMemberId,
+    name: user.name,
+    hanja: user.hanja,
+    gender: 'M',
+    generation: 3,
+    lineage: 'paternal',
+    relationship: '본인',
+    clan: clan,
+    birthDate: user.birthDate || '1990-01-01',
+    isAlive: true,
+    parentIds: [fatherId, motherId],
+    phone: user.phone,
+    clanGeneration: 30,
+    descendantOrder: 29,
+    hangnyeolChar: user.hanja ? user.hanja.charAt(user.hanja.length - 1) : undefined,
+    isVerifiedLineage: true,
+    achievements: ['가문 디지털 족보 등재 정회원', user.roleLabel || '가문 정회원'],
+    memo: '스마트폰 가문 족보 실시간 등재 완료',
+  };
+
+  const fatherMember: FamilyMember = {
+    id: fatherId,
+    name: fatherName,
+    gender: 'M',
+    generation: 2,
+    lineage: 'paternal',
+    relationship: '부 (아버지)',
+    clan: clan,
+    birthDate: '1963-03-12',
+    isAlive: true,
+    parentIds: [gfatherId, gmotherId],
+    spouseId: motherId,
+    clanGeneration: 29,
+    descendantOrder: 28,
+    isVerifiedLineage: true,
+    achievements: ['가문 29세손 어르신'],
+  };
+
+  const motherMember: FamilyMember = {
+    id: motherId,
+    name: motherName,
+    gender: 'F',
+    generation: 2,
+    lineage: 'paternal',
+    relationship: '모 (어머니)',
+    clan: '외가 배위',
+    birthDate: '1966-08-20',
+    isAlive: true,
+    spouseId: fatherId,
+    isVerifiedLineage: true,
+  };
+
+  const gfatherMember: FamilyMember = {
+    id: gfatherId,
+    name: gfatherName,
+    gender: 'M',
+    generation: 1,
+    lineage: 'paternal',
+    relationship: '조부 (할아버지)',
+    clan: clan,
+    birthDate: '1935-10-04',
+    isAlive: false,
+    spouseId: gmotherId,
+    clanGeneration: 28,
+    descendantOrder: 27,
+    isVerifiedLineage: true,
+    achievements: ['가문 28세 선대 중시조'],
+  };
+
+  const gmotherMember: FamilyMember = {
+    id: gmotherId,
+    name: gmotherName,
+    gender: 'F',
+    generation: 1,
+    lineage: 'paternal',
+    relationship: '조모 (할머니)',
+    clan: '선대 배위',
+    birthDate: '1938-12-15',
+    isAlive: false,
+    spouseId: gfatherId,
+    isVerifiedLineage: true,
+  };
+
+  return [selfMember, fatherMember, motherMember, gfatherMember, gmotherMember];
+}
+
+let globalIsViewingDemo: boolean = false;
+
+function syncWithAuth() {
+  const currentUser = getGlobalCurrentUser();
+  if (currentUser && currentUser.isCustomRegistered && !globalIsViewingDemo) {
+    let customTree = getStoredCustomFamily(currentUser.id);
+    if (!customTree || customTree.length === 0) {
+      customTree = createInitialFamilyForUser(currentUser);
+      saveStoredCustomFamily(currentUser.id, customTree);
+    }
+    globalMembers = customTree;
+    globalCenterPersonId = currentUser.memberId || customTree[0].id;
+  } else {
+    // Demo simulation mode (Kim clan)
+    globalMembers = [...INITIAL_FAMILY_DATA];
+    globalCenterPersonId = DEVICE_PROFILES[globalCurrentDeviceId]?.ownerId || 'pat-3-1';
+  }
+}
+
+// Initial sync
+syncWithAuth();
+
+// Listen to auth changes
+addAuthListener(() => {
+  syncWithAuth();
+  notify();
+});
 
 export function useFamilyStore() {
   const [members, setMembers] = useState<FamilyMember[]>(globalMembers);
@@ -513,8 +673,24 @@ export function useFamilyStore() {
     visibleMemberIdSet.add(link.personBId);
   });
 
-  // Filter members that are visible in current connected network
-  const visibleMembers = members.filter((m) => visibleMemberIdSet.has(m.id));
+  const isCustomUserMode = Boolean(getGlobalCurrentUser()?.isCustomRegistered && !globalIsViewingDemo);
+
+  // Filter members that are visible in current connected network (or all for custom user)
+  const visibleMembers = isCustomUserMode
+    ? members
+    : members.filter((m) => visibleMemberIdSet.has(m.id));
+
+  const customOwnerProfile = {
+    id: 'device_A' as DeviceId,
+    ownerId: getGlobalCurrentUser()?.memberId || members.find((m) => m.relationship === '본인')?.id || members[0]?.id || 'pat-3-1',
+    ownerName: getGlobalCurrentUser()?.name || '본인',
+    ownerRelation: '본인',
+    title: `${getGlobalCurrentUser()?.name || '회원'} 본인 스마트폰`,
+    desc: `${getGlobalCurrentUser()?.clan || '가문'} 직계 족보`,
+    avatarText: (getGlobalCurrentUser()?.name || '본인').slice(-2),
+    color: '#0284c7',
+    initialMemberIds: members.map((m) => m.id),
+  };
 
   // Sync Progress % (25%, 50%, 75%, 100%)
   const connectedCount = Object.values(connectedDevices).filter(Boolean).length;
@@ -628,7 +804,7 @@ export function useFamilyStore() {
     clearSimulationPhotos,
     // Device simulation state
     currentDeviceId,
-    currentDevice: DEVICE_PROFILES[currentDeviceId],
+    currentDevice: isCustomUserMode ? customOwnerProfile : DEVICE_PROFILES[currentDeviceId],
     connectedDevices,
     syncProgress,
     connectedCount,
@@ -644,5 +820,47 @@ export function useFamilyStore() {
     logContact,
     resetData,
     getMembersByLineage,
+    // Real Custom Member Mode State & Actions
+    isCustomUserMode,
+    isViewingDemo: globalIsViewingDemo,
+    toggleDemoView: (viewDemo?: boolean) => {
+      globalIsViewingDemo = viewDemo !== undefined ? viewDemo : !globalIsViewingDemo;
+      syncWithAuth();
+      notify();
+    },
+    addCustomFamilyMember: (member: FamilyMember) => {
+      const currentUser = getGlobalCurrentUser();
+      globalMembers = [...globalMembers, member];
+      if (currentUser && currentUser.isCustomRegistered) {
+        saveStoredCustomFamily(currentUser.id, globalMembers);
+      }
+      notify();
+    },
+    updateCustomFamilyMember: (member: FamilyMember) => {
+      const currentUser = getGlobalCurrentUser();
+      globalMembers = globalMembers.map((m) => (m.id === member.id ? member : m));
+      if (currentUser && currentUser.isCustomRegistered) {
+        saveStoredCustomFamily(currentUser.id, globalMembers);
+      }
+      notify();
+    },
+    deleteCustomFamilyMember: (memberId: string) => {
+      const currentUser = getGlobalCurrentUser();
+      globalMembers = globalMembers.filter((m) => m.id !== memberId);
+      if (currentUser && currentUser.isCustomRegistered) {
+        saveStoredCustomFamily(currentUser.id, globalMembers);
+      }
+      notify();
+    },
+    resetToInitialCustomTree: () => {
+      const currentUser = getGlobalCurrentUser();
+      if (currentUser && currentUser.isCustomRegistered) {
+        const initial = createInitialFamilyForUser(currentUser);
+        saveStoredCustomFamily(currentUser.id, initial);
+        globalMembers = initial;
+        globalCenterPersonId = currentUser.memberId;
+        notify();
+      }
+    },
   };
 }

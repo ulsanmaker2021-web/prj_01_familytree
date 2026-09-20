@@ -13,10 +13,18 @@ import { LINEAGES, getLifeStatus } from '../utils/mockFamilyData';
 import { useFamilyStore } from '../hooks/useFamilyStore';
 import { useAuthStore } from '../hooks/useAuthStore';
 import { MemberDetailModal } from '../components/MemberDetailModal';
+import { AddFamilyMemberModal } from '../components/AddFamilyMemberModal';
 import { inkTheme } from '../theme/inkTheme';
 
 export default function FamilyScreen() {
-  const { members, establishedLinks, logContact } = useFamilyStore();
+  const {
+    members,
+    establishedLinks,
+    logContact,
+    isCustomUserMode,
+    isViewingDemo,
+    addCustomFamilyMember,
+  } = useFamilyStore();
   const { currentUser, openLoginModal } = useAuthStore();
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedLineage, setSelectedLineage] = useState<LineageType | 'all'>('all');
@@ -24,6 +32,7 @@ export default function FamilyScreen() {
   const [approvedOnly, setApprovedOnly] = useState(false);
   const [selectedMember, setSelectedMember] = useState<FamilyMember | null>(null);
   const [viewingCertLink, setViewingCertLink] = useState<EstablishedLink | null>(null);
+  const [isAddMemberModalOpen, setIsAddMemberModalOpen] = useState(false);
 
   const filteredMembers = useMemo(() => {
     return members.filter((m) => {
@@ -75,13 +84,24 @@ export default function FamilyScreen() {
             {currentUser.name} 님 열람 중 ({currentUser.role === 'collateral' ? '🔒 연락처 마스킹 활성' : '🔓 전체 정보 열람 가능'})
           </Text>
         </View>
-        <TouchableOpacity
-          style={styles.securitySwitchBtn}
-          onPress={openLoginModal}
-          activeOpacity={0.8}
-        >
-          <Text style={styles.securitySwitchBtnText}>🔐 계정 전환</Text>
-        </TouchableOpacity>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+          {isCustomUserMode && !isViewingDemo && (
+            <TouchableOpacity
+              style={[styles.securitySwitchBtn, { backgroundColor: inkTheme.accentPine, borderColor: inkTheme.accentPine }]}
+              onPress={() => setIsAddMemberModalOpen(true)}
+              activeOpacity={0.8}
+            >
+              <Text style={[styles.securitySwitchBtnText, { color: '#ffffff', fontWeight: 'bold' }]}>➕ 가족 추가</Text>
+            </TouchableOpacity>
+          )}
+          <TouchableOpacity
+            style={styles.securitySwitchBtn}
+            onPress={openLoginModal}
+            activeOpacity={0.8}
+          >
+            <Text style={styles.securitySwitchBtnText}>🔐 계정 전환</Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
       {/* Search & Filter Header */}
@@ -438,6 +458,17 @@ export default function FamilyScreen() {
           </View>
         </Modal>
       )}
+
+      {/* Modal for adding custom family member */}
+      <AddFamilyMemberModal
+        visible={isAddMemberModalOpen}
+        onClose={() => setIsAddMemberModalOpen(false)}
+        onAddMember={(newMem) => {
+          addCustomFamilyMember(newMem);
+        }}
+        currentUserClan={currentUser.clan}
+        selfMemberId={currentUser.memberId || 'mem-custom'}
+      />
     </View>
   );
 }

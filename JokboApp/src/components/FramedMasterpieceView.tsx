@@ -15,6 +15,7 @@ import { getMemberAvatar } from '../utils/avatarGenerator';
 import { verifyMemberLineage } from '../utils/genealogyVerification';
 import { MasterTrackingDashboardModal } from './MasterTrackingDashboardModal';
 import { useAuthStore } from '../hooks/useAuthStore';
+import { useFamilyStore } from '../hooks/useFamilyStore';
 import html2canvas from 'html2canvas';
 
 interface FramedMasterpieceViewProps {
@@ -33,6 +34,7 @@ export const FramedMasterpieceView: React.FC<FramedMasterpieceViewProps> = ({
   onReturnToMain,
 }) => {
   const { currentUser, openLoginModal } = useAuthStore();
+  const { isViewingDemo, toggleDemoView } = useFamilyStore();
   // Lineage mode:
   // 'lineage_direct' (부계 혈통 직계 중심: 조부모 ➔ 부친 ➔ 본인/형제 ➔ 자녀)
   // 'bilateral' (친가·외가 양가 조부모 대등 배치)
@@ -292,31 +294,65 @@ export const FramedMasterpieceView: React.FC<FramedMasterpieceViewProps> = ({
     }
   };
 
-  // Fallback to INITIAL_FAMILY_DATA so historical ancestors are never missing
+  const isCustomMode = Boolean(currentUser?.isCustomRegistered && !isViewingDemo);
+
+  // Fallback to INITIAL_FAMILY_DATA so historical ancestors are never missing in demo mode
   const findMember = (id: string) =>
-    members.find((m) => m.id === id) || INITIAL_FAMILY_DATA.find((m) => m.id === id);
+    members.find((m) => m.id === id) || (isCustomMode ? undefined : INITIAL_FAMILY_DATA.find((m) => m.id === id));
 
   // 1대 조부모
-  const pat1_1 = findMember('pat-1-1'); // 김진호 (친조부)
-  const pat1_2 = findMember('pat-1-2'); // 박순자 (친조모)
+  const pat1_1 = isCustomMode
+    ? members.find((m) => (m.relationship.includes('조부') || m.relationship.includes('할아버지')) && m.gender === 'M')
+    : findMember('pat-1-1'); // 친조부
+  const pat1_2 = isCustomMode
+    ? members.find((m) => (m.relationship.includes('조모') || m.relationship.includes('할머니')) && m.gender === 'F')
+    : findMember('pat-1-2'); // 친조모
 
   // 1대 외조부모 (양가 모드용)
-  const mat1_1 = findMember('mat-1-1'); // 이성한 (외조부)
-  const mat1_2 = findMember('mat-1-2'); // 권정자 (외조모)
+  const mat1_1 = isCustomMode
+    ? members.find((m) => m.relationship.includes('외조부'))
+    : findMember('mat-1-1'); // 외조부
+  const mat1_2 = isCustomMode
+    ? members.find((m) => m.relationship.includes('외조모'))
+    : findMember('mat-1-2'); // 외조모
 
   // 2대 부모
-  const pat2_2 = findMember('pat-2-2'); // 김영수 (부친)
-  const mat2_1 = findMember('mat-2-1'); // 이은경 (모친)
+  const pat2_2 = isCustomMode
+    ? members.find((m) => (m.relationship.includes('부') || m.relationship.includes('아버지')) && m.gender === 'M' && m.generation === 2)
+    : findMember('pat-2-2'); // 부친
+  const mat2_1 = isCustomMode
+    ? members.find((m) => (m.relationship.includes('모') || m.relationship.includes('어머니')) && m.gender === 'F' && m.generation === 2)
+    : findMember('mat-2-1'); // 모친
 
   // 3대 본인, 부인, 형제자매
-  const pat3_1 = findMember('pat-3-1'); // 김준혁 (본인)
-  const inlaw3_1 = findMember('inlaw-pat-3-1'); // 정서연 (부인/배우자)
-  const pat3_2 = findMember('pat-3-2'); // 김민혁 (남동생)
-  const pat3_3 = findMember('pat-3-3'); // 김지우 (여동생)
+  const pat3_1 = isCustomMode
+    ? members.find((m) => m.relationship === '본인' || m.id === currentUser.memberId || m.name === currentUser.name) || members[0]
+    : findMember('pat-3-1'); // 본인
+  const inlaw3_1 = isCustomMode
+    ? members.find((m) => m.relationship.includes('배우자') || m.relationship.includes('아내') || m.relationship.includes('남편') || m.relationship.includes('처'))
+    : findMember('inlaw-pat-3-1'); // 부인/배우자
+  const pat3_2 = isCustomMode
+    ? members.find((m) => (m.relationship.includes('남동생') || m.relationship.includes('형') || m.relationship.includes('오빠') || m.relationship.includes('형제')) && m.id !== pat3_1?.id)
+    : findMember('pat-3-2'); // 남동생/형제
+  const pat3_3 = isCustomMode
+    ? members.find((m) => (m.relationship.includes('여동생') || m.relationship.includes('누나') || m.relationship.includes('언니') || m.relationship.includes('자매')) && m.id !== pat3_1?.id)
+    : findMember('pat-3-3'); // 여동생/자매
 
   // 4대 자녀
-  const pat4_1 = findMember('pat-4-1'); // 김도윤 (장남)
-  const pat4_2 = findMember('pat-4-2'); // 김하은 (장녀)
+  const customChildren = isCustomMode
+    ? members.filter(
+        (m) =>
+          m.generation === 4 ||
+          m.relationship.includes('아들') ||
+          m.relationship.includes('딸') ||
+          m.relationship.includes('자녀') ||
+          m.relationship.includes('장남') ||
+          m.relationship.includes('장녀') ||
+          m.relationship.includes('차남')
+      )
+    : [];
+  const pat4_1 = isCustomMode ? customChildren[0] : findMember('pat-4-1'); // 장남/첫째 자녀
+  const pat4_2 = isCustomMode ? customChildren[1] : findMember('pat-4-2'); // 장녀/둘째 자녀
 
   // Dignified Person Card Component with Profile Photo
   const renderCard = (
@@ -554,8 +590,16 @@ export const FramedMasterpieceView: React.FC<FramedMasterpieceViewProps> = ({
               <View style={styles.calligraphyHeader}>
                 <View style={styles.headerDecoLine} />
                 <View style={styles.headerTitleGroup}>
-                  <Text style={styles.headerClanHanja}>慶州金氏 · 全州李氏 · 東萊鄭氏</Text>
-                  <Text style={styles.headerMainTitle}>가 족 가 계 도 (家 族 家 系 圖)</Text>
+                  <Text style={styles.headerClanHanja}>
+                    {currentUser.isCustomRegistered && !isViewingDemo
+                      ? (currentUser.clan || `${currentUser.name}氏 本家`)
+                      : '慶州金氏 · 全州李氏 · 東萊鄭氏'}
+                  </Text>
+                  <Text style={styles.headerMainTitle}>
+                    {currentUser.isCustomRegistered && !isViewingDemo
+                      ? `${currentUser.name} 가 족 가 계 도 (家 族 家 系 圖)`
+                      : '가 족 가 계 도 (家 族 家 系 圖)'}
+                  </Text>
                   <Text style={styles.headerMotto}>
                     崇祖愛族 · 孝悌忠信 · 內外和睦 (부계 혈통의 정통성과 부부 결합의 아름다운 결실을 기리다)
                   </Text>
@@ -641,13 +685,21 @@ export const FramedMasterpieceView: React.FC<FramedMasterpieceViewProps> = ({
                 {/* ================= TIER 1: 1대 조부모 (Y = 10 ~ 175) ================= */}
                 <View style={[styles.absPosition, { left: 360, top: 10 }]}>
                   <View style={styles.sectionHeaderBadge}>
-                    <Text style={styles.sectionHeaderText}>🔴 1대 조부모 (부친의 부모)</Text>
+                    <Text style={styles.sectionHeaderText}>
+                      {isCustomMode ? `🔴 1대 조부모 (${currentUser.clan || '가문'} 선대)` : '🔴 1대 조부모 (부친의 부모)'}
+                    </Text>
                   </View>
                 </View>
 
                 {/* 친조부 김진호 (left=360, top=40) */}
                 <View style={[styles.absPosition, { left: 360, top: 40 }]}>
-                  {renderCard(pat1_1, '친할아버지 (조부)', 210, 135, '#dc2626')}
+                  {renderCard(
+                    pat1_1,
+                    isCustomMode ? `친할아버지 (조부 · ${pat1_1?.clan || currentUser.clan || '친가'})` : '친할아버지 (조부)',
+                    210,
+                    135,
+                    '#dc2626'
+                  )}
                 </View>
 
                 {/* 夫婦 결합선 (left=570, top=95) */}
@@ -661,7 +713,13 @@ export const FramedMasterpieceView: React.FC<FramedMasterpieceViewProps> = ({
 
                 {/* 친조모 박순자 (left=620, top=40) */}
                 <View style={[styles.absPosition, { left: 620, top: 40 }]}>
-                  {renderCard(pat1_2, '친할머니 (조모)', 210, 135, '#b91c1c')}
+                  {renderCard(
+                    pat1_2,
+                    isCustomMode ? `친할머니 (조모 · ${pat1_2?.clan || '선대 배위'})` : '친할머니 (조모)',
+                    210,
+                    135,
+                    '#b91c1c'
+                  )}
                 </View>
 
                 {/* 외조부모 (양가 모드일 때만 X=995~1205에 렌더링) */}
@@ -699,7 +757,13 @@ export const FramedMasterpieceView: React.FC<FramedMasterpieceViewProps> = ({
 
                 {/* 부친 김영수 (left=490, top=235, center=595) */}
                 <View style={[styles.absPosition, { left: 490, top: 235 }]}>
-                  {renderCard(pat2_2, '아버지 (부친 · 경주 김씨)', 210, 145, '#dc2626')}
+                  {renderCard(
+                    pat2_2,
+                    isCustomMode ? `아버지 (부친 · ${pat2_2?.clan || currentUser.clan || '친가'})` : '아버지 (부친 · 경주 김씨)',
+                    210,
+                    145,
+                    '#dc2626'
+                  )}
                 </View>
 
                 {/* 夫婦 결합선 (left=700, top=295, center=725) */}
@@ -713,7 +777,13 @@ export const FramedMasterpieceView: React.FC<FramedMasterpieceViewProps> = ({
 
                 {/* 모친 이은경 (left=750, top=235, center=855) */}
                 <View style={[styles.absPosition, { left: 750, top: 235 }]}>
-                  {renderCard(mat2_1, '어머니 (모친 · 전주 이씨)', 210, 145, '#2563eb')}
+                  {renderCard(
+                    mat2_1,
+                    isCustomMode ? `어머니 (모친 · ${mat2_1?.clan || '외가 배위'})` : '어머니 (모친 · 전주 이씨)',
+                    210,
+                    145,
+                    '#2563eb'
+                  )}
                 </View>
 
                 {/* ================= TIER 3: 3대 본인 & 부인, 형제자매 (Y = 445 ~ 620) ================= */}
@@ -737,7 +807,15 @@ export const FramedMasterpieceView: React.FC<FramedMasterpieceViewProps> = ({
 
                 {/* 1. 김준혁 본인 (left=218, top=470, center=320) */}
                 <View style={[styles.absPosition, { left: 218, top: 470 }]}>
-                  {renderCard(pat3_1, '본인 (경주 김씨 29세손)', 205, 150, '#b45309')}
+                  {renderCard(
+                    pat3_1,
+                    isCustomMode
+                      ? `본인 (${pat3_1?.clan || currentUser.clan || '본가'}${pat3_1?.clanGeneration ? ` ${pat3_1.clanGeneration}세손` : ''})`
+                      : '본인 (경주 김씨 29세손)',
+                    205,
+                    150,
+                    '#b45309'
+                  )}
                 </View>
 
                 {/* 2. 夫婦 결합선 (left=423, top=535, center=445) */}
@@ -751,17 +829,35 @@ export const FramedMasterpieceView: React.FC<FramedMasterpieceViewProps> = ({
 
                 {/* 3. 정서연 부인 (left=467, top=470, center=570) - ⚠️ 위에서 내려오는 라인 없음! */}
                 <View style={[styles.absPosition, { left: 467, top: 470 }]}>
-                  {renderCard(inlaw3_1, '배우자 (아내 · 동래 정씨)', 205, 150, '#d97706')}
+                  {renderCard(
+                    inlaw3_1,
+                    isCustomMode ? `배우자 (${inlaw3_1?.clan || '배위'})` : '배우자 (아내 · 동래 정씨)',
+                    205,
+                    150,
+                    '#d97706'
+                  )}
                 </View>
 
                 {/* 4. 김민혁 남동생 (left=778, top=470, center=880) */}
                 <View style={[styles.absPosition, { left: 778, top: 470 }]}>
-                  {renderCard(pat3_2, '남동생', 205, 150, '#78350f')}
+                  {renderCard(
+                    pat3_2,
+                    isCustomMode ? (pat3_2?.relationship || '형제') : '남동생',
+                    205,
+                    150,
+                    '#78350f'
+                  )}
                 </View>
 
                 {/* 5. 김지우 여동생 (left=1028, top=470, center=1130) */}
                 <View style={[styles.absPosition, { left: 1028, top: 470 }]}>
-                  {renderCard(pat3_3, '여동생', 205, 150, '#78350f')}
+                  {renderCard(
+                    pat3_3,
+                    isCustomMode ? (pat3_3?.relationship || '자매') : '여동생',
+                    205,
+                    150,
+                    '#78350f'
+                  )}
                 </View>
 
                 {/* ================= TIER 4: 4대 자녀들 (Y = 675 ~ 840) ================= */}
@@ -776,12 +872,24 @@ export const FramedMasterpieceView: React.FC<FramedMasterpieceViewProps> = ({
 
                 {/* 장남 김도윤 (left=225, top=700, center=325) */}
                 <View style={[styles.absPosition, { left: 225, top: 700 }]}>
-                  {renderCard(pat4_1, '장남 (아들 · 30대손)', 200, 140, '#059669')}
+                  {renderCard(
+                    pat4_1,
+                    isCustomMode ? (pat4_1?.relationship || '첫째 자녀') : '장남 (아들 · 30대손)',
+                    200,
+                    140,
+                    '#059669'
+                  )}
                 </View>
 
                 {/* 장녀 김하은 (left=465, top=700, center=565) */}
                 <View style={[styles.absPosition, { left: 465, top: 700 }]}>
-                  {renderCard(pat4_2, '장녀 (딸 · 30대손)', 200, 140, '#059669')}
+                  {renderCard(
+                    pat4_2,
+                    isCustomMode ? (pat4_2?.relationship || '둘째 자녀') : '장녀 (딸 · 30대손)',
+                    200,
+                    140,
+                    '#059669'
+                  )}
                 </View>
               </View>
 
@@ -789,7 +897,7 @@ export const FramedMasterpieceView: React.FC<FramedMasterpieceViewProps> = ({
               <View style={styles.frameFooter}>
                 <View style={styles.footerLeftNote}>
                   <Text style={styles.footerNoteText}>
-                    ※ 본 가계도는 부계(경주 김씨)의 혈통 가통을 중심으로, 부부의 굳건한 결연을 통해
+                    ※ 본 가계도는 {isCustomMode ? (currentUser.clan || `${currentUser.name} 가문`) : '부계(경주 김씨)'}의 혈통 가통을 중심으로, 부부의 굳건한 결연을 통해
                   </Text>
                   <Text style={styles.footerNoteText}>
                     자녀에게 생명의 피가 고루 이어짐을 기리며, 가족 대대로 화목하기를 기원하여 봉안합니다.
@@ -803,8 +911,11 @@ export const FramedMasterpieceView: React.FC<FramedMasterpieceViewProps> = ({
 
                 <View style={styles.footerRightSeals}>
                   <View style={styles.royalSquareSeal}>
-                    <Text style={styles.royalSquareSealText}>金李鄭門
-和睦之印</Text>
+                    <Text style={styles.royalSquareSealText}>
+                      {isCustomMode
+                        ? `${(currentUser.name || '본가').slice(0, 2)}家門\n和睦之印`
+                        : '金李鄭門\n和睦之印'}
+                    </Text>
                   </View>
                   <View style={styles.circleSeal}>
                     <Text style={styles.circleSealText}>家族

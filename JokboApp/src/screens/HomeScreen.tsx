@@ -9,6 +9,8 @@ import {
 import { FamilyMember, LineageType } from '../types/family';
 import { LINEAGES, getLifeStatus, getKinshipRelation } from '../utils/mockFamilyData';
 import { useFamilyStore } from '../hooks/useFamilyStore';
+import { useAuthStore } from '../hooks/useAuthStore';
+import { AddFamilyMemberModal } from '../components/AddFamilyMemberModal';
 import { DeviceSimulatorBar } from '../components/DeviceSimulatorBar';
 import { MemberDetailModal } from '../components/MemberDetailModal';
 import { ObsidianGraphView } from '../components/ObsidianGraphView';
@@ -25,6 +27,9 @@ type FocusLineage = 'all' | 'paternal' | 'maternal' | 'inlaw';
 type ViewMode = 'radial' | 'generation' | 'framed' | 'mindmap';
 
 export default function HomeScreen() {
+  const { currentUser } = useAuthStore();
+  const [isAddMemberModalOpen, setIsAddMemberModalOpen] = useState(false);
+
   const {
     members,
     allMembers,
@@ -48,6 +53,10 @@ export default function HomeScreen() {
     logContact,
     syncProgress,
     updateMemberPhoto,
+    isCustomUserMode,
+    isViewingDemo,
+    toggleDemoView,
+    addCustomFamilyMember,
   } = useFamilyStore();
 
   const [kinshipScope, setKinshipScope] = useState<KinshipScope>('cousin4');
@@ -263,8 +272,60 @@ export default function HomeScreen() {
 
   return (
     <View style={styles.container}>
-      {/* 1. Virtual 4-Device Simulator Bar */}
-      <DeviceSimulatorBar />
+      {/* Real Registered Member Banner vs Simulation Bar */}
+      {isCustomUserMode && !isViewingDemo ? (
+        <View style={styles.realMemberBanner}>
+          <View style={styles.realMemberBannerLeft}>
+            <View style={styles.realMemberBadge}>
+              <Text style={styles.realMemberBadgeText}>
+                🏛️ {currentUser.clan || '가문'} 족보 등재 회원
+              </Text>
+            </View>
+            <Text style={styles.realMemberTitle}>
+              {currentUser.name} 님의 가문 가계도 (실제 등재 족보)
+            </Text>
+            <Text style={styles.realMemberSub}>
+              🛡️ 2단계 본인확인 완료 ({currentUser.phone}) · {currentUser.roleLabel || '가문 정회원'}
+            </Text>
+          </View>
+          <View style={styles.realMemberBtnRow}>
+            <TouchableOpacity
+              style={styles.addMemberHeaderBtn}
+              onPress={() => setIsAddMemberModalOpen(true)}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.addMemberHeaderBtnText}>➕ 가족 구성원 추가</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.demoSwitchHeaderBtn}
+              onPress={() => toggleDemoView(true)}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.demoSwitchHeaderBtnText}>🧪 모의 시뮬레이션 둘러보기</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      ) : (
+        <>
+          {isViewingDemo && (
+            <View style={styles.demoActiveBanner}>
+              <Text style={styles.demoActiveBannerText}>
+                🧪 <Text style={{ fontWeight: '800' }}>[김씨 가문 30인 모의 시뮬레이션 둘러보기 중]</Text> 4대 가상 스마트폰 연동 체험 모드입니다.
+              </Text>
+              <TouchableOpacity
+                style={styles.returnMyJokboBtn}
+                onPress={() => toggleDemoView(false)}
+                activeOpacity={0.8}
+              >
+                <Text style={styles.returnMyJokboBtnText}>
+                  ➔ 내 가문({currentUser.name}) 가계도로 복귀
+                </Text>
+              </TouchableOpacity>
+            </View>
+          )}
+          <DeviceSimulatorBar />
+        </>
+      )}
 
       <ScrollView style={styles.scrollArea} contentContainerStyle={styles.scrollContent}>
         {/* 2. Control Toolbar */}
@@ -773,6 +834,19 @@ export default function HomeScreen() {
         onAddCustomMember={addCustomUnconnectedMember}
         initialPersonAId={studioPreselectedPersonAId}
       />
+
+      {/* Modal for adding custom family member */}
+      <AddFamilyMemberModal
+        visible={isAddMemberModalOpen}
+        onClose={() => setIsAddMemberModalOpen(false)}
+        onAddMember={(newMem) => {
+          addCustomFamilyMember(newMem);
+        }}
+        currentUserClan={currentUser.clan}
+        selfMemberId={currentUser.memberId || centerPersonId}
+        selfParents={centerPerson?.parentIds}
+        selfSpouseId={centerPerson?.spouseId}
+      />
     </View>
   );
 }
@@ -1274,6 +1348,115 @@ const styles = StyleSheet.create({
   studioOpenBtnText: {
     color: '#ffffff',
     fontSize: 13,
+    fontWeight: '800',
+  },
+  realMemberBanner: {
+    backgroundColor: '#ffffff',
+    borderBottomWidth: 1.5,
+    borderBottomColor: '#0284c7',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 10,
+    shadowColor: '#0284c7',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  realMemberBannerLeft: {
+    flex: 1,
+    minWidth: 240,
+  },
+  realMemberBadge: {
+    alignSelf: 'flex-start',
+    backgroundColor: '#e0f2fe',
+    borderWidth: 1,
+    borderColor: '#38bdf8',
+    borderRadius: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    marginBottom: 4,
+  },
+  realMemberBadgeText: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#0369a1',
+  },
+  realMemberTitle: {
+    fontSize: 15,
+    fontWeight: '900',
+    color: '#0f172a',
+  },
+  realMemberSub: {
+    fontSize: 11.5,
+    color: '#475569',
+    marginTop: 2,
+  },
+  realMemberBtnRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  addMemberHeaderBtn: {
+    backgroundColor: '#059669',
+    paddingHorizontal: 13,
+    paddingVertical: 8,
+    borderRadius: 8,
+    shadowColor: '#059669',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.2,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  addMemberHeaderBtnText: {
+    color: '#ffffff',
+    fontSize: 12.5,
+    fontWeight: '800',
+  },
+  demoSwitchHeaderBtn: {
+    backgroundColor: '#f1f5f9',
+    borderWidth: 1,
+    borderColor: '#cbd5e1',
+    paddingHorizontal: 11,
+    paddingVertical: 8,
+    borderRadius: 8,
+  },
+  demoSwitchHeaderBtnText: {
+    color: '#475569',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  demoActiveBanner: {
+    backgroundColor: '#fef3c7',
+    borderBottomWidth: 1,
+    borderBottomColor: '#f59e0b',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  demoActiveBannerText: {
+    fontSize: 12,
+    color: '#92400e',
+    flex: 1,
+    minWidth: 220,
+  },
+  returnMyJokboBtn: {
+    backgroundColor: '#0284c7',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 6,
+  },
+  returnMyJokboBtnText: {
+    color: '#ffffff',
+    fontSize: 11.5,
     fontWeight: '800',
   },
 });

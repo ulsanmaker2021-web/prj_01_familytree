@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { UserProfile, UserRole } from '../types/auth';
+export type { UserProfile, UserRole };
 import {
   DEMO_SECURITY_ACCOUNTS,
   getAllSecurityAccounts,
@@ -39,6 +40,21 @@ const authListeners = new Set<() => void>();
 
 function notifyAuth() {
   authListeners.forEach((listener) => listener());
+}
+
+export function getGlobalCurrentUser(): UserProfile {
+  return globalCurrentUser;
+}
+
+export function getGlobalIsAuthenticated(): boolean {
+  return globalIsAuthenticated;
+}
+
+export function addAuthListener(cb: () => void): () => void {
+  authListeners.add(cb);
+  return () => {
+    authListeners.delete(cb);
+  };
 }
 
 export function useAuthStore() {
