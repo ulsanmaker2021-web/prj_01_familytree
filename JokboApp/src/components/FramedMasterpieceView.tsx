@@ -84,7 +84,14 @@ export const FramedMasterpieceView: React.FC<FramedMasterpieceViewProps> = ({
       targetEl = document.getElementById('framed-masterpiece-canvas');
     }
 
+    const userName = currentUser?.name || '가문';
+    const pdfDocumentTitle = `${userName}의 가계도 (디지털 족보)`;
+    const originalDocumentTitle = typeof document !== 'undefined' ? document.title : '';
+
     if (!targetEl) {
+      if (typeof document !== 'undefined') {
+        document.title = pdfDocumentTitle;
+      }
       window.print();
       return;
     }
@@ -92,6 +99,10 @@ export const FramedMasterpieceView: React.FC<FramedMasterpieceViewProps> = ({
     setIsCapturing(true);
 
     try {
+      if (typeof document !== 'undefined') {
+        document.title = pdfDocumentTitle;
+      }
+
       // Capture the exact DOM layout into a high-resolution canvas
       const canvas = await html2canvas(targetEl, {
         scale: 2, // 2x for ultra-sharp crisp text, portraits, and calligraphy
@@ -135,7 +146,7 @@ export const FramedMasterpieceView: React.FC<FramedMasterpieceViewProps> = ({
         '<html lang="ko">' +
         '<head>' +
         '<meta charset="utf-8">' +
-        '<title>가족 가계도 거실 표구 액자 (家 族 家 系 圖)</title>' +
+        '<title>' + pdfDocumentTitle + '</title>' +
         '<style>' +
         '@page {' +
         '  size: ' + orientation + ';' +
@@ -228,6 +239,9 @@ export const FramedMasterpieceView: React.FC<FramedMasterpieceViewProps> = ({
       }, 400);
 
       iframe.contentWindow?.addEventListener('afterprint', () => {
+        if (typeof document !== 'undefined') {
+          document.title = originalDocumentTitle;
+        }
         setTimeout(() => {
           iframe?.remove();
         }, 1000);
@@ -266,8 +280,9 @@ export const FramedMasterpieceView: React.FC<FramedMasterpieceViewProps> = ({
       });
 
       const imgDataUrl = canvas.toDataURL('image/png');
+      const userName = currentUser?.name || '가문';
       const link = document.createElement('a');
-      link.download = '가족가계도_거실표구액자_명작.png';
+      link.download = `${userName}의 가족가계도_액자형.png`;
       link.href = imgDataUrl;
       link.click();
     } catch (err) {
@@ -920,7 +935,10 @@ export const FramedMasterpieceView: React.FC<FramedMasterpieceViewProps> = ({
             {/* Info Box */}
             <View style={styles.printNoticeBox}>
               <Text style={styles.printNoticeItem}>
-                • 브라우저 인쇄 창의 <Text style={{ fontWeight: '800' }}>[대상]</Text> 항목에서 <Text style={{ fontWeight: '800', color: '#0284c7' }}>'PDF로 저장'</Text>을 선택하시면 고해상도 디지털 가계도 파일로 평생 보관할 수 있습니다.
+                • 브라우저 인쇄 창의 <Text style={{ fontWeight: '800' }}>[대상]</Text> 항목에서 <Text style={{ fontWeight: '800', color: '#0284c7' }}>'PDF로 저장'</Text>을 선택하시면 <Text style={{ fontWeight: '800', color: '#0284c7' }}>'{currentUser?.name || '가문'}의 가계도 (디지털 족보).pdf'</Text> 파일로 저장됩니다.
+              </Text>
+              <Text style={styles.printNoticeItem}>
+                • <Text style={{ fontWeight: '800' }}>[이미지(PNG) 저장]</Text> 클릭 시 <Text style={{ fontWeight: '800', color: '#78350f' }}>'{currentUser?.name || '가문'}의 가족가계도_액자형.png'</Text> 고화질 파일로 다운로드됩니다.
               </Text>
               <Text style={styles.printNoticeItem}>
                 • 브라우저 인쇄 창에서 레이아웃을 '가로 방향' 또는 '세로 방향'으로 자유롭게 전환하셔도 <Text style={{ fontWeight: '800' }}>1페이지 맞춤 비율</Text>이 자동으로 유지됩니다.

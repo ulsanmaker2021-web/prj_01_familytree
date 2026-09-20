@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { TouchableOpacity, Text } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
@@ -33,6 +33,14 @@ export default function App() {
     openLoginModal,
     closeLoginModal,
   } = useAuthStore();
+
+  // Set web page title dynamically to match current user name for PDF export
+  useEffect(() => {
+    if (typeof document !== 'undefined') {
+      const titleName = isAuthenticated && currentUser?.name ? `${currentUser.name}의 ` : '';
+      document.title = `${titleName}가계도 (디지털 족보)`;
+    }
+  }, [isAuthenticated, currentUser]);
   return (
     <SafeAreaProvider>
       <StatusBar style="dark" />
