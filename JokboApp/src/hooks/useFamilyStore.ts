@@ -84,6 +84,7 @@ export function createInitialFamilyForUser(user: UserProfile): FamilyMember[] {
 
   const fatherName = user.fatherName?.trim() || `${surname}진우`;
   const motherName = user.motherName?.trim() || `이정옥`;
+  const motherSurname = extractSurname(motherName) || '이';
   const gfatherName = `${surname}태환`;
   const gmotherName = `박순자`;
 
@@ -133,7 +134,7 @@ export function createInitialFamilyForUser(user: UserProfile): FamilyMember[] {
     generation: 2,
     lineage: 'paternal',
     relationship: '모 (어머니)',
-    clan: '외가 배위',
+    clan: user.motherName ? `${motherSurname}씨 배위` : '외가 배위',
     birthDate: '1966-08-20',
     isAlive: true,
     spouseId: fatherId,

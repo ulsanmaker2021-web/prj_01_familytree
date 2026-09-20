@@ -516,6 +516,11 @@ export const SecurityLoginModal: React.FC<SecurityLoginModalProps> = ({
                                   👨 부: {acc.fatherName}
                                 </Text>
                               )}
+                              {acc.motherName && (
+                                <Text style={styles.accountDetailItem}>
+                                  👩 모: {acc.motherName}
+                                </Text>
+                              )}
                             </View>
 
                             <View style={styles.cardActionRow}>
@@ -1139,25 +1144,37 @@ export const SecurityLoginModal: React.FC<SecurityLoginModalProps> = ({
                     </View>
                   </View>
 
-                  {/* 생년월일 & 부모님 성함 */}
+                  {/* 생년월일 */}
+                  <View style={styles.fieldGroup}>
+                    <Text style={styles.fieldLabel}>생년월일 (선택)</Text>
+                    <TextInput
+                      style={styles.input}
+                      value={regBirthDate}
+                      onChangeText={setRegBirthDate}
+                      placeholder="예: 1995-08-15"
+                      placeholderTextColor="#94a3b8"
+                    />
+                  </View>
+
+                  {/* 부모님 성함 (부친 & 모친) */}
                   <View style={styles.formRow}>
-                    <View style={[styles.fieldGroup, { flex: 1 }]}>
-                      <Text style={styles.fieldLabel}>생년월일 (선택)</Text>
-                      <TextInput
-                        style={styles.input}
-                        value={regBirthDate}
-                        onChangeText={setRegBirthDate}
-                        placeholder="1995-08-15"
-                        placeholderTextColor="#94a3b8"
-                      />
-                    </View>
                     <View style={[styles.fieldGroup, { flex: 1 }]}>
                       <Text style={styles.fieldLabel}>부(아버지) 성함 (선택)</Text>
                       <TextInput
                         style={styles.input}
                         value={regFatherName}
                         onChangeText={setRegFatherName}
-                        placeholder="예: 김영호"
+                        placeholder={currentSurname ? `예: ${currentSurname}진우` : '예: 최진우'}
+                        placeholderTextColor="#94a3b8"
+                      />
+                    </View>
+                    <View style={[styles.fieldGroup, { flex: 1 }]}>
+                      <Text style={styles.fieldLabel}>모(어머니) 성함 (선택)</Text>
+                      <TextInput
+                        style={styles.input}
+                        value={regMotherName}
+                        onChangeText={setRegMotherName}
+                        placeholder="예: 이정옥"
                         placeholderTextColor="#94a3b8"
                       />
                     </View>
