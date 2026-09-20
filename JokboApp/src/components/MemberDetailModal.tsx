@@ -45,6 +45,7 @@ export const MemberDetailModal: React.FC<MemberDetailModalProps> = ({
   const [photoInput, setPhotoInput] = useState('');
   const [isMasterModalVisible, setIsMasterModalVisible] = useState(false);
   const [isDashboardVisible, setIsDashboardVisible] = useState(false);
+  const [isVerificationReportExpanded, setIsVerificationReportExpanded] = useState(false);
 
   if (!member) return null;
 
@@ -261,150 +262,188 @@ export const MemberDetailModal: React.FC<MemberDetailModalProps> = ({
               ) : null}
             </View>
 
-            {/* Clan Genealogy & Hangnyeol Verification Report */}
+            {/* Clan Genealogy & Hangnyeol Verification Report (접이식 아코디언) */}
             <View style={styles.verificationReportCard}>
-              <View style={styles.verificationReportHeader}>
+              <TouchableOpacity
+                style={[
+                  styles.verificationReportHeader,
+                  !isVerificationReportExpanded && styles.verificationReportHeaderCollapsed,
+                ]}
+                onPress={() => setIsVerificationReportExpanded(!isVerificationReportExpanded)}
+                activeOpacity={0.75}
+              >
                 <View style={styles.verificationReportTitleRow}>
                   <Text style={styles.verificationReportTitle}>
                     🏛️ 가문 족보 및 항렬·세손 정밀 검증 리포트
                   </Text>
-                  <View style={styles.verificationBadgePill}>
-                    <Text style={styles.verificationBadgePillText}>
-                      {verification.verificationBadgeText}
-                    </Text>
+                  <View style={styles.verificationHeaderRightGroup}>
+                    <View style={styles.verificationBadgePill}>
+                      <Text style={styles.verificationBadgePillText}>
+                        {verification.shortBadge}
+                      </Text>
+                    </View>
+                    <View
+                      style={[
+                        styles.accordionToggleBadge,
+                        isVerificationReportExpanded && styles.accordionToggleBadgeActive,
+                      ]}
+                    >
+                      <Text
+                        style={[
+                          styles.accordionToggleBadgeText,
+                          isVerificationReportExpanded && styles.accordionToggleBadgeTextActive,
+                        ]}
+                      >
+                        {isVerificationReportExpanded ? '접기 ▲' : '펼치기 ▼'}
+                      </Text>
+                    </View>
                   </View>
                 </View>
-                <Text style={styles.verificationReportSubtitle}>
-                  {verification.reportSummary}
-                </Text>
-              </View>
 
-              {/* Clan & Generation Comparison Table */}
-              <View style={styles.verifyGridTable}>
-                <View style={styles.verifyGridRow}>
-                  <Text style={styles.verifyGridLabel}>본관 및 계파</Text>
-                  <Text style={styles.verifyGridValue}>{verification.clanName}</Text>
-                </View>
-                <View style={styles.verifyGridRow}>
-                  <Text style={styles.verifyGridLabel}>공식 족보 대수</Text>
-                  <Text style={[styles.verifyGridValue, { color: '#0369a1', fontWeight: '800' }]}>
-                    {verification.dualGenerationText}
+                {!isVerificationReportExpanded ? (
+                  <View style={styles.collapsedPreviewBox}>
+                    <Text style={styles.collapsedPreviewText} numberOfLines={1}>
+                      {verification.clanName} · {verification.dualGenerationText} · {verification.hangnyeolStatus}
+                    </Text>
+                  </View>
+                ) : (
+                  <Text style={styles.verificationReportSubtitle}>
+                    {verification.reportSummary}
                   </Text>
-                </View>
-                <View style={styles.verifyGridRow}>
-                  <Text style={styles.verifyGridLabel}>항렬자(돌림자) 대조</Text>
-                  <Text style={[styles.verifyGridValue, { color: '#047857', fontWeight: '800' }]}>
-                    {verification.matchedHangnyeolChar
-                      ? `'${verification.matchedHangnyeolChar}' (${verification.fiveElement} 오행 상생) 일치`
-                      : '직계 계통 합치'}
-                  </Text>
-                </View>
-                <View style={styles.verifyGridRow}>
-                  <Text style={styles.verifyGridLabel}>가문 검증 알고리즘</Text>
-                  <Text style={styles.verifyGridValue}>N+1 직계 계통성 및 대동보 원전 100% 합치</Text>
-                </View>
-              </View>
+                )}
+              </TouchableOpacity>
 
-              {/* Oral 30대손 vs Formal 29세손 Reconciliation Notice */}
-              <View style={styles.oralDiscrepancyBox}>
-                <View style={styles.oralDiscrepancyTitleRow}>
-                  <Text style={styles.oralDiscrepancyTitle}>
-                    💡 구전(口傳) '30대손'과 족보 원본 '29세손' 오차 해설
-                  </Text>
-                </View>
-                <Text style={styles.oralDiscrepancyDesc}>
-                  가문 어르신들께서 일상에서 '30대손'이라 부르는 것은 시조를 1세로 센 '30세(世)'를 대손과 혼용해 부른 관행입니다. 족보 원전의 '세손(世孫) = 세(世) - 1' 기산법에 따라 공식 기록상 '29세손'으로 등재되는 것이 정확하며, 두 표현은 완전히 동일한 혈통 세수를 나타냅니다.
-                </Text>
-              </View>
-
-              {/* Rationale Bullet Notes */}
-              <View style={styles.rationaleNotesBox}>
-                {verification.rationaleNotes.map((note, idx) => (
-                  <Text key={idx} style={styles.rationaleNoteText}>
-                    • {note}
-                  </Text>
-                ))}
-              </View>
-
-              {/* Master Paid Verification Service Callout */}
-              {(() => {
-                const memberRequests = getRequestsForMember(member.id);
-                const activeReq = memberRequests[0];
-
-                if (activeReq) {
-                  const isApproved = activeReq.status === 'approved';
-                  return (
-                    <View style={[styles.activeMasterReqBox, isApproved && styles.activeMasterReqBoxApproved]}>
-                      <View style={styles.activeMasterHeader}>
-                        <Text style={styles.activeMasterTitle}>
-                          {isApproved ? '🛡️ 족보 마스터 최종 공인 완료' : '⏳ 족보 마스터 정밀 실사 진행중'}
-                        </Text>
-                        <Text style={styles.activeMasterIdText}>{activeReq.id}</Text>
-                      </View>
-                      <Text style={styles.activeMasterDesc}>
-                        담당: {activeReq.masterName} 수석위원장 ({activeReq.masterOrganization})
+              {/* Collapsible Content Drawer */}
+              {isVerificationReportExpanded && (
+                <View style={styles.verificationExpandedBody}>
+                  {/* Clan & Generation Comparison Table */}
+                  <View style={styles.verifyGridTable}>
+                    <View style={styles.verifyGridRow}>
+                      <Text style={styles.verifyGridLabel}>본관 및 계파</Text>
+                      <Text style={styles.verifyGridValue}>{verification.clanName}</Text>
+                    </View>
+                    <View style={styles.verifyGridRow}>
+                      <Text style={styles.verifyGridLabel}>공식 족보 대수</Text>
+                      <Text style={[styles.verifyGridValue, { color: '#0369a1', fontWeight: '800' }]}>
+                        {verification.dualGenerationText}
                       </Text>
-                      {activeReq.masterReviewNote ? (
-                        <Text style={styles.activeMasterNote}>
-                          {activeReq.masterReviewNote}
-                        </Text>
-                      ) : null}
-                      {isApproved && activeReq.issuedCertificateNo ? (
-                        <View style={styles.certPill}>
-                          <Text style={styles.certPillText}>
-                            가문 공인 번호: {activeReq.issuedCertificateNo}
+                    </View>
+                    <View style={styles.verifyGridRow}>
+                      <Text style={styles.verifyGridLabel}>항렬자(돌림자) 대조</Text>
+                      <Text style={[styles.verifyGridValue, { color: '#047857', fontWeight: '800' }]}>
+                        {verification.matchedHangnyeolChar
+                          ? `'${verification.matchedHangnyeolChar}' (${verification.fiveElement} 오행 상생) 일치`
+                          : '직계 계통 합치'}
+                      </Text>
+                    </View>
+                    <View style={styles.verifyGridRow}>
+                      <Text style={styles.verifyGridLabel}>가문 검증 알고리즘</Text>
+                      <Text style={styles.verifyGridValue}>N+1 직계 계통성 및 대동보 원전 100% 합치</Text>
+                    </View>
+                  </View>
+
+                  {/* Oral 30대손 vs Formal 29세손 Reconciliation Notice */}
+                  <View style={styles.oralDiscrepancyBox}>
+                    <View style={styles.oralDiscrepancyTitleRow}>
+                      <Text style={styles.oralDiscrepancyTitle}>
+                        💡 구전(口傳) '30대손'과 족보 원본 '29세손' 오차 해설
+                      </Text>
+                    </View>
+                    <Text style={styles.oralDiscrepancyDesc}>
+                      가문 어르신들께서 일상에서 '30대손'이라 부르는 것은 시조를 1세로 센 '30세(世)'를 대손과 혼용해 부른 관행입니다. 족보 원전의 '세손(世孫) = 세(世) - 1' 기산법에 따라 공식 기록상 '29세손'으로 등재되는 것이 정확하며, 두 표현은 완전히 동일한 혈통 세수를 나타냅니다.
+                    </Text>
+                  </View>
+
+                  {/* Rationale Bullet Notes */}
+                  <View style={styles.rationaleNotesBox}>
+                    {verification.rationaleNotes.map((note, idx) => (
+                      <Text key={idx} style={styles.rationaleNoteText}>
+                        • {note}
+                      </Text>
+                    ))}
+                  </View>
+
+                  {/* Master Paid Verification Service Callout */}
+                  {(() => {
+                    const memberRequests = getRequestsForMember(member.id);
+                    const activeReq = memberRequests[0];
+
+                    if (activeReq) {
+                      const isApproved = activeReq.status === 'approved';
+                      return (
+                        <View style={[styles.activeMasterReqBox, isApproved && styles.activeMasterReqBoxApproved]}>
+                          <View style={styles.activeMasterHeader}>
+                            <Text style={styles.activeMasterTitle}>
+                              {isApproved ? '🛡️ 족보 마스터 최종 공인 완료' : '⏳ 족보 마스터 정밀 실사 진행중'}
+                            </Text>
+                            <Text style={styles.activeMasterIdText}>{activeReq.id}</Text>
+                          </View>
+                          <Text style={styles.activeMasterDesc}>
+                            담당: {activeReq.masterName} 수석위원장 ({activeReq.masterOrganization})
                           </Text>
+                          {activeReq.masterReviewNote ? (
+                            <Text style={styles.activeMasterNote}>
+                              {activeReq.masterReviewNote}
+                            </Text>
+                          ) : null}
+                          {isApproved && activeReq.issuedCertificateNo ? (
+                            <View style={styles.certPill}>
+                              <Text style={styles.certPillText}>
+                                가문 공인 번호: {activeReq.issuedCertificateNo}
+                              </Text>
+                            </View>
+                          ) : null}
+                          <TouchableOpacity
+                            style={styles.viewProgressBtn}
+                            onPress={() => setIsDashboardVisible(true)}
+                            activeOpacity={0.8}
+                          >
+                            <Text style={styles.viewProgressBtnText}>
+                              📊 실시간 감정 진행 단계 확인하기 ➔
+                            </Text>
+                          </TouchableOpacity>
                         </View>
-                      ) : null}
-                      <TouchableOpacity
-                        style={styles.viewProgressBtn}
-                        onPress={() => setIsDashboardVisible(true)}
-                        activeOpacity={0.8}
-                      >
-                        <Text style={styles.viewProgressBtnText}>
-                          📊 실시간 감정 진행 단계 확인하기 ➔
-                        </Text>
-                      </TouchableOpacity>
-                    </View>
-                  );
-                }
+                      );
+                    }
 
-                return (
-                  <View style={styles.masterCalloutBox}>
-                    <View style={styles.masterCalloutTitleRow}>
-                      <Text style={styles.masterCalloutTitle}>
-                        🏛️ 순한글·종교적 성명: 족보 마스터 정밀 감정
-                      </Text>
-                      <View style={styles.masterPaidTag}>
-                        <Text style={styles.masterPaidTagText}>유료 전문 서비스</Text>
+                    return (
+                      <View style={styles.masterCalloutBox}>
+                        <View style={styles.masterCalloutTitleRow}>
+                          <Text style={styles.masterCalloutTitle}>
+                            🏛️ 순한글·종교적 성명: 족보 마스터 정밀 감정
+                          </Text>
+                          <View style={styles.masterPaidTag}>
+                            <Text style={styles.masterPaidTagText}>유료 전문 서비스</Text>
+                          </View>
+                        </View>
+                        <Text style={styles.masterCalloutDesc}>
+                          현대 사회의 순우리말 이름이나 종교적 작명은 전통 항렬표와 글자가 다를 수 있습니다. 성씨별 문중 대종회 족보 편찬위원장(마스터)에게 대동보(大同譜) 원전 수기 실사를 요청하여 공식 세손을 확정받으실 수 있습니다.
+                        </Text>
+                        <View style={styles.masterActionRow}>
+                          <TouchableOpacity
+                            style={styles.requestMasterBtn}
+                            onPress={() => setIsMasterModalVisible(true)}
+                            activeOpacity={0.8}
+                          >
+                            <Text style={styles.requestMasterBtnText}>
+                              📜 족보 마스터 정밀 고증 의뢰 (3만~10만원)
+                            </Text>
+                          </TouchableOpacity>
+                          <TouchableOpacity
+                            style={styles.openMasterDashBtn}
+                            onPress={() => setIsDashboardVisible(true)}
+                            activeOpacity={0.8}
+                          >
+                            <Text style={styles.openMasterDashBtnText}>
+                              👥 마스터 명부 / 현황
+                            </Text>
+                          </TouchableOpacity>
+                        </View>
                       </View>
-                    </View>
-                    <Text style={styles.masterCalloutDesc}>
-                      현대 사회의 순우리말 이름이나 종교적 작명은 전통 항렬표와 글자가 다를 수 있습니다. 성씨별 문중 대종회 족보 편찬위원장(마스터)에게 대동보(大同譜) 원전 수기 실사를 요청하여 공식 세손을 확정받으실 수 있습니다.
-                    </Text>
-                    <View style={styles.masterActionRow}>
-                      <TouchableOpacity
-                        style={styles.requestMasterBtn}
-                        onPress={() => setIsMasterModalVisible(true)}
-                        activeOpacity={0.8}
-                      >
-                        <Text style={styles.requestMasterBtnText}>
-                          📜 족보 마스터 정밀 고증 의뢰 (3만~10만원)
-                        </Text>
-                      </TouchableOpacity>
-                      <TouchableOpacity
-                        style={styles.openMasterDashBtn}
-                        onPress={() => setIsDashboardVisible(true)}
-                        activeOpacity={0.8}
-                      >
-                        <Text style={styles.openMasterDashBtnText}>
-                          👥 마스터 명부 / 현황
-                        </Text>
-                      </TouchableOpacity>
-                    </View>
-                  </View>
-                );
-              })()}
+                    );
+                  })()}
+                </View>
+              )}
             </View>
 
             {/* Living Elder Approval Kinship Information */}
@@ -1002,6 +1041,11 @@ const styles = StyleSheet.create({
     paddingBottom: 8,
     marginBottom: 10,
   },
+  verificationReportHeaderCollapsed: {
+    borderBottomWidth: 0,
+    paddingBottom: 0,
+    marginBottom: 0,
+  },
   verificationReportTitleRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1009,6 +1053,46 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
     gap: 8,
     marginBottom: 4,
+  },
+  verificationHeaderRightGroup: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  accordionToggleBadge: {
+    backgroundColor: '#e0f2fe',
+    borderWidth: 1,
+    borderColor: '#bae6fd',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 12,
+  },
+  accordionToggleBadgeActive: {
+    backgroundColor: '#0284c7',
+    borderColor: '#0284c7',
+  },
+  accordionToggleBadgeText: {
+    fontSize: 10.5,
+    fontWeight: '800',
+    color: '#0284c7',
+  },
+  accordionToggleBadgeTextActive: {
+    color: '#ffffff',
+  },
+  collapsedPreviewBox: {
+    backgroundColor: '#f8fafc',
+    borderRadius: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    marginTop: 6,
+  },
+  collapsedPreviewText: {
+    fontSize: 11,
+    color: '#475569',
+    fontWeight: '600',
+  },
+  verificationExpandedBody: {
+    paddingTop: 8,
   },
   verificationReportTitle: {
     fontSize: 14,
