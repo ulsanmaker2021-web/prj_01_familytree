@@ -515,7 +515,7 @@ export const SecurityLoginModal: React.FC<SecurityLoginModalProps> = ({
 const styles = StyleSheet.create({
   overlay: {
     flex: 1,
-    backgroundColor: 'rgba(15, 23, 42, 0.85)',
+    backgroundColor: 'rgba(15, 23, 42, 0.96)',
     justifyContent: 'center',
     alignItems: 'center',
     padding: 16,

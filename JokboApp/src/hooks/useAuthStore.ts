@@ -9,9 +9,9 @@ import {
 } from '../utils/securityAuth';
 
 // Global Auth State
-let globalCurrentUser: UserProfile = DEMO_SECURITY_ACCOUNTS[0]; // 기본 로그인: 김준혁 (본인)
-let globalIsAuthenticated: boolean = true;
-let globalIsLoginModalOpen: boolean = false;
+let globalCurrentUser: UserProfile = DEMO_SECURITY_ACCOUNTS[0]; // 기본 프로필: 김준혁 (본인)
+let globalIsAuthenticated: boolean = false; // 기본 미인증 상태 (최초 접속 시 로그인 강제)
+let globalIsLoginModalOpen: boolean = true; // 최초 접속 시 보안 로그인 게이트웨이 즉시 표시
 let globalPending2FA: {
   phone: string;
   expectedOtp: string;

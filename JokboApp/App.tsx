@@ -59,17 +59,25 @@ export default function App() {
                 onPress={openLoginModal}
                 style={{
                   marginRight: 14,
-                  backgroundColor: '#0f172a',
-                  paddingHorizontal: 9,
+                  backgroundColor: isAuthenticated ? '#0f172a' : '#991b1b',
+                  paddingHorizontal: 10,
                   paddingVertical: 5,
                   borderRadius: 6,
                   borderWidth: 1,
-                  borderColor: '#38bdf8',
+                  borderColor: isAuthenticated ? '#38bdf8' : '#fca5a5',
                 }}
                 activeOpacity={0.8}
               >
-                <Text style={{ color: '#38bdf8', fontSize: 11, fontWeight: '800' }}>
-                  🛡️ {currentUser.name} [{currentUser.roleLabel.split(' ')[0]}]
+                <Text
+                  style={{
+                    color: isAuthenticated ? '#38bdf8' : '#ffffff',
+                    fontSize: 11,
+                    fontWeight: '800',
+                  }}
+                >
+                  {isAuthenticated
+                    ? `🛡️ ${currentUser.name} [${currentUser.roleLabel.split(' ')[0]}]`
+                    : '🔒 가문 로그인 필요'}
                 </Text>
               </TouchableOpacity>
             ),
