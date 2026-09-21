@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   StyleSheet,
   Text,
@@ -8,6 +8,7 @@ import {
   Platform,
   Image,
   Modal,
+  useWindowDimensions,
 } from 'react-native';
 import { FamilyMember } from '../types/family';
 import { INITIAL_FAMILY_DATA } from '../utils/mockFamilyData';
@@ -35,6 +36,13 @@ export const FramedMasterpieceView: React.FC<FramedMasterpieceViewProps> = ({
 }) => {
   const { currentUser, openLoginModal } = useAuthStore();
   const { isViewingDemo, toggleDemoView } = useFamilyStore();
+
+  const { width: windowWidth } = useWindowDimensions();
+  const isMobile = windowWidth < 768;
+  const fitScale = useMemo(() => Math.max(0.24, Math.min(1.0, +((windowWidth - 24) / FRAME_WIDTH).toFixed(2))), [windowWidth]);
+  const [scaleMode, setScaleMode] = useState<'fit' | 'original'>(isMobile ? 'fit' : 'original');
+  const currentScale = scaleMode === 'fit' ? fitScale : 1.0;
+
   // Lineage mode:
   // 'lineage_direct' (부계 혈통 직계 중심: 조부모 ➔ 부친 ➔ 본인/형제 ➔ 자녀)
   // 'bilateral' (친가·외가 양가 조부모 대등 배치)
@@ -559,8 +567,22 @@ export const FramedMasterpieceView: React.FC<FramedMasterpieceViewProps> = ({
             </TouchableOpacity>
           )}
 
-          {/* Print Button Group */}
+          {/* Print & View Scale Button Group */}
           <View style={styles.printButtonGroup}>
+            <TouchableOpacity
+              style={[
+                styles.printBtn,
+                scaleMode === 'fit' && { backgroundColor: '#0284c7', borderColor: '#38bdf8' },
+              ]}
+              onPress={() => setScaleMode(scaleMode === 'fit' ? 'original' : 'fit')}
+              activeOpacity={0.85}
+            >
+              <Text style={styles.printBtnText}>
+                {scaleMode === 'fit'
+                  ? `🔍 전체 맞춤 (${Math.round(fitScale * 100)}%)`
+                  : '🔍 100% 원본'}
+              </Text>
+            </TouchableOpacity>
             <TouchableOpacity
               style={styles.printBtn}
               onPress={() => handlePrintMasterpiece('landscape', true)}
@@ -596,15 +618,29 @@ export const FramedMasterpieceView: React.FC<FramedMasterpieceViewProps> = ({
       {/* 2. Scrollable Canvas Frame */}
       <ScrollView
         horizontal
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={styles.canvasScrollContent}
+        showsHorizontalScrollIndicator={true}
+        contentContainerStyle={[
+          styles.canvasScrollContent,
+          {
+            width: Math.max(windowWidth, FRAME_WIDTH * currentScale),
+            height: FRAME_HEIGHT * currentScale + 20,
+          },
+        ]}
       >
         <View
-          nativeID="framed-masterpiece-canvas"
-          {...({ id: 'framed-masterpiece-canvas' } as any)}
-          style={styles.frameOuter}
+          style={{
+            width: FRAME_WIDTH,
+            height: FRAME_HEIGHT,
+            transform: [{ scale: currentScale }],
+            transformOrigin: '0 0',
+          }}
         >
-          <View style={styles.frameWoodMatting}>
+          <View
+            nativeID="framed-masterpiece-canvas"
+            {...({ id: 'framed-masterpiece-canvas' } as any)}
+            style={styles.frameOuter}
+          >
+            <View style={styles.frameWoodMatting}>
             <View
               nativeID="framed-canvas-parchment"
               {...({ id: 'framed-canvas-parchment' } as any)}
@@ -949,6 +985,7 @@ export const FramedMasterpieceView: React.FC<FramedMasterpieceViewProps> = ({
               </View>
             </View>
           </View>
+        </View>
         </View>
       </ScrollView>
 

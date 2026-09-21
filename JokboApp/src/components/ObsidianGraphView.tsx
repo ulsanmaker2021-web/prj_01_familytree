@@ -6,6 +6,7 @@ import {
   TouchableOpacity,
   View,
   Platform,
+  useWindowDimensions,
 } from 'react-native';
 import { FamilyMember, EstablishedLink } from '../types/family';
 import { getLifeStatus, getKinshipRelation } from '../utils/mockFamilyData';
@@ -70,6 +71,65 @@ export const ObsidianGraphView: React.FC<ObsidianGraphViewProps> = ({
   const HEIGHT = 980;
   const CX = WIDTH / 2;
   const CY = HEIGHT / 2 + 10;
+
+  // Responsive mobile screen dimensions
+  const { width: windowWidth, height: windowHeight } = useWindowDimensions();
+  const isMobile = windowWidth < 768;
+  const isLandscape = windowWidth > windowHeight;
+
+  // Fit scale calculation so the 1200px canvas fits smartphone screen width cleanly
+  const fitScale = useMemo(() => {
+    return Math.max(0.32, Math.min(1.0, +((windowWidth - 24) / WIDTH).toFixed(2)));
+  }, [windowWidth]);
+
+  // Zoom Level state: on mobile, initialize with fitScale (around 0.35x), on desktop 1.0
+  const [zoomLevel, setZoomLevel] = useState<number>(isMobile ? fitScale : 1.0);
+
+  const horizontalScrollRef = useRef<ScrollView>(null);
+
+  // Center on coordinates helper
+  const centerOnNode = useCallback(
+    (x: number, y: number) => {
+      if (!horizontalScrollRef.current) return;
+      const targetScrollX = Math.max(0, x * zoomLevel - windowWidth / 2);
+      horizontalScrollRef.current.scrollTo({ x: targetScrollX, animated: true });
+    },
+    [zoomLevel, windowWidth]
+  );
+
+  const handleFitScreen = () => {
+    setZoomLevel(fitScale);
+    setTimeout(() => {
+      centerOnNode(CX, CY);
+    }, 50);
+  };
+
+  const handleZoomIn = () => {
+    setZoomLevel((prev) => Math.min(1.8, +(prev + 0.15).toFixed(2)));
+  };
+
+  const handleZoomOut = () => {
+    setZoomLevel((prev) => Math.max(0.25, +(prev - 0.15).toFixed(2)));
+  };
+
+  const handleResetZoom = () => {
+    setZoomLevel(1.0);
+    setTimeout(() => {
+      centerOnNode(CX, CY);
+    }, 50);
+  };
+
+  const handleFocusCenter = () => {
+    centerOnNode(CX, CY);
+  };
+
+  // Center on initial mount
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      centerOnNode(CX, CY);
+    }, 120);
+    return () => clearTimeout(timer);
+  }, []);
 
   // Obsidian theme toggle: dark graphite (classic Obsidian) vs light ink
   const [isDarkMode, setIsDarkMode] = useState(true);
@@ -472,8 +532,9 @@ export const ObsidianGraphView: React.FC<ObsidianGraphViewProps> = ({
         clientY = (e as MouseEvent).clientY;
       }
 
-      const dx = clientX - dragRef.current.startX;
-      const dy = clientY - dragRef.current.startY;
+      const currentZoom = zoomLevel || 1;
+      const dx = (clientX - dragRef.current.startX) / currentZoom;
+      const dy = (clientY - dragRef.current.startY) / currentZoom;
 
       if (Math.hypot(dx, dy) > 4) {
         dragRef.current.hasMoved = true;
@@ -510,7 +571,7 @@ export const ObsidianGraphView: React.FC<ObsidianGraphViewProps> = ({
       window.removeEventListener('touchmove', onPointerMove);
       window.removeEventListener('touchend', onPointerUp);
     };
-  }, [WIDTH, HEIGHT]);
+  }, [WIDTH, HEIGHT, zoomLevel]);
 
   const handleDragStart = (memberId: string, pageX: number, pageY: number) => {
     const cluster = enableClusterDrag ? getClusterDescendants(memberId) : [memberId];
@@ -666,13 +727,91 @@ export const ObsidianGraphView: React.FC<ObsidianGraphViewProps> = ({
         </View>
       </View>
 
+      {/* 🌟 Viewport Zoom & Pan Navigation Controller (스마트폰 전체 화면 맞춤 및 확대/축소) */}
+      <View style={[styles.viewportControlBar, { backgroundColor: isDarkMode ? '#1e293b' : '#f1f5f9', borderColor: bannerBorder }]}>
+        <View style={styles.viewportLeftGroup}>
+          <TouchableOpacity
+            style={[styles.viewportBtn, styles.viewportBtnFit]}
+            onPress={handleFitScreen}
+            activeOpacity={0.8}
+          >
+            <Text style={styles.viewportBtnFitText}>🔍 전체 화면 맞춤</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.viewportBtn, { borderColor: isDarkMode ? '#475569' : '#cbd5e1' }]}
+            onPress={handleZoomIn}
+            activeOpacity={0.8}
+          >
+            <Text style={[styles.viewportBtnText, { color: textColor }]}>➕ 확대</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.viewportBtn, { borderColor: isDarkMode ? '#475569' : '#cbd5e1' }]}
+            onPress={handleZoomOut}
+            activeOpacity={0.8}
+          >
+            <Text style={[styles.viewportBtnText, { color: textColor }]}>➖ 축소</Text>
+          </TouchableOpacity>
+
+          <View style={styles.zoomBadge}>
+            <Text style={styles.zoomBadgeText}>{Math.round(zoomLevel * 100)}%</Text>
+          </View>
+        </View>
+
+        <View style={styles.viewportRightGroup}>
+          <TouchableOpacity
+            style={[styles.viewportBtn, styles.viewportBtnCenter]}
+            onPress={handleFocusCenter}
+            activeOpacity={0.8}
+          >
+            <Text style={styles.viewportBtnCenterText}>🎯 중심인물 보기</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.viewportBtn, { borderColor: isDarkMode ? '#475569' : '#cbd5e1' }]}
+            onPress={handleResetZoom}
+            activeOpacity={0.8}
+          >
+            <Text style={[styles.viewportBtnText, { color: textColor }]}>100% 원본</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+
+      {/* Mobile Guide Notice */}
+      {isMobile && (
+        <View style={[styles.mobileGuideNotice, { backgroundColor: isDarkMode ? '#1e293b' : '#eff6ff' }]}>
+          <Text style={[styles.mobileGuideNoticeText, { color: isDarkMode ? '#94a3b8' : '#1e40af' }]}>
+            💡 <Text style={{ fontWeight: '800' }}>스마트폰 최적화</Text>: [🔍 전체 화면 맞춤]으로 가계도 전체를 한눈에 보거나, 좌우로 스크롤하여 탐색하세요.
+          </Text>
+        </View>
+      )}
+
       {/* Interactive 2D Graph Canvas Area */}
       <ScrollView
+        ref={horizontalScrollRef}
         horizontal
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={styles.canvasScroll}
+        showsHorizontalScrollIndicator={true}
+        contentContainerStyle={[
+          styles.canvasScroll,
+          {
+            width: Math.max(windowWidth, WIDTH * zoomLevel),
+            height: HEIGHT * zoomLevel + 20,
+          },
+        ]}
       >
-        <View style={[styles.canvas, { width: WIDTH, height: HEIGHT, backgroundColor: canvasBg }]}>
+        <View
+          style={[
+            styles.canvas,
+            {
+              width: WIDTH,
+              height: HEIGHT,
+              transform: [{ scale: zoomLevel }],
+              transformOrigin: '0 0',
+              backgroundColor: canvasBg,
+            },
+          ]}
+        >
           <View
             style={[
               styles.orbitRing,
@@ -1073,6 +1212,79 @@ const styles = StyleSheet.create({
   legendLabel: {
     fontSize: 11,
     fontWeight: '700',
+  },
+  // Viewport Zoom & Pan Navigation Bar
+  viewportControlBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+    gap: 8,
+    flexWrap: 'wrap',
+  },
+  viewportLeftGroup: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    flexWrap: 'wrap',
+  },
+  viewportRightGroup: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    flexWrap: 'wrap',
+  },
+  viewportBtn: {
+    paddingHorizontal: 9,
+    paddingVertical: 5,
+    borderRadius: 6,
+    borderWidth: 1,
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+  },
+  viewportBtnText: {
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  viewportBtnFit: {
+    backgroundColor: '#0284c7',
+    borderColor: '#0ea5e9',
+  },
+  viewportBtnFitText: {
+    color: '#ffffff',
+    fontSize: 11,
+    fontWeight: '800',
+  },
+  viewportBtnCenter: {
+    backgroundColor: '#059669',
+    borderColor: '#10b981',
+  },
+  viewportBtnCenterText: {
+    color: '#ffffff',
+    fontSize: 11,
+    fontWeight: '800',
+  },
+  zoomBadge: {
+    backgroundColor: '#334155',
+    paddingHorizontal: 7,
+    paddingVertical: 4,
+    borderRadius: 6,
+  },
+  zoomBadgeText: {
+    color: '#38bdf8',
+    fontSize: 11,
+    fontWeight: '800',
+  },
+  mobileGuideNotice: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(56, 189, 248, 0.2)',
+  },
+  mobileGuideNoticeText: {
+    fontSize: 11,
+    lineHeight: 16,
   },
   canvasScroll: {
     padding: 10,

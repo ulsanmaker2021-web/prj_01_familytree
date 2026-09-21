@@ -724,6 +724,15 @@ export const HorizontalMindmapView: React.FC<HorizontalMindmapViewProps> = ({
         </View>
       </View>
 
+      {/* Mobile Swipe Guide */}
+      {isMobile && (
+        <View style={[styles.mobileGuideNotice, { backgroundColor: isDark ? '#1e293b' : '#eff6ff' }]}>
+          <Text style={[styles.mobileGuideNoticeText, { color: isDark ? '#93c5fd' : '#1e40af' }]}>
+            💡 <Text style={{ fontWeight: '800' }}>스마트폰 안내</Text>: ◀ 좌우로 화면을 밀어서 윗대(조부모)부터 본인, 아랫대(자녀)까지 3대 마인드맵을 확인하세요 ▶
+          </Text>
+        </View>
+      )}
+
       {/* 2. Horizontal Scroll Canvas with Mindmap Branches */}
       <ScrollView
         horizontal
@@ -1202,6 +1211,17 @@ const styles = StyleSheet.create({
   },
   toolBtnText: {
     fontSize: 12,
+  },
+  mobileGuideNotice: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(56, 189, 248, 0.2)',
+  },
+  mobileGuideNoticeText: {
+    fontSize: 11.5,
+    lineHeight: 16,
+    textAlign: 'center',
   },
   horizontalScrollContent: {
     padding: 16,

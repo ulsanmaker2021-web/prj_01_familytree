@@ -1,10 +1,11 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import {
   ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
   View,
+  useWindowDimensions,
 } from 'react-native';
 import { FamilyMember, LineageType, SmartKinshipRequest } from '../types/family';
 import { LINEAGES, getLifeStatus, getKinshipRelation } from '../utils/mockFamilyData';
@@ -74,6 +75,18 @@ export default function HomeScreen() {
   const [studioVisible, setStudioVisible] = useState(false);
   const [studioPreselectedPersonAId, setStudioPreselectedPersonAId] = useState<string | undefined>(undefined);
   const [inspectingRequest, setInspectingRequest] = useState<SmartKinshipRequest | null>(null);
+
+  // Responsive & Sticky Navigation States
+  const { width: windowWidth, height: windowHeight } = useWindowDimensions();
+  const isMobile = windowWidth < 768;
+  const isLandscape = windowWidth > windowHeight;
+  const [isFilterExpanded, setIsFilterExpanded] = useState(false);
+  const [scrollY, setScrollY] = useState(0);
+  const scrollViewRef = useRef<ScrollView>(null);
+
+  const scrollToTop = () => {
+    scrollViewRef.current?.scrollTo({ y: 0, animated: true });
+  };
 
   // Navigation history of explored center persons
   const [centerHistory, setCenterHistory] = useState<string[]>([currentDevice.ownerId]);
@@ -303,307 +316,289 @@ export default function HomeScreen() {
 
   return (
     <View style={styles.container}>
-      {/* Real Registered Member Banner vs Simulation Bar */}
-      {isCustomUserMode && !isViewingDemo ? (
-        <View style={styles.realMemberBanner}>
-          <View style={styles.realMemberBannerLeft}>
-            <View style={styles.realMemberBadge}>
-              <Text style={styles.realMemberBadgeText}>
-                🏛️ {currentUser.clan || '가문'} 족보 등재 회원
-              </Text>
-            </View>
-            <Text style={styles.realMemberTitle}>
-              {currentUser.name} 님의 가문 가계도 (실제 등재 족보)
-            </Text>
-            <Text style={styles.realMemberSub}>
-              🛡️ 2단계 본인확인 완료 ({formatPhoneNumber(currentUser.phone)}) · {currentUser.roleLabel || '가문 정회원'}
-            </Text>
-          </View>
-          <View style={styles.realMemberBtnRow}>
+      {/* ========================================================================= */}
+      {/* 1. STICKY TOP CONTROLS & NAVIGATION HEADER (스크롤 내려도 항상 상단 고정!) */}
+      {/* ========================================================================= */}
+      <View style={styles.stickyHeader}>
+        {/* Row 1: 4대 뷰 모드 전환 탭 (스크롤 가능 탭 바) */}
+        <View style={styles.stickyModeTabsRow}>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.viewModeScroll}
+          >
             <TouchableOpacity
-              style={styles.addMemberHeaderBtn}
+              style={[
+                styles.stickyModeBtn,
+                viewMode === 'radial' && styles.stickyModeBtnActive,
+              ]}
+              onPress={() => setViewMode('radial')}
+              activeOpacity={0.8}
+            >
+              <Text
+                style={[
+                  styles.stickyModeBtnText,
+                  viewMode === 'radial' && styles.stickyModeBtnTextActive,
+                ]}
+              >
+                🌐 옵시디언 방사형
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[
+                styles.stickyModeBtn,
+                viewMode === 'generation' && styles.stickyModeBtnActive,
+              ]}
+              onPress={() => setViewMode('generation')}
+              activeOpacity={0.8}
+            >
+              <Text
+                style={[
+                  styles.stickyModeBtnText,
+                  viewMode === 'generation' && styles.stickyModeBtnTextActive,
+                ]}
+              >
+                📜 세대별 계통
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[
+                styles.stickyModeBtn,
+                viewMode === 'framed' && [styles.stickyModeBtnActive, { backgroundColor: '#854d0e', borderColor: '#b45309' }],
+              ]}
+              onPress={() => setViewMode('framed')}
+              activeOpacity={0.8}
+            >
+              <Text
+                style={[
+                  styles.stickyModeBtnText,
+                  viewMode === 'framed' && { color: '#ffffff', fontWeight: '800' },
+                ]}
+              >
+                🖼️ 거실 표구 액자형
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[
+                styles.stickyModeBtn,
+                viewMode === 'mindmap' && [styles.stickyModeBtnActive, { backgroundColor: '#0369a1', borderColor: '#0ea5e9' }],
+              ]}
+              onPress={() => setViewMode('mindmap')}
+              activeOpacity={0.8}
+            >
+              <Text
+                style={[
+                  styles.stickyModeBtnText,
+                  viewMode === 'mindmap' && { color: '#ffffff', fontWeight: '800' },
+                ]}
+              >
+                🧠 수평 마인드맵 (3대)
+              </Text>
+            </TouchableOpacity>
+          </ScrollView>
+        </View>
+
+        {/* Row 2: 가계도 중심 인물 요약 + 접이식 필터 토글 버튼 + 빠른 가족추가 버튼 */}
+        <View style={styles.stickySubBar}>
+          <View style={styles.stickyCenterWrap}>
+            <Text style={styles.stickyCenterLabel}>가계도 중심:</Text>
+            <Text style={styles.stickyCenterName} numberOfLines={1}>
+              {centerPerson ? centerPerson.name : '선택 없음'}
+            </Text>
+            {isOwnerCentered ? (
+              <View style={styles.ownerBadgeMini}>
+                <Text style={styles.ownerBadgeMiniText}>본인</Text>
+              </View>
+            ) : (
+              <TouchableOpacity
+                style={styles.resetCenterBtnMini}
+                onPress={resetCenterToOwner}
+                activeOpacity={0.8}
+              >
+                <Text style={styles.resetCenterBtnMiniText}>
+                  ↩ {currentDevice.ownerName} 중심으로 복귀
+                </Text>
+              </TouchableOpacity>
+            )}
+          </View>
+
+          <View style={styles.stickyRightActions}>
+            <TouchableOpacity
+              style={[styles.filterAccordionBtn, isFilterExpanded && styles.filterAccordionBtnActive]}
+              onPress={() => setIsFilterExpanded(!isFilterExpanded)}
+              activeOpacity={0.8}
+            >
+              <Text style={[styles.filterAccordionBtnText, isFilterExpanded && styles.filterAccordionBtnTextActive]}>
+                ⚙️ 필터 ({kinshipScope === 'direct' ? '직계' : kinshipScope === 'cousin4' ? '4촌' : '5·6촌'} · {focusLineage === 'all' ? '전체' : focusLineage === 'paternal' ? '친가' : focusLineage === 'maternal' ? '외가' : '처가'}) {isFilterExpanded ? '▴' : '▾'}
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.stickyAddBtn}
               onPress={() => setIsAddMemberModalOpen(true)}
               activeOpacity={0.8}
             >
-              <Text style={styles.addMemberHeaderBtnText}>➕ 가족 구성원 추가</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.demoSwitchHeaderBtn}
-              onPress={() => toggleDemoView(true)}
-              activeOpacity={0.8}
-            >
-              <Text style={styles.demoSwitchHeaderBtnText}>🧪 모의 시뮬레이션 둘러보기</Text>
+              <Text style={styles.stickyAddBtnText}>➕ 추가</Text>
             </TouchableOpacity>
           </View>
         </View>
-      ) : (
-        <>
-          {isViewingDemo && (
-            <View style={styles.demoActiveBanner}>
-              <Text style={styles.demoActiveBannerText}>
-                🧪 <Text style={{ fontWeight: '800' }}>[김씨 가문 30인 모의 시뮬레이션 둘러보기 중]</Text> 4대 가상 스마트폰 연동 체험 모드입니다.
-              </Text>
-              <TouchableOpacity
-                style={styles.returnMyJokboBtn}
-                onPress={() => toggleDemoView(false)}
-                activeOpacity={0.8}
-              >
-                <Text style={styles.returnMyJokboBtnText}>
-                  ➔ 내 가문({currentUser.name}) 가계도로 복귀
-                </Text>
-              </TouchableOpacity>
-            </View>
-          )}
-          <DeviceSimulatorBar />
-        </>
-      )}
 
-      <ScrollView style={styles.scrollArea} contentContainerStyle={styles.scrollContent}>
-        {/* 2. Control Toolbar */}
-        <View style={styles.toolbar}>
-          {/* Top Row: Focus Center Indicator & Reset Button */}
-          <View style={styles.centerIndicatorRow}>
-            <View style={styles.centerIndicatorLeft}>
-              <Text style={styles.centerLabel}>가계도 중심:</Text>
-              <Text style={styles.centerTargetName}>
-                {centerPerson ? `${centerPerson.name} (${centerPerson.relationship})` : '선택 없음'}
-              </Text>
-              {isOwnerCentered ? (
-                <View style={styles.ownerBadge}>
-                  <Text style={styles.ownerBadgeText}>스마트폰 주인</Text>
-                </View>
-              ) : (
+        {/* Row 3 (Collapsible Accordion): Filter Controls */}
+        {isFilterExpanded && (
+          <View style={styles.stickyFilterDropdown}>
+            {/* Kinship Scope */}
+            <View style={styles.filterRowCompact}>
+              <Text style={styles.filterLabelCompact}>표시 범위:</Text>
+              <View style={styles.buttonGroupCompact}>
                 <TouchableOpacity
-                  style={styles.resetCenterBtn}
-                  onPress={resetCenterToOwner}
+                  style={[styles.filterBtnCompact, kinshipScope === 'direct' && styles.filterBtnCompactActive]}
+                  onPress={() => setKinshipScope('direct')}
                 >
-                  <Text style={styles.resetCenterBtnText}>
-                    ↩ {currentDevice.ownerName} 중심으로 복귀
+                  <Text style={[styles.filterBtnTextCompact, kinshipScope === 'direct' && styles.filterBtnTextCompactActive]}>
+                    직계 (2~3촌)
                   </Text>
                 </TouchableOpacity>
-              )}
+                <TouchableOpacity
+                  style={[styles.filterBtnCompact, kinshipScope === 'cousin4' && styles.filterBtnCompactActive]}
+                  onPress={() => setKinshipScope('cousin4')}
+                >
+                  <Text style={[styles.filterBtnTextCompact, kinshipScope === 'cousin4' && styles.filterBtnTextCompactActive]}>
+                    4촌 사촌 포함
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.filterBtnCompact, kinshipScope === 'extended6' && styles.filterBtnCompactActive]}
+                  onPress={() => setKinshipScope('extended6')}
+                >
+                  <Text style={[styles.filterBtnTextCompact, kinshipScope === 'extended6' && styles.filterBtnTextCompactActive]}>
+                    5·6촌 종친 포함
+                  </Text>
+                </TouchableOpacity>
+              </View>
             </View>
 
-            {/* View Mode Toggle (Obsidian Radial vs Generation vs Framed Masterpiece) */}
-            <View style={styles.viewModeToggle}>
-              <TouchableOpacity
-                style={[
-                  styles.modeBtn,
-                  viewMode === 'radial' && styles.modeBtnActive,
-                ]}
-                onPress={() => setViewMode('radial')}
-              >
-                <Text
-                  style={[
-                    styles.modeBtnText,
-                    viewMode === 'radial' && styles.modeBtnTextActive,
-                  ]}
+            {/* Lineage Focus */}
+            <View style={styles.filterRowCompact}>
+              <Text style={styles.filterLabelCompact}>계통 집중:</Text>
+              <View style={styles.buttonGroupCompact}>
+                <TouchableOpacity
+                  style={[styles.filterBtnCompact, focusLineage === 'all' && styles.filterBtnCompactActive]}
+                  onPress={() => setFocusLineage('all')}
                 >
-                  🌐 옵시디언 방사형
-                </Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[
-                  styles.modeBtn,
-                  viewMode === 'generation' && styles.modeBtnActive,
-                ]}
-                onPress={() => setViewMode('generation')}
-              >
-                <Text
-                  style={[
-                    styles.modeBtnText,
-                    viewMode === 'generation' && styles.modeBtnTextActive,
-                  ]}
+                  <Text style={[styles.filterBtnTextCompact, focusLineage === 'all' && styles.filterBtnTextCompactActive]}>
+                    🌿 전체 균형
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.filterBtnCompact, focusLineage === 'paternal' && [styles.filterBtnCompactActive, { borderColor: inkTheme.accentRed }]]}
+                  onPress={() => setFocusLineage('paternal')}
                 >
-                  📜 세대별 계통
-                </Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[
-                  styles.modeBtn,
-                  viewMode === 'framed' && [styles.modeBtnActive, { backgroundColor: '#854d0e', borderColor: '#b45309' }],
-                ]}
-                onPress={() => setViewMode('framed')}
-              >
-                <Text
-                  style={[
-                    styles.modeBtnText,
-                    viewMode === 'framed' && { color: '#ffffff', fontWeight: '800' },
-                  ]}
+                  <Text style={[styles.filterBtnTextCompact, focusLineage === 'paternal' && { color: inkTheme.accentRed, fontWeight: '800' }]}>
+                    🔴 친가 확장
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.filterBtnCompact, focusLineage === 'maternal' && [styles.filterBtnCompactActive, { borderColor: inkTheme.accentPine }]]}
+                  onPress={() => setFocusLineage('maternal')}
                 >
-                  🖼️ 거실 표구 액자형
-                </Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[
-                  styles.modeBtn,
-                  viewMode === 'mindmap' && [styles.modeBtnActive, { backgroundColor: '#0369a1', borderColor: '#0ea5e9' }],
-                ]}
-                onPress={() => setViewMode('mindmap')}
-              >
-                <Text
-                  style={[
-                    styles.modeBtnText,
-                    viewMode === 'mindmap' && { color: '#ffffff', fontWeight: '800' },
-                  ]}
+                  <Text style={[styles.filterBtnTextCompact, focusLineage === 'maternal' && { color: inkTheme.accentPine, fontWeight: '800' }]}>
+                    🟢 외가 확장
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.filterBtnCompact, focusLineage === 'inlaw' && [styles.filterBtnCompactActive, { borderColor: inkTheme.accentGold }]]}
+                  onPress={() => setFocusLineage('inlaw')}
                 >
-                  🧠 수평 마인드맵 (3대)
-                </Text>
-              </TouchableOpacity>
+                  <Text style={[styles.filterBtnTextCompact, focusLineage === 'inlaw' && { color: inkTheme.accentGold, fontWeight: '800' }]}>
+                    🟡 처가 확장
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+
+            {/* Member Count & Sync Status */}
+            <View style={styles.filterCountLine}>
+              <Text style={styles.countNoticeText}>
+                화면 표시 친족: <Text style={styles.boldText}>{filteredMembers.length}명</Text>
+                {syncProgress < 100 ? (
+                  <Text style={styles.syncNoticeText}>
+                    {' '}(📱 {syncProgress}% 연동 상태)
+                  </Text>
+                ) : (
+                  <Text style={styles.syncFullText}>
+                    {' '}(✨ 100% 완전 연동 상태)
+                  </Text>
+                )}
+              </Text>
             </View>
           </View>
+        )}
+      </View>
 
-          {/* Row 2: Kinship Scope Range Filter */}
-          <View style={styles.filterRow}>
-            <Text style={styles.filterLabel}>표시 범위 (촌수):</Text>
-            <View style={styles.buttonGroup}>
-              <TouchableOpacity
-                style={[
-                  styles.filterBtn,
-                  kinshipScope === 'direct' && styles.filterBtnActive,
-                ]}
-                onPress={() => setKinshipScope('direct')}
-              >
-                <Text
-                  style={[
-                    styles.filterBtnText,
-                    kinshipScope === 'direct' && styles.filterBtnTextActive,
-                  ]}
-                >
-                  직계 (2~3촌)
+      {/* ========================================================================= */}
+      {/* 2. SCROLLABLE FAMILY TREE CONTENT AREA */}
+      {/* ========================================================================= */}
+      <ScrollView
+        ref={scrollViewRef}
+        style={styles.scrollArea}
+        contentContainerStyle={styles.scrollContent}
+        onScroll={(e) => setScrollY(e.nativeEvent.contentOffset.y)}
+        scrollEventThrottle={16}
+      >
+        {/* Real Registered Member Banner vs Simulation Bar */}
+        {isCustomUserMode && !isViewingDemo ? (
+          <View style={styles.realMemberBanner}>
+            <View style={styles.realMemberBannerLeft}>
+              <View style={styles.realMemberBadge}>
+                <Text style={styles.realMemberBadgeText}>
+                  🏛️ {currentUser.clan || '가문'} 족보 등재 회원
                 </Text>
+              </View>
+              <Text style={styles.realMemberTitle}>
+                {currentUser.name} 님의 가문 가계도 (실제 등재 족보)
+              </Text>
+              <Text style={styles.realMemberSub}>
+                🛡️ 2단계 본인확인 완료 ({formatPhoneNumber(currentUser.phone)}) · {currentUser.roleLabel || '가문 정회원'}
+              </Text>
+            </View>
+            <View style={styles.realMemberBtnRow}>
+              <TouchableOpacity
+                style={styles.addMemberHeaderBtn}
+                onPress={() => setIsAddMemberModalOpen(true)}
+                activeOpacity={0.8}
+              >
+                <Text style={styles.addMemberHeaderBtnText}>➕ 가족 구성원 추가</Text>
               </TouchableOpacity>
               <TouchableOpacity
-                style={[
-                  styles.filterBtn,
-                  kinshipScope === 'cousin4' && styles.filterBtnActive,
-                ]}
-                onPress={() => setKinshipScope('cousin4')}
+                style={styles.demoSwitchHeaderBtn}
+                onPress={() => toggleDemoView(true)}
+                activeOpacity={0.8}
               >
-                <Text
-                  style={[
-                    styles.filterBtnText,
-                    kinshipScope === 'cousin4' && styles.filterBtnTextActive,
-                  ]}
-                >
-                  4촌 사촌 포함
-                </Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[
-                  styles.filterBtn,
-                  kinshipScope === 'extended6' && styles.filterBtnActive,
-                ]}
-                onPress={() => setKinshipScope('extended6')}
-              >
-                <Text
-                  style={[
-                    styles.filterBtnText,
-                    kinshipScope === 'extended6' && styles.filterBtnTextActive,
-                  ]}
-                >
-                  5·6촌 종친 포함
-                </Text>
+                <Text style={styles.demoSwitchHeaderBtnText}>🧪 모의 시뮬레이션 둘러보기</Text>
               </TouchableOpacity>
             </View>
           </View>
-
-          {/* Row 3: Lineage Focus Filter (친가 vs 외가 집중 확장) */}
-          <View style={styles.filterRow}>
-            <Text style={styles.filterLabel}>계통 집중:</Text>
-            <View style={styles.buttonGroup}>
-              <TouchableOpacity
-                style={[
-                  styles.lineageFocusBtn,
-                  focusLineage === 'all' && styles.lineageFocusBtnActive,
-                ]}
-                onPress={() => setFocusLineage('all')}
-              >
-                <Text
-                  style={[
-                    styles.lineageFocusText,
-                    focusLineage === 'all' && styles.lineageFocusTextActive,
-                  ]}
+        ) : (
+          <>
+            {isViewingDemo && (
+              <View style={styles.demoActiveBanner}>
+                <Text style={styles.demoActiveBannerText}>
+                  🧪 <Text style={{ fontWeight: '800' }}>[김씨 가문 30인 모의 시뮬레이션 둘러보기 중]</Text> 4대 가상 스마트폰 연동 체험 모드입니다.
+                </Text>
+                <TouchableOpacity
+                  style={styles.returnMyJokboBtn}
+                  onPress={() => toggleDemoView(false)}
+                  activeOpacity={0.8}
                 >
-                  🌿 전체 균형
-                </Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[
-                  styles.lineageFocusBtn,
-                  focusLineage === 'paternal' && [
-                    styles.lineageFocusBtnActive,
-                    { borderColor: inkTheme.accentRed },
-                  ],
-                ]}
-                onPress={() => setFocusLineage('paternal')}
-              >
-                <Text
-                  style={[
-                    styles.lineageFocusText,
-                    focusLineage === 'paternal' && { color: inkTheme.accentRed, fontWeight: '800' },
-                  ]}
-                >
-                  🔴 부친쪽(친가) 확장
-                </Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[
-                  styles.lineageFocusBtn,
-                  focusLineage === 'maternal' && [
-                    styles.lineageFocusBtnActive,
-                    { borderColor: inkTheme.accentPine },
-                  ],
-                ]}
-                onPress={() => setFocusLineage('maternal')}
-              >
-                <Text
-                  style={[
-                    styles.lineageFocusText,
-                    focusLineage === 'maternal' && { color: inkTheme.accentPine, fontWeight: '800' },
-                  ]}
-                >
-                  🟢 모친쪽(외가) 확장
-                </Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[
-                  styles.lineageFocusBtn,
-                  focusLineage === 'inlaw' && [
-                    styles.lineageFocusBtnActive,
-                    { borderColor: inkTheme.accentGold },
-                  ],
-                ]}
-                onPress={() => setFocusLineage('inlaw')}
-              >
-                <Text
-                  style={[
-                    styles.lineageFocusText,
-                    focusLineage === 'inlaw' && { color: inkTheme.accentGold, fontWeight: '800' },
-                  ]}
-                >
-                  🟡 사돈댁(처가) 확장
-                </Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-
-          {/* Sync & Count Notice Bar */}
-          <View style={styles.countNoticeBar}>
-            <Text style={styles.countNoticeText}>
-              화면 표시 친족: <Text style={styles.boldText}>{filteredMembers.length}명</Text>
-              {syncProgress < 100 ? (
-                <Text style={styles.syncNoticeText}>
-                  {' '}(📱 {syncProgress}% 연동 상태 · 상단 [🔗 족보 연동] 클릭 시 확장 가능)
-                </Text>
-              ) : (
-                <Text style={styles.syncFullText}>
-                  {' '}(✨ 4대 기기 100% 완전 연동 상태)
-                </Text>
-              )}
-            </Text>
-          </View>
-        </View>
+                  <Text style={styles.returnMyJokboBtnText}>
+                    ➔ 내 가문({currentUser.name}) 가계도로 복귀
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            )}
+            <DeviceSimulatorBar />
+          </>
+        )}
 
         {/* 🔔 스마트 형제·친족 결연 신청 알람 배너 (도착 시 최우선 표시) */}
         {pendingSmartRequests.length > 0 && (
@@ -727,7 +722,7 @@ export default function HomeScreen() {
                   <View style={styles.tierLine} />
                 </View>
                 <View style={styles.nodesRowWrap}>
-                  {grandparents.map((m) => renderNodeCard(m, false, 150))}
+                  {grandparents.map((m) => renderNodeCard(m, false, isMobile ? Math.floor((windowWidth - 44) / 2) : 150))}
                 </View>
                 <View style={styles.connectorLineVertical} />
               </View>
@@ -742,7 +737,7 @@ export default function HomeScreen() {
                   <View style={styles.tierLine} />
                 </View>
                 <View style={styles.nodesRowWrap}>
-                  {parents.map((m) => renderNodeCard(m, false, 150))}
+                  {parents.map((m) => renderNodeCard(m, false, isMobile ? Math.floor((windowWidth - 44) / 2) : 150))}
                 </View>
                 <View style={styles.connectorLineVertical} />
               </View>
@@ -761,10 +756,10 @@ export default function HomeScreen() {
               {/* Central Core Cards */}
               <View style={styles.centerCoreRow}>
                 {/* Center Node */}
-                {centerPerson && renderNodeCard(centerPerson, true, 190)}
+                {centerPerson && renderNodeCard(centerPerson, true, isMobile ? Math.min(260, windowWidth - 48) : 190)}
 
                 {/* Spouse if present */}
-                {spouse && renderNodeCard(spouse, false, 160)}
+                {spouse && renderNodeCard(spouse, false, isMobile ? Math.min(220, windowWidth - 48) : 160)}
               </View>
 
               {/* Siblings & Cousins horizontally around the center */}
@@ -772,7 +767,7 @@ export default function HomeScreen() {
                 <View style={styles.peersSection}>
                   <Text style={styles.subTierTitle}>동일 세대 (형제·자매 · 4촌 사촌)</Text>
                   <View style={styles.nodesRowWrap}>
-                    {siblingsAndCousins.map((m) => renderNodeCard(m, false, 145))}
+                    {siblingsAndCousins.map((m) => renderNodeCard(m, false, isMobile ? Math.floor((windowWidth - 44) / 2) : 145))}
                   </View>
                 </View>
               )}
@@ -806,7 +801,7 @@ export default function HomeScreen() {
                   <View style={styles.tierLine} />
                 </View>
                 <View style={styles.nodesRowWrap}>
-                  {descendants.map((m) => renderNodeCard(m, false, 155))}
+                  {descendants.map((m) => renderNodeCard(m, false, isMobile ? Math.floor((windowWidth - 44) / 2) : 155))}
                 </View>
               </View>
             )}
@@ -864,7 +859,7 @@ export default function HomeScreen() {
                   </View>
                   <View style={styles.nodesRowWrap}>
                     {genMembers.map((m) =>
-                      renderNodeCard(m, m.id === centerPerson?.id, 150)
+                      renderNodeCard(m, m.id === centerPerson?.id, isMobile ? Math.floor((windowWidth - 44) / 2) : 150)
                     )}
                   </View>
                 </View>
@@ -873,6 +868,17 @@ export default function HomeScreen() {
           </View>
         )}
       </ScrollView>
+
+      {/* Floating Scroll-to-Top Button (스크롤 내렸을 때 표시) */}
+      {scrollY > 150 && (
+        <TouchableOpacity
+          style={styles.floatingTopBtn}
+          onPress={scrollToTop}
+          activeOpacity={0.85}
+        >
+          <Text style={styles.floatingTopBtnText}>▲ 맨 위로</Text>
+        </TouchableOpacity>
+      )}
 
       {/* Member Detail & Center Re-Focus Modal */}
       <MemberDetailModal
@@ -973,6 +979,211 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     paddingBottom: 40,
+  },
+
+  // Sticky Top Controls & Navigation Header
+  stickyHeader: {
+    backgroundColor: '#ffffff',
+    borderBottomWidth: 1.5,
+    borderBottomColor: inkTheme.ink8,
+    shadowColor: inkTheme.ink0,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 4,
+    elevation: 4,
+    zIndex: 100,
+  },
+  stickyModeTabsRow: {
+    backgroundColor: inkTheme.paperDark,
+    borderBottomWidth: 1,
+    borderBottomColor: inkTheme.ink8,
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+  },
+  viewModeScroll: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  stickyModeBtn: {
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 8,
+    backgroundColor: inkTheme.paper,
+    borderWidth: 1,
+    borderColor: inkTheme.ink7,
+  },
+  stickyModeBtnActive: {
+    backgroundColor: inkTheme.ink1,
+    borderColor: inkTheme.ink0,
+  },
+  stickyModeBtnText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: inkTheme.ink3,
+  },
+  stickyModeBtnTextActive: {
+    color: '#ffffff',
+    fontWeight: '900',
+  },
+  stickySubBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    backgroundColor: '#ffffff',
+    gap: 8,
+  },
+  stickyCenterWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    flex: 1,
+    minWidth: 120,
+  },
+  stickyCenterLabel: {
+    fontSize: 11.5,
+    fontWeight: '700',
+    color: inkTheme.ink4,
+  },
+  stickyCenterName: {
+    fontSize: 13,
+    fontWeight: '900',
+    color: inkTheme.ink0,
+  },
+  ownerBadgeMini: {
+    backgroundColor: inkTheme.seal,
+    paddingHorizontal: 5,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  ownerBadgeMiniText: {
+    fontSize: 9.5,
+    fontWeight: '800',
+    color: '#ffffff',
+  },
+  resetCenterBtnMini: {
+    backgroundColor: '#eff6ff',
+    borderWidth: 1,
+    borderColor: '#93c5fd',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  resetCenterBtnMiniText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#2563eb',
+  },
+  stickyRightActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  filterAccordionBtn: {
+    backgroundColor: inkTheme.paper,
+    borderWidth: 1,
+    borderColor: inkTheme.ink6,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+  },
+  filterAccordionBtnActive: {
+    backgroundColor: inkTheme.ink1,
+    borderColor: inkTheme.ink0,
+  },
+  filterAccordionBtnText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: inkTheme.ink2,
+  },
+  filterAccordionBtnTextActive: {
+    color: '#ffffff',
+  },
+  stickyAddBtn: {
+    backgroundColor: '#059669',
+    paddingHorizontal: 9,
+    paddingVertical: 5,
+    borderRadius: 6,
+  },
+  stickyAddBtnText: {
+    color: '#ffffff',
+    fontSize: 11.5,
+    fontWeight: '800',
+  },
+  stickyFilterDropdown: {
+    backgroundColor: '#f8fafc',
+    borderTopWidth: 1,
+    borderTopColor: '#e2e8f0',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    gap: 8,
+  },
+  filterRowCompact: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    flexWrap: 'wrap',
+  },
+  filterLabelCompact: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: inkTheme.ink3,
+    width: 65,
+  },
+  buttonGroupCompact: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    flexWrap: 'wrap',
+    flex: 1,
+  },
+  filterBtnCompact: {
+    backgroundColor: '#ffffff',
+    borderWidth: 1,
+    borderColor: '#cbd5e1',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 5,
+  },
+  filterBtnCompactActive: {
+    backgroundColor: inkTheme.ink1,
+    borderColor: inkTheme.ink1,
+  },
+  filterBtnTextCompact: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#475569',
+  },
+  filterBtnTextCompactActive: {
+    color: '#ffffff',
+  },
+  filterCountLine: {
+    marginTop: 2,
+  },
+  floatingTopBtn: {
+    position: 'absolute',
+    bottom: 24,
+    right: 20,
+    backgroundColor: '#0f172a',
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 24,
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 6,
+    elevation: 8,
+    borderWidth: 1.5,
+    borderColor: '#38bdf8',
+    zIndex: 999,
+  },
+  floatingTopBtnText: {
+    color: '#ffffff',
+    fontSize: 12.5,
+    fontWeight: '800',
+    letterSpacing: 0.5,
   },
   toolbar: {
     backgroundColor: inkTheme.paperDark,
