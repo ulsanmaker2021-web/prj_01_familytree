@@ -10,6 +10,7 @@ import {
 } from 'react-native';
 import { FamilyMember, LineageType } from '../types/family';
 import { getHanjaCandidates } from '../utils/koreanHanjaHelper';
+import { formatPhoneNumber, stripPhoneNumber } from '../utils/securityAuth';
 import { inkTheme } from '../theme/inkTheme';
 
 interface AddFamilyMemberModalProps {
@@ -180,7 +181,7 @@ export const AddFamilyMemberModal: React.FC<AddFamilyMemberModalProps> = ({
       clan: clan.trim() || currentUserClan,
       birthDate: birthDate.trim() || undefined,
       isAlive,
-      phone: phone.trim() || undefined,
+      phone: stripPhoneNumber(phone) || undefined,
       parentIds,
       spouseId,
       achievements: achievements.trim() ? [achievements.trim()] : undefined,
@@ -397,15 +398,26 @@ export const AddFamilyMemberModal: React.FC<AddFamilyMemberModalProps> = ({
             {/* 4. 연락처 & 생존 여부 */}
             <View style={styles.formRow}>
               <View style={[styles.fieldGroup, { flex: 1 }]}>
-                <Text style={styles.fieldLabel}>연락처 (선택)</Text>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <Text style={styles.fieldLabel}>연락처 (선택)</Text>
+                  {phone.length > 0 && (
+                    <TouchableOpacity onPress={() => setPhone('')} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                      <Text style={{ fontSize: 11, color: '#0284c7', fontWeight: '700' }}>지우기 ✕</Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
                 <TextInput
                   style={styles.input}
                   value={phone}
-                  onChangeText={setPhone}
-                  placeholder="010-0000-0000"
+                  onChangeText={(txt) => setPhone(formatPhoneNumber(txt))}
+                  placeholder="하이픈 없이 숫자만 입력 (예: 01012345678)"
                   placeholderTextColor="#94a3b8"
                   keyboardType="phone-pad"
+                  autoComplete="tel"
                 />
+                <Text style={{ fontSize: 11, color: '#0284c7', marginTop: 3 }}>
+                  💡 하이픈(-) 없이 숫자만 입력
+                </Text>
               </View>
               <View style={[styles.fieldGroup, { flex: 1 }]}>
                 <Text style={styles.fieldLabel}>생존 여부</Text>

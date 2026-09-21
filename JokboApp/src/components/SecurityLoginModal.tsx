@@ -62,13 +62,13 @@ export const SecurityLoginModal: React.FC<SecurityLoginModalProps> = ({
     closeLoginModal,
   } = useAuthStore();
 
-  const [activeTab, setActiveTab] = useState<'demo' | 'credentials' | 'register' | 'clan_code'>('demo');
-  const [phoneInput, setPhoneInput] = useState('010-1234-5678');
-  const [passwordInput, setPasswordInput] = useState('password123!');
+  const [activeTab, setActiveTab] = useState<'demo' | 'credentials' | 'register' | 'clan_code'>('credentials');
+  const [phoneInput, setPhoneInput] = useState('');
+  const [passwordInput, setPasswordInput] = useState('');
   const [otpInput, setOtpInput] = useState('');
   const [clanCodeInput, setClanCodeInput] = useState('KJ-KIM-2026-9872X');
-  const [newUserName, setNewUserName] = useState('김동현');
-  const [newUserPhone, setNewUserPhone] = useState('010-3344-9988');
+  const [newUserName, setNewUserName] = useState('');
+  const [newUserPhone, setNewUserPhone] = useState('');
 
   // Firebase Phone Auth State
   const [isFirebaseConfiguredState, setIsFirebaseConfiguredState] = useState(isFirebaseConfigured());
@@ -797,18 +797,48 @@ export const SecurityLoginModal: React.FC<SecurityLoginModalProps> = ({
                     </Text>
 
                     <View style={styles.fieldGroup}>
-                      <Text style={styles.fieldLabel}>휴대전화 번호</Text>
+                      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                        <Text style={styles.fieldLabel}>휴대전화 번호</Text>
+                        {phoneInput.length > 0 && (
+                          <TouchableOpacity onPress={() => setPhoneInput('')} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                            <Text style={{ fontSize: 12, color: '#0284c7', fontWeight: '700' }}>지우기 ✕</Text>
+                          </TouchableOpacity>
+                        )}
+                      </View>
                       <TextInput
                         style={styles.input}
                         value={phoneInput}
                         onChangeText={(txt) => setPhoneInput(formatPhoneNumber(txt))}
-                        placeholder="010-1234-5678"
+                        placeholder="하이픈 없이 숫자만 입력 (예: 01012345678)"
                         placeholderTextColor="#94a3b8"
                         keyboardType="phone-pad"
+                        autoComplete="tel"
                       />
-                      <Text style={styles.fieldHint}>
-                        테스트용: 010-1234-5678 (김준혁) 또는 010-9182-4411 (김영호)
+                      <Text style={styles.phoneInputNotice}>
+                        💡 하이픈(-) 없이 숫자만 입력하세요. (입력 시 자동으로 - 이 정렬됩니다)
                       </Text>
+                      {/* 빠른 테스트용 번호 입력 */}
+                      <View style={styles.quickFillRow}>
+                        <Text style={styles.quickFillLabel}>예시 번호 자동입력:</Text>
+                        <TouchableOpacity
+                          style={styles.quickFillChip}
+                          onPress={() => {
+                            setPhoneInput('010-1234-5678');
+                            setPasswordInput('password123!');
+                          }}
+                        >
+                          <Text style={styles.quickFillChipText}>김준혁 (010-1234-5678)</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          style={styles.quickFillChip}
+                          onPress={() => {
+                            setPhoneInput('010-9182-4411');
+                            setPasswordInput('password123!');
+                          }}
+                        >
+                          <Text style={styles.quickFillChipText}>김영호 (010-9182-4411)</Text>
+                        </TouchableOpacity>
+                      </View>
                     </View>
 
                     <View style={styles.fieldGroup}>
@@ -1209,9 +1239,16 @@ export const SecurityLoginModal: React.FC<SecurityLoginModalProps> = ({
 
                   {/* 휴대전화 번호 및 모바일 친화적 SMS 본인인증 */}
                   <View style={styles.fieldGroup}>
-                    <Text style={styles.fieldLabel}>
-                      휴대전화 번호 (로그인 ID) <Text style={{ color: '#ef4444' }}>*</Text>
-                    </Text>
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                      <Text style={styles.fieldLabel}>
+                        휴대전화 번호 (로그인 ID) <Text style={{ color: '#ef4444' }}>*</Text>
+                      </Text>
+                      {regPhone.length > 0 && !regIsPhoneVerified && (
+                        <TouchableOpacity onPress={() => setRegPhone('')} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                          <Text style={{ fontSize: 12, color: '#0284c7', fontWeight: '700' }}>지우기 ✕</Text>
+                        </TouchableOpacity>
+                      )}
+                    </View>
                     
                     {/* Phone Input */}
                     <TextInput
@@ -1225,11 +1262,15 @@ export const SecurityLoginModal: React.FC<SecurityLoginModalProps> = ({
                         setRegIsPhoneVerified(false);
                         setRegOtpSent(false);
                       }}
-                      placeholder="010-1234-5678"
+                      placeholder="하이픈 없이 숫자만 입력 (예: 01012345678)"
                       placeholderTextColor="#94a3b8"
                       keyboardType="phone-pad"
+                      autoComplete="tel"
                       editable={!regIsPhoneVerified}
                     />
+                    <Text style={styles.phoneInputNotice}>
+                      💡 하이픈(-) 없이 숫자만 입력하세요. (입력 시 자동으로 - 이 정렬됩니다)
+                    </Text>
 
                     {/* Full-width, never cut off OTP Request Button */}
                     <TouchableOpacity
@@ -2635,5 +2676,39 @@ const styles = StyleSheet.create({
     color: '#ffffff',
     fontSize: 13,
     fontWeight: '800',
+  },
+  phoneInputNotice: {
+    fontSize: 12,
+    color: '#0284c7',
+    fontWeight: '600',
+    marginTop: 5,
+    marginBottom: 6,
+    lineHeight: 16,
+  },
+  quickFillRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 4,
+    marginBottom: 6,
+  },
+  quickFillLabel: {
+    fontSize: 11.5,
+    color: '#64748b',
+    fontWeight: '600',
+  },
+  quickFillChip: {
+    backgroundColor: '#f1f5f9',
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#cbd5e1',
+  },
+  quickFillChipText: {
+    fontSize: 11.5,
+    color: '#334155',
+    fontWeight: '600',
   },
 });
