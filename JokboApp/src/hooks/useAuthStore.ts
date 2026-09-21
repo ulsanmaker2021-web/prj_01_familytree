@@ -60,6 +60,18 @@ export function getGlobalIsAuthenticated(): boolean {
   return globalIsAuthenticated;
 }
 
+export function updateGlobalCurrentUserProfile(updates: Partial<UserProfile>) {
+  globalCurrentUser = { ...globalCurrentUser, ...updates };
+  if (globalCurrentUser.isCustomRegistered) {
+    const all = getCustomRegisteredAccounts();
+    const existing = all.find((a) => a.id === globalCurrentUser.id);
+    if (existing) {
+      saveCustomAccount({ ...existing, ...globalCurrentUser });
+    }
+  }
+  notifyAuth();
+}
+
 export function addAuthListener(cb: () => void): () => void {
   authListeners.add(cb);
   return () => {
@@ -386,5 +398,6 @@ export function useAuthStore() {
     logout,
     openLoginModal,
     closeLoginModal,
+    updateCurrentUserProfile: updateGlobalCurrentUserProfile,
   };
 }

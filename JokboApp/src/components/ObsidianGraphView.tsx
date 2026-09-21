@@ -131,6 +131,19 @@ export const ObsidianGraphView: React.FC<ObsidianGraphViewProps> = ({
           x: CX + 270 * Math.cos(rad),
           y: CY + 270 * Math.sin(rad),
         };
+      } else if (
+        m.generation === 3 &&
+        (m.relationship?.includes('형') ||
+          m.relationship?.includes('동생') ||
+          m.relationship?.includes('형제') ||
+          m.id.includes('brother'))
+      ) {
+        // 형제(동생/형)는 중심 본인(CX, CY) 근처의 9시 방향에 자연스럽게 배치
+        const rad = (205 * Math.PI) / 180;
+        posMap[m.id] = {
+          x: CX + 190 * Math.cos(rad),
+          y: CY + 190 * Math.sin(rad),
+        };
       } else {
         const startRad = (130 * Math.PI) / 180;
         const endRad = (240 * Math.PI) / 180;

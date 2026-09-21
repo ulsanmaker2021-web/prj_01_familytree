@@ -16,6 +16,7 @@ import { getMemberAvatar, hasCustomPhoto } from '../utils/avatarGenerator';
 import { verifyMemberLineage } from '../utils/genealogyVerification';
 import { MasterVerificationModal } from './MasterVerificationModal';
 import { MasterTrackingDashboardModal } from './MasterTrackingDashboardModal';
+import { EditMemberInfoModal } from './EditMemberInfoModal';
 import { getRequestsForMember } from '../utils/genealogyMasterData';
 import { useAuthStore } from '../hooks/useAuthStore';
 import { maskSensitiveInfo } from '../utils/securityAuth';
@@ -30,6 +31,7 @@ interface MemberDetailModalProps {
   establishedLinks?: EstablishedLink[];
   onOpenCertificate?: (link: EstablishedLink) => void;
   onUpdatePhoto?: (memberId: string, newPhotoUrl: string) => void;
+  onUpdateMember?: (updatedMember: FamilyMember) => void;
 }
 
 export const MemberDetailModal: React.FC<MemberDetailModalProps> = ({
@@ -42,12 +44,14 @@ export const MemberDetailModal: React.FC<MemberDetailModalProps> = ({
   establishedLinks = [],
   onOpenCertificate,
   onUpdatePhoto,
+  onUpdateMember,
 }) => {
   const [isEditingPhoto, setIsEditingPhoto] = useState(false);
   const [photoInput, setPhotoInput] = useState('');
   const [isMasterModalVisible, setIsMasterModalVisible] = useState(false);
   const [isDashboardVisible, setIsDashboardVisible] = useState(false);
   const [isVerificationReportExpanded, setIsVerificationReportExpanded] = useState(false);
+  const [isEditModalVisible, setIsEditModalVisible] = useState(false);
   const { currentUser } = useAuthStore();
 
   if (!member) return null;
@@ -253,9 +257,26 @@ export const MemberDetailModal: React.FC<MemberDetailModalProps> = ({
                 <Text style={styles.infoLabel}>생년월일</Text>
                 <Text style={styles.infoValue}>
                   {displayBirthDate || '미상'}
+                  {member.lunarBirth ? ' (음력)' : ''}
                   {member.deathDate ? ` ~ ${member.deathDate}` : ''}
                 </Text>
               </View>
+              {!member.isAlive && member.deathDate ? (
+                <View style={styles.infoRow}>
+                  <Text style={styles.infoLabel}>기일 (忌日)</Text>
+                  <Text style={[styles.infoValue, { color: '#dc2626', fontWeight: '800' }]}>
+                    {member.deathDate}
+                  </Text>
+                </View>
+              ) : null}
+              {!member.isAlive && member.burialSite ? (
+                <View style={styles.infoRow}>
+                  <Text style={styles.infoLabel}>묘소 / 장지</Text>
+                  <Text style={[styles.infoValue, { color: '#0369a1', fontWeight: '700' }]}>
+                    {member.burialSite}
+                  </Text>
+                </View>
+              ) : null}
               <View style={styles.infoRow}>
                 <Text style={styles.infoLabel}>성별</Text>
                 <Text style={styles.infoValue}>
@@ -549,6 +570,29 @@ export const MemberDetailModal: React.FC<MemberDetailModalProps> = ({
 
             {/* Action Buttons */}
             <View style={styles.actionContainer}>
+              {/* ✏️ 인물 정보 직접 수정 버튼 (본인 또는 자식이 부모의 생존/작고·기일·장지 직접 관리) */}
+              {(member.relationship === '본인' ||
+                member.id === currentUser.memberId ||
+                member.relationship.includes('부') ||
+                member.relationship.includes('모') ||
+                member.relationship.includes('아버지') ||
+                member.relationship.includes('어머니') ||
+                member.generation <= 2 ||
+                currentUser.role === 'admin' ||
+                currentUser.role === 'direct_family') && (
+                <TouchableOpacity
+                  style={styles.editMemberActionButton}
+                  onPress={() => setIsEditModalVisible(true)}
+                  activeOpacity={0.8}
+                >
+                  <Text style={styles.editMemberActionButtonText}>
+                    ✏️ {member.relationship.includes('부') || member.relationship.includes('모') || member.relationship.includes('아버지') || member.relationship.includes('어머니') || member.generation <= 2
+                      ? '부모·선조 정보 수정 (작고·기일·장지)'
+                      : '인적 정보 수정'}
+                  </Text>
+                </TouchableOpacity>
+              )}
+
               {onSelectAsCenter ? (
                 <TouchableOpacity
                   style={styles.centerActionButton}
@@ -596,6 +640,17 @@ export const MemberDetailModal: React.FC<MemberDetailModalProps> = ({
           </ScrollView>
         </View>
       </View>
+
+      <EditMemberInfoModal
+        visible={isEditModalVisible}
+        member={member}
+        onClose={() => setIsEditModalVisible(false)}
+        onSave={(updated) => {
+          if (onUpdateMember) {
+            onUpdateMember(updated);
+          }
+        }}
+      />
 
       <MasterVerificationModal
         visible={isMasterModalVisible}
@@ -1364,5 +1419,22 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: '800',
     color: '#b91c1c',
+  },
+  editMemberActionButton: {
+    backgroundColor: '#0284c7',
+    paddingVertical: 12,
+    borderRadius: 8,
+    alignItems: 'center',
+    marginBottom: 8,
+    shadowColor: '#0284c7',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  editMemberActionButtonText: {
+    color: '#ffffff',
+    fontSize: 13.5,
+    fontWeight: '800',
   },
 });

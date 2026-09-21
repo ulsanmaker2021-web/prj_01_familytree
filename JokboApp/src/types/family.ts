@@ -18,6 +18,8 @@ export interface FamilyMember {
   lastContactDate?: string; // YYYY-MM-DD
   contactCycleDays?: number; // 권장 안부 주기 (일)
   memo?: string;
+  burialSite?: string; // 묘소 / 봉안당 위치 (선산 장지)
+  lunarBirth?: boolean; // 음력 생일 여부
   photoUrl?: string; // 인물 사진 URL (거실 액자형 가계도 약전용)
   achievements?: string[]; // 가문 내 주요 약력, 직함, 업적 (예: 창업주, 신지식인, 종손 등)
   clanGeneration?: number; // 시조 기준 세(世) (예: 29세 또는 30세)
@@ -65,4 +67,27 @@ export interface EstablishedLink {
   titleAtoB?: string;
   titleBtoA?: string;
   chonText?: string;
+}
+
+// 📱 스마트 형제·친족 전화번호 결연 신청 및 부모 대조 패키지
+export interface SmartKinshipRequest {
+  id: string;
+  senderUserId: string;
+  senderMemberId: string;
+  senderName: string;
+  senderPhone: string;
+  senderBirthDate?: string;
+  senderFatherName?: string;
+  senderMotherName?: string;
+  senderClan?: string;
+  receiverPhone: string; // 수신 대상 형제 전화번호 (숫자만)
+  receiverUserId?: string;
+  relationType: RelationType; // 'sibling'
+  status: 'pending' | 'approved' | 'rejected';
+  createdAt: string;
+  fatherMatched?: boolean;
+  motherMatched?: boolean;
+  matchScore?: number; // 0 ~ 100
+  certificateNo?: string;
+  note?: string;
 }

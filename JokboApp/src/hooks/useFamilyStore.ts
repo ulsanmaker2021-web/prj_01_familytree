@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { getGlobalCurrentUser, addAuthListener } from './useAuthStore';
+import { getGlobalCurrentUser, addAuthListener, updateGlobalCurrentUserProfile } from './useAuthStore';
 import { UserProfile } from '../types/auth';
 import { extractSurname } from '../utils/koreanHanjaHelper';
 import {
@@ -9,6 +9,7 @@ import {
   RelationType,
   OperationMode,
   ApprovalStatus,
+  SmartKinshipRequest,
 } from '../types/family';
 import {
   INITIAL_FAMILY_DATA,
@@ -20,6 +21,11 @@ import {
   DESIGNATED_ELDERS,
   ElderApproverInfo,
 } from '../utils/mockFamilyData';
+import {
+  stripPhoneNumber,
+  formatPhoneNumber,
+  getAllSecurityAccounts,
+} from '../utils/securityAuth';
 
 // Module-level shared store state
 let globalMembers: FamilyMember[] = [...INITIAL_FAMILY_DATA];
@@ -38,6 +44,35 @@ let globalConnectedDevices: Record<DeviceId, boolean> = {
 
 // Central person for radial/tree focus (defaults to device owner)
 let globalCenterPersonId: string = DEVICE_PROFILES.device_A.ownerId;
+
+// ==========================================
+// 📱 [스마트 형제·친족 결연 신청 저장소]
+// ==========================================
+const SMART_REQUESTS_KEY = 'jokbo_smart_requests_v1';
+
+export function getStoredSmartRequests(): SmartKinshipRequest[] {
+  if (typeof window === 'undefined' || !window.localStorage) return [];
+  try {
+    const raw = localStorage.getItem(SMART_REQUESTS_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch (e) {
+    return [];
+  }
+}
+
+export function saveStoredSmartRequests(requests: SmartKinshipRequest[]): boolean {
+  if (typeof window === 'undefined' || !window.localStorage) return false;
+  try {
+    localStorage.setItem(SMART_REQUESTS_KEY, JSON.stringify(requests));
+    return true;
+  } catch (e) {
+    return false;
+  }
+}
+
+let globalSmartRequests: SmartKinshipRequest[] = getStoredSmartRequests();
 
 const listeners = new Set<() => void>();
 
@@ -205,6 +240,7 @@ export function useFamilyStore() {
   const [members, setMembers] = useState<FamilyMember[]>(globalMembers);
   const [unconnectedMembers, setUnconnectedMembers] = useState<FamilyMember[]>(globalUnconnectedMembers);
   const [establishedLinks, setEstablishedLinks] = useState<EstablishedLink[]>(globalEstablishedLinks);
+  const [smartRequests, setSmartRequests] = useState<SmartKinshipRequest[]>(globalSmartRequests);
   const [operationMode, setOperationModeState] = useState<OperationMode>(globalOperationMode);
   const [currentDeviceId, setCurrentDeviceId] = useState<DeviceId>(globalCurrentDeviceId);
   const [connectedDevices, setConnectedDevices] = useState<Record<DeviceId, boolean>>({ ...globalConnectedDevices });
@@ -215,6 +251,7 @@ export function useFamilyStore() {
       setMembers([...globalMembers]);
       setUnconnectedMembers([...globalUnconnectedMembers]);
       setEstablishedLinks([...globalEstablishedLinks]);
+      setSmartRequests([...globalSmartRequests]);
       setOperationModeState(globalOperationMode);
       setCurrentDeviceId(globalCurrentDeviceId);
       setConnectedDevices({ ...globalConnectedDevices });
@@ -777,6 +814,360 @@ export function useFamilyStore() {
     notify();
   };
 
+  // ✏️ 인물 정보 직접 수정 (본인 또는 자식이 부모/선조의 생존·작고 정보 수정)
+  const updateMember = (updated: FamilyMember) => {
+    globalMembers = globalMembers.map((m) => (m.id === updated.id ? updated : m));
+    globalUnconnectedMembers = globalUnconnectedMembers.map((m) => (m.id === updated.id ? updated : m));
+
+    const currentUser = getGlobalCurrentUser();
+    if (currentUser && currentUser.isCustomRegistered) {
+      saveStoredCustomFamily(currentUser.id, globalMembers);
+    }
+
+    // 본인 수정 시 사용자 프로필 동기화
+    if (
+      currentUser &&
+      (currentUser.memberId === updated.id || updated.relationship === '본인')
+    ) {
+      updateGlobalCurrentUserProfile({
+        name: updated.name,
+        hanja: updated.hanja,
+        birthDate: updated.birthDate,
+        phone: updated.phone,
+        clan: updated.clan,
+      });
+    }
+
+    // 부모 수정 시 프로필 내 부/모 성함 동기화
+    if (currentUser) {
+      if (updated.relationship.includes('부') || updated.relationship.includes('아버지')) {
+        updateGlobalCurrentUserProfile({ fatherName: updated.name });
+      } else if (updated.relationship.includes('모') || updated.relationship.includes('어머니')) {
+        updateGlobalCurrentUserProfile({ motherName: updated.name });
+      }
+    }
+
+    notify();
+  };
+
+  // 📱 스마트 형제·친족 전화번호 결연 신청
+  const sendSmartKinshipRequest = (
+    receiverPhoneInput: string,
+    relationType: RelationType = 'sibling'
+  ): { success: boolean; message: string; request?: SmartKinshipRequest } => {
+    const cleanReceiverPhone = stripPhoneNumber(receiverPhoneInput);
+    if (cleanReceiverPhone.length < 10) {
+      return { success: false, message: '올바른 휴대전화 번호(10~11자리)를 입력해주세요.' };
+    }
+
+    const currentUser = getGlobalCurrentUser();
+    const selfMember =
+      globalMembers.find((m) => m.id === currentUser?.memberId || m.relationship === '본인') ||
+      globalMembers[0];
+
+    if (!selfMember) {
+      return { success: false, message: '신청자의 정보를 가계도에서 찾을 수 없습니다.' };
+    }
+
+    const cleanSelfPhone = stripPhoneNumber(currentUser?.phone || selfMember.phone);
+    if (cleanSelfPhone && cleanSelfPhone === cleanReceiverPhone) {
+      return { success: false, message: '본인의 전화번호로는 결연을 신청할 수 없습니다.' };
+    }
+
+    // 부모 정보 추출
+    const father = globalMembers.find(
+      (m) =>
+        selfMember.parentIds?.includes(m.id) &&
+        (m.gender === 'M' || m.relationship.includes('부') || m.relationship.includes('아버지'))
+    );
+    const mother = globalMembers.find(
+      (m) =>
+        selfMember.parentIds?.includes(m.id) &&
+        (m.gender === 'F' || m.relationship.includes('모') || m.relationship.includes('어머니'))
+    );
+
+    const senderFatherName = father?.name || currentUser?.fatherName;
+    const senderMotherName = mother?.name || currentUser?.motherName;
+
+    // 수신 대상 계정 확인
+    const allAccounts = getAllSecurityAccounts();
+    const targetAccount = allAccounts.find(
+      (a) => stripPhoneNumber(a.phone) === cleanReceiverPhone
+    );
+
+    const requestId = `smart-req-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`;
+    const newReq: SmartKinshipRequest = {
+      id: requestId,
+      senderUserId: currentUser?.id || `user-custom-${Date.now()}`,
+      senderMemberId: selfMember.id,
+      senderName: selfMember.name,
+      senderPhone: cleanSelfPhone,
+      senderBirthDate: selfMember.birthDate,
+      senderFatherName,
+      senderMotherName,
+      senderClan: selfMember.clan,
+      receiverPhone: cleanReceiverPhone,
+      receiverUserId: targetAccount?.id,
+      relationType,
+      status: 'pending',
+      createdAt: new Date().toISOString().substring(0, 10),
+    };
+
+    // 부모 정보 대조 사전 판정
+    if (targetAccount) {
+      const targetFather = targetAccount.fatherName;
+      const targetMother = targetAccount.motherName;
+      const fMatch = Boolean(
+        senderFatherName && targetFather && senderFatherName.trim() === targetFather.trim()
+      );
+      const mMatch = Boolean(
+        senderMotherName && targetMother && senderMotherName.trim() === targetMother.trim()
+      );
+      newReq.fatherMatched = fMatch;
+      newReq.motherMatched = mMatch;
+      newReq.matchScore = (fMatch ? 50 : 0) + (mMatch ? 50 : 0);
+    }
+
+    globalSmartRequests = [newReq, ...globalSmartRequests.filter((r) => r.id !== requestId)];
+    saveStoredSmartRequests(globalSmartRequests);
+    notify();
+
+    const targetLabel = targetAccount ? `${targetAccount.name} 회원님` : `${formatPhoneNumber(cleanReceiverPhone)} 님`;
+    return {
+      success: true,
+      message: `🎉 [결연 신청 완료] ${targetLabel}께 스마트 형제 결연 신청이 전송되었습니다! 상대방이 앱에서 부모 정보를 확인 후 승인하면 가계도가 하나로 통합됩니다.`,
+      request: newReq,
+    };
+  };
+
+  // 🤝 스마트 형제 결연 승인 및 부모 노드 단일화 & 가계도 통합 (Merge)
+  const approveSmartKinshipRequest = (
+    requestId: string
+  ): { success: boolean; message: string; certificateNo?: string } => {
+    const req = globalSmartRequests.find((r) => r.id === requestId);
+    if (!req) {
+      return { success: false, message: '해당 결연 신청 건을 찾을 수 없습니다.' };
+    }
+
+    const currentUser = getGlobalCurrentUser();
+    const selfMember =
+      globalMembers.find((m) => m.id === currentUser?.memberId || m.relationship === '본인') ||
+      globalMembers[0];
+
+    const certificateNo = `족보공인 제 2026-B${Math.floor(10000 + Math.random() * 90000)}호`;
+
+    // 1. 요청 상태 업데이트
+    const updatedReq: SmartKinshipRequest = {
+      ...req,
+      status: 'approved',
+      certificateNo,
+    };
+    globalSmartRequests = globalSmartRequests.map((r) => (r.id === requestId ? updatedReq : r));
+    saveStoredSmartRequests(globalSmartRequests);
+
+    // 2. 부모 노드 확인 및 단일화
+    const existingParentIds = [...(selfMember.parentIds || [])];
+
+    let fatherNode = globalMembers.find(
+      (m) =>
+        existingParentIds.includes(m.id) &&
+        (m.gender === 'M' || m.relationship.includes('부') || m.relationship.includes('아버지'))
+    );
+    let motherNode = globalMembers.find(
+      (m) =>
+        existingParentIds.includes(m.id) &&
+        (m.gender === 'F' || m.relationship.includes('모') || m.relationship.includes('어머니'))
+    );
+
+    if (!fatherNode && (req.senderFatherName || currentUser?.fatherName)) {
+      const fName = req.senderFatherName || currentUser?.fatherName || '선친';
+      const fId = `father-${currentUser?.id || Date.now()}`;
+      fatherNode = {
+        id: fId,
+        name: fName,
+        gender: 'M',
+        generation: 2,
+        lineage: 'paternal',
+        relationship: '부 (아버지)',
+        clan: selfMember.clan,
+        birthDate: '1963-03-12',
+        isAlive: true,
+        parentIds: [],
+        isVerifiedLineage: true,
+      };
+      globalMembers.push(fatherNode);
+      if (!existingParentIds.includes(fId)) {
+        existingParentIds.push(fId);
+      }
+    }
+
+    if (!motherNode && (req.senderMotherName || currentUser?.motherName)) {
+      const mName = req.senderMotherName || currentUser?.motherName || '자모';
+      const mId = `mother-${currentUser?.id || Date.now()}`;
+      motherNode = {
+        id: mId,
+        name: mName,
+        gender: 'F',
+        generation: 2,
+        lineage: 'maternal',
+        relationship: '모 (어머니)',
+        clan: `${extractSurname(mName) || '이'}씨 배위`,
+        birthDate: '1966-08-20',
+        isAlive: true,
+        parentIds: [],
+        spouseId: fatherNode?.id,
+        isVerifiedLineage: true,
+      };
+      if (fatherNode) fatherNode.spouseId = mId;
+      globalMembers.push(motherNode);
+      if (!existingParentIds.includes(mId)) {
+        existingParentIds.push(mId);
+      }
+    }
+
+    selfMember.parentIds = existingParentIds;
+
+    // 3. 신청자를 형제 노드로 수신자 가계도에 편입
+    const isSenderOlder =
+      req.senderBirthDate && selfMember.birthDate
+        ? req.senderBirthDate < selfMember.birthDate
+        : false;
+    const siblingRel = isSenderOlder ? '형 (형제)' : '남동생 (형제)';
+
+    const existingSibling = globalMembers.find(
+      (m) =>
+        m.id === req.senderMemberId ||
+        (m.name === req.senderName && stripPhoneNumber(m.phone) === req.senderPhone)
+    );
+
+    let brotherNode: FamilyMember;
+    if (existingSibling) {
+      brotherNode = {
+        ...existingSibling,
+        parentIds: [...existingParentIds], // 동일 부모 노드 공유
+        relationship: siblingRel,
+        isVerifiedLineage: true,
+        memo: `스마트 족보 결연: 동일 부모(${req.senderFatherName || '부'}, ${req.senderMotherName || '모'}) 확인 및 가계도 편입 (${certificateNo})`,
+      };
+      globalMembers = globalMembers.map((m) => (m.id === brotherNode.id ? brotherNode : m));
+    } else {
+      brotherNode = {
+        id: req.senderMemberId || `mem-brother-${Date.now()}`,
+        name: req.senderName,
+        gender: 'M',
+        generation: selfMember.generation || 3,
+        lineage: 'paternal',
+        relationship: siblingRel,
+        clan: selfMember.clan,
+        birthDate: req.senderBirthDate || '1992-05-10',
+        isAlive: true,
+        parentIds: [...existingParentIds], // 동일 부모 노드 공유!
+        phone: req.senderPhone,
+        isVerifiedLineage: true,
+        achievements: ['가문 족보 형제 결연 공인'],
+        memo: `스마트 족보 결연: 동일 부모(${req.senderFatherName || '부'}, ${req.senderMotherName || '모'}) 확인 및 가계도 편입 (${certificateNo})`,
+      };
+      globalMembers.push(brotherNode);
+    }
+
+    // 수신자 가계도 영구 저장
+    if (currentUser && currentUser.isCustomRegistered) {
+      saveStoredCustomFamily(currentUser.id, globalMembers);
+    }
+
+    // 4. 신청자의 저장된 가계도에도 수신자를 형제로 상호 편입
+    if (req.senderUserId) {
+      const senderTree = getStoredCustomFamily(req.senderUserId);
+      if (senderTree && senderTree.length > 0) {
+        const senderSelf =
+          senderTree.find((m) => m.id === req.senderMemberId || m.relationship === '본인') ||
+          senderTree[0];
+        const reverseRel = isSenderOlder ? '남동생 (형제)' : '형 (형제)';
+        const recipientAsBrother: FamilyMember = {
+          id: selfMember.id,
+          name: selfMember.name,
+          gender: selfMember.gender,
+          generation: selfMember.generation,
+          lineage: 'paternal',
+          relationship: reverseRel,
+          clan: selfMember.clan,
+          birthDate: selfMember.birthDate,
+          isAlive: selfMember.isAlive,
+          parentIds: senderSelf.parentIds || [],
+          phone: selfMember.phone,
+          isVerifiedLineage: true,
+          achievements: ['가문 족보 형제 결연 공인'],
+          memo: `스마트 족보 결연: 동일 부모 확인 및 가계도 편입 (${certificateNo})`,
+        };
+        const updatedSenderTree = senderTree.filter((m) => m.id !== selfMember.id);
+        updatedSenderTree.push(recipientAsBrother);
+        saveStoredCustomFamily(req.senderUserId, updatedSenderTree);
+      }
+    }
+
+    // 5. 공인 결연 링크 추가
+    const newLink: EstablishedLink = {
+      id: `link-smart-${Date.now()}`,
+      personAId: selfMember.id,
+      personBId: brotherNode.id,
+      relationType: 'sibling',
+      establishedDate: new Date().toISOString().substring(0, 10),
+      isNewlyFormed: true,
+      formationMode: 'decentralized_p2p',
+      status: 'approved',
+      requesterId: req.senderMemberId,
+      receiverId: selfMember.id,
+      certificateIssued: true,
+      certificateNo,
+      titleAtoB: siblingRel,
+      titleBtoA: isSenderOlder ? '남동생' : '형',
+      chonText: '2촌 (형제)',
+      note: `스마트 부모 일치 검증 완료 (부: ${req.senderFatherName || '일치'}, 모: ${req.senderMotherName || '일치'}) → 단일 가계도 통합`,
+    };
+    globalEstablishedLinks = [newLink, ...globalEstablishedLinks];
+
+    notify();
+
+    return {
+      success: true,
+      certificateNo,
+      message: `🎉 [친형제 결연 승인 완료] ${req.senderName}님과의 형제 관계가 공인되었습니다! 부모 노드가 하나로 단일화되고 가계도에 형제로 등록되었습니다. (${certificateNo})`,
+    };
+  };
+
+  // ❌ 스마트 결연 반려
+  const rejectSmartKinshipRequest = (
+    requestId: string,
+    reason: string = '친족 정보 불일치'
+  ): { success: boolean; message: string } => {
+    const req = globalSmartRequests.find((r) => r.id === requestId);
+    if (!req) return { success: false, message: '해당 결연 요청을 찾을 수 없습니다.' };
+
+    const updatedReq: SmartKinshipRequest = {
+      ...req,
+      status: 'rejected',
+      note: reason,
+    };
+    globalSmartRequests = globalSmartRequests.map((r) => (r.id === requestId ? updatedReq : r));
+    saveStoredSmartRequests(globalSmartRequests);
+    notify();
+
+    return {
+      success: true,
+      message: `결연 요청이 반려되었습니다. (사유: ${reason})`,
+    };
+  };
+
+  // 대기 중인 스마트 결연 요청 (수신 대상이 나인 건)
+  const cleanCurrentUserPhone = stripPhoneNumber(getGlobalCurrentUser()?.phone);
+  const currentUserId = getGlobalCurrentUser()?.id;
+  const pendingSmartRequests = smartRequests.filter((r) => {
+    if (r.status !== 'pending') return false;
+    if (cleanCurrentUserPhone && stripPhoneNumber(r.receiverPhone) === cleanCurrentUserPhone) return true;
+    if (currentUserId && r.receiverUserId === currentUserId) return true;
+    return false;
+  });
+
   return {
     // All members in database
     allMembers: members,
@@ -788,6 +1179,13 @@ export function useFamilyStore() {
     establishedLinks,
     pendingElderLinks,
     approvedLinks,
+    // Smart Kinship Requests
+    smartRequests,
+    pendingSmartRequests,
+    sendSmartKinshipRequest,
+    approveSmartKinshipRequest,
+    rejectSmartKinshipRequest,
+    updateMember,
     operationMode,
     setOperatingMode,
     // Connect & 2-step verification APIs

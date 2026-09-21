@@ -6,13 +6,14 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import { FamilyMember, LineageType } from '../types/family';
+import { FamilyMember, LineageType, SmartKinshipRequest } from '../types/family';
 import { LINEAGES, getLifeStatus, getKinshipRelation } from '../utils/mockFamilyData';
 import { useFamilyStore } from '../hooks/useFamilyStore';
 import { useAuthStore } from '../hooks/useAuthStore';
 import { AddFamilyMemberModal } from '../components/AddFamilyMemberModal';
 import { DeviceSimulatorBar } from '../components/DeviceSimulatorBar';
 import { MemberDetailModal } from '../components/MemberDetailModal';
+import { SmartKinshipInspectionModal } from '../components/SmartKinshipInspectionModal';
 import { ObsidianGraphView } from '../components/ObsidianGraphView';
 import { RelationshipStudioModal } from '../components/RelationshipStudioModal';
 import { FramedMasterpieceView } from '../components/FramedMasterpieceView';
@@ -58,6 +59,12 @@ export default function HomeScreen() {
     isViewingDemo,
     toggleDemoView,
     addCustomFamilyMember,
+    smartRequests,
+    pendingSmartRequests,
+    sendSmartKinshipRequest,
+    approveSmartKinshipRequest,
+    rejectSmartKinshipRequest,
+    updateMember,
   } = useFamilyStore();
 
   const [kinshipScope, setKinshipScope] = useState<KinshipScope>('cousin4');
@@ -66,6 +73,7 @@ export default function HomeScreen() {
   const [selectedMember, setSelectedMember] = useState<FamilyMember | null>(null);
   const [studioVisible, setStudioVisible] = useState(false);
   const [studioPreselectedPersonAId, setStudioPreselectedPersonAId] = useState<string | undefined>(undefined);
+  const [inspectingRequest, setInspectingRequest] = useState<SmartKinshipRequest | null>(null);
 
   // Navigation history of explored center persons
   const [centerHistory, setCenterHistory] = useState<string[]>([currentDevice.ownerId]);
@@ -597,6 +605,36 @@ export default function HomeScreen() {
           </View>
         </View>
 
+        {/* 🔔 스마트 형제·친족 결연 신청 알람 배너 (도착 시 최우선 표시) */}
+        {pendingSmartRequests.length > 0 && (
+          <View style={styles.smartAlertBanner}>
+            <View style={styles.smartAlertLeft}>
+              <View style={styles.smartAlertIconCircle}>
+                <Text style={styles.smartAlertIcon}>🔔</Text>
+              </View>
+              <View style={styles.smartAlertTextWrap}>
+                <View style={styles.smartAlertBadgeRow}>
+                  <Text style={styles.smartAlertBadge}>형제 결연 신청 도착</Text>
+                  <Text style={styles.smartAlertTime}>실시간 알림</Text>
+                </View>
+                <Text style={styles.smartAlertTitle}>
+                  {pendingSmartRequests[0].senderName}님께서 친형제 결연 및 가계도 통합을 신청하셨습니다!
+                </Text>
+                <Text style={styles.smartAlertSubtitle}>
+                  신청인이 등록한 부모(부: {pendingSmartRequests[0].senderFatherName || '미입력'}, 모: {pendingSmartRequests[0].senderMotherName || '미입력'})와 내 부모 정보를 1:1 대조하고 승인하세요.
+                </Text>
+              </View>
+            </View>
+            <TouchableOpacity
+              style={styles.smartAlertBtn}
+              onPress={() => setInspectingRequest(pendingSmartRequests[0])}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.smartAlertBtnText}>부모 정보 대조 및 승인 ➔</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
         {/* Dual Operating System Mode & Kinship Studio Banner */}
         <View style={styles.studioLauncherBanner}>
           <View style={styles.studioLauncherLeft}>
@@ -853,6 +891,10 @@ export default function HomeScreen() {
           updateMemberPhoto(memberId, newPhotoUrl);
           setSelectedMember((prev) => (prev && prev.id === memberId ? { ...prev, photoUrl: newPhotoUrl } : prev));
         }}
+        onUpdateMember={(updatedMember) => {
+          updateMember(updatedMember);
+          setSelectedMember(updatedMember);
+        }}
       />
 
       {/* Relationship Linkage Studio Modal (Dual Operating Mode & 2-Step Verification) */}
@@ -864,8 +906,13 @@ export default function HomeScreen() {
         establishedLinks={establishedLinks}
         pendingElderLinks={pendingElderLinks}
         approvedLinks={approvedLinks}
+        smartRequests={smartRequests}
         operationMode={operationMode}
         onSetOperationMode={setOperatingMode}
+        onSendSmartKinship={sendSmartKinshipRequest}
+        onApproveSmartKinship={approveSmartKinshipRequest}
+        onRejectSmartKinship={rejectSmartKinshipRequest}
+        onOpenSmartInspection={(req) => setInspectingRequest(req)}
         onConnect={connectMembers}
         onRequestP2P={requestP2PKinship}
         onElderApprove={elderApproveKinship}
@@ -874,6 +921,30 @@ export default function HomeScreen() {
         onResetAll={resetEstablishedLinks}
         onAddCustomMember={addCustomUnconnectedMember}
         initialPersonAId={studioPreselectedPersonAId}
+      />
+
+      {/* Smart Kinship Inspection & Parent Comparison Modal */}
+      <SmartKinshipInspectionModal
+        visible={!!inspectingRequest}
+        request={inspectingRequest}
+        myFatherName={
+          members.find(
+            (m) =>
+              centerPerson?.parentIds?.includes(m.id) &&
+              (m.gender === 'M' || m.relationship.includes('부') || m.relationship.includes('아버지'))
+          )?.name || currentUser.fatherName
+        }
+        myMotherName={
+          members.find(
+            (m) =>
+              centerPerson?.parentIds?.includes(m.id) &&
+              (m.gender === 'F' || m.relationship.includes('모') || m.relationship.includes('어머니'))
+          )?.name || currentUser.motherName
+        }
+        myClan={currentUser.clan || centerPerson?.clan}
+        onClose={() => setInspectingRequest(null)}
+        onApprove={approveSmartKinshipRequest}
+        onReject={rejectSmartKinshipRequest}
       />
 
       {/* Modal for adding custom family member */}
@@ -1542,6 +1613,97 @@ const styles = StyleSheet.create({
     elevation: 3,
   },
   singleMemberAddBtnText: {
+    color: '#ffffff',
+    fontSize: 12.5,
+    fontWeight: '800',
+  },
+  smartAlertBanner: {
+    backgroundColor: '#eff6ff',
+    borderWidth: 1.5,
+    borderColor: '#60a5fa',
+    borderRadius: 12,
+    padding: 14,
+    marginHorizontal: 16,
+    marginTop: 12,
+    marginBottom: 6,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    flexWrap: 'wrap',
+    gap: 12,
+    shadowColor: '#2563eb',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.12,
+    shadowRadius: 6,
+    elevation: 3,
+  },
+  smartAlertLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    flex: 1,
+    minWidth: 260,
+  },
+  smartAlertIconCircle: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    backgroundColor: '#dbeafe',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#bfdbfe',
+  },
+  smartAlertIcon: {
+    fontSize: 22,
+  },
+  smartAlertTextWrap: {
+    flex: 1,
+  },
+  smartAlertBadgeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 3,
+  },
+  smartAlertBadge: {
+    backgroundColor: '#2563eb',
+    color: '#ffffff',
+    fontSize: 10.5,
+    fontWeight: '800',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  smartAlertTime: {
+    fontSize: 10.5,
+    color: '#3b82f6',
+    fontWeight: '600',
+  },
+  smartAlertTitle: {
+    fontSize: 13.5,
+    fontWeight: '800',
+    color: '#1e3a8a',
+    lineHeight: 18,
+  },
+  smartAlertSubtitle: {
+    fontSize: 11.5,
+    color: '#1d4ed8',
+    marginTop: 2,
+    lineHeight: 16,
+  },
+  smartAlertBtn: {
+    backgroundColor: '#2563eb',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 8,
+    shadowColor: '#1d4ed8',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  smartAlertBtnText: {
     color: '#ffffff',
     fontSize: 12.5,
     fontWeight: '800',

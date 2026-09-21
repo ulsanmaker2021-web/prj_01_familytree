@@ -8,7 +8,7 @@ import {
   ScrollView,
   TextInput,
 } from 'react-native';
-import { FamilyMember, RelationType, EstablishedLink, OperationMode } from '../types/family';
+import { FamilyMember, RelationType, EstablishedLink, OperationMode, SmartKinshipRequest } from '../types/family';
 import {
   calculateKinshipBetween,
   findElderApproverFor,
@@ -17,6 +17,8 @@ import {
   UNCONNECTED_TEST_MEMBERS,
 } from '../utils/mockFamilyData';
 import { inkTheme } from '../theme/inkTheme';
+import { useAuthStore } from '../hooks/useAuthStore';
+import { stripPhoneNumber, formatPhoneNumber, getAllSecurityAccounts } from '../utils/securityAuth';
 
 interface RelationshipStudioModalProps {
   visible: boolean;
@@ -26,8 +28,16 @@ interface RelationshipStudioModalProps {
   establishedLinks: EstablishedLink[];
   pendingElderLinks: EstablishedLink[];
   approvedLinks: EstablishedLink[];
+  smartRequests?: SmartKinshipRequest[];
   operationMode: OperationMode;
   onSetOperationMode: (mode: OperationMode) => void;
+  onSendSmartKinship?: (
+    receiverPhone: string,
+    relationType: RelationType
+  ) => { success: boolean; message: string; request?: SmartKinshipRequest };
+  onApproveSmartKinship?: (requestId: string) => { success: boolean; message: string; certificateNo?: string };
+  onRejectSmartKinship?: (requestId: string, reason?: string) => { success: boolean; message: string };
+  onOpenSmartInspection?: (request: SmartKinshipRequest) => void;
   onConnect: (personAId: string, personBId: string, relationType: RelationType) => {
     success: boolean;
     message: string;
@@ -74,8 +84,13 @@ export const RelationshipStudioModal: React.FC<RelationshipStudioModalProps> = (
   establishedLinks,
   pendingElderLinks,
   approvedLinks,
+  smartRequests = [],
   operationMode,
   onSetOperationMode,
+  onSendSmartKinship,
+  onApproveSmartKinship,
+  onRejectSmartKinship,
+  onOpenSmartInspection,
   onConnect,
   onRequestP2P,
   onElderApprove,
@@ -85,10 +100,15 @@ export const RelationshipStudioModal: React.FC<RelationshipStudioModalProps> = (
   onAddCustomMember,
   initialPersonAId,
 }) => {
+  const { currentUser } = useAuthStore();
+
   // Navigation inside modal
   const [subTab, setSubTab] = useState<
-    'p2p_flow' | 'presets' | 'elder_inbox' | 'register_custom' | 'central_custom' | 'central_manage'
-  >('p2p_flow');
+    'p2p_flow' | 'presets' | 'phone_sibling' | 'elder_inbox' | 'register_custom' | 'central_custom' | 'central_manage'
+  >('phone_sibling');
+
+  // Sibling phone input
+  const [siblingPhoneInput, setSiblingPhoneInput] = useState('');
 
   // P2P Simulator Workflow State
   const [p2pStep, setP2pStep] = useState<'step1_request' | 'step2_peer_agree' | 'step3_elder_verify' | 'completed'>('step1_request');
@@ -432,6 +452,17 @@ export const RelationshipStudioModal: React.FC<RelationshipStudioModalProps> = (
             {operationMode === 'decentralized' ? (
               <>
                 <TouchableOpacity
+                  style={[styles.subTabItem, subTab === 'phone_sibling' && styles.subTabItemActive]}
+                  onPress={() => setSubTab('phone_sibling')}
+                >
+                  <Text
+                    style={[styles.subTabText, subTab === 'phone_sibling' && styles.subTabTextActive]}
+                  >
+                    📞 전화번호 형제 결연 {smartRequests.filter((r) => r.status === 'pending').length > 0 ? `(${smartRequests.filter((r) => r.status === 'pending').length})` : ''}
+                  </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
                   style={[styles.subTabItem, subTab === 'p2p_flow' && styles.subTabItemActive]}
                   onPress={() => setSubTab('p2p_flow')}
                 >
@@ -510,6 +541,255 @@ export const RelationshipStudioModal: React.FC<RelationshipStudioModalProps> = (
 
           {/* 3. MAIN CONTENT AREA */}
           <ScrollView style={styles.scrollArea} contentContainerStyle={styles.scrollContent}>
+            {/* ========================================================================= */}
+            {/* TAB: SMART PHONE SIBLING ALLIANCE (전화번호 형제 결연 & 스마트 부모 대조 통합) */}
+            {/* ========================================================================= */}
+            {subTab === 'phone_sibling' && (
+              <View style={styles.sectionBlock}>
+                {/* Intro Explanation */}
+                <View style={styles.protocolExplainBox}>
+                  <Text style={styles.protocolExplainTitle}>
+                    📱 전화번호 기반 스마트 형제·친족 결연 (Smart Sibling Alliance)
+                  </Text>
+                  <Text style={styles.protocolExplainDesc}>
+                    형제가 각자 스마트폰으로 가입하여 부모님 성함을 등록한 경우, 상대방의 전화번호를 입력하여 결연을 신청합니다.
+                    신청 시 본인의 기본 정보와 부모님 성함이 결연 패키지로 전송되며, 수신자가 웹앱 알림을 통해 부모 정보를 대조·확인 후 승인하면 중복된 부모 노드가 하나로 자동 통합되고 가계도가 완성됩니다.
+                  </Text>
+                </View>
+
+                {/* Form Card */}
+                <View style={styles.p2pInputCard}>
+                  <Text style={styles.p2pInputCardTitle}>
+                    1. 결연 대상 형제(동생 / 형) 전화번호 입력
+                  </Text>
+
+                  {/* Sibling Phone Number Input with Clear Button and Guide */}
+                  <View style={{ marginBottom: 14 }}>
+                    <Text style={styles.selectorLabel}>
+                      상대방 휴대전화 번호 <Text style={{ color: '#ef4444' }}>*</Text>
+                    </Text>
+                    <View style={styles.phoneInputWrap}>
+                      <TextInput
+                        style={styles.phoneTextInput}
+                        value={siblingPhoneInput}
+                        onChangeText={(t) => setSiblingPhoneInput(t.replace(/[^0-9]/g, ''))}
+                        placeholder="하이픈없이 전화번호만 입력 (예: 01012345678)"
+                        placeholderTextColor={inkTheme.ink5}
+                        keyboardType="phone-pad"
+                        maxLength={11}
+                      />
+                      {siblingPhoneInput.length > 0 && (
+                        <TouchableOpacity
+                          style={styles.phoneClearBtn}
+                          onPress={() => setSiblingPhoneInput('')}
+                        >
+                          <Text style={styles.phoneClearBtnText}>지우기 ✕</Text>
+                        </TouchableOpacity>
+                      )}
+                    </View>
+                    <Text style={styles.inputNoticeGuide}>
+                      💡 하이픈(-) 없이 숫자만 입력하세요. (10~11자리)
+                    </Text>
+                  </View>
+
+                  {/* Target Lookup Indicator */}
+                  {(() => {
+                    const cleanPhone = stripPhoneNumber(siblingPhoneInput);
+                    if (cleanPhone.length < 10) return null;
+                    const allAccs = getAllSecurityAccounts();
+                    const matchedAcc = allAccs.find((a) => stripPhoneNumber(a.phone) === cleanPhone);
+
+                    if (matchedAcc) {
+                      return (
+                        <View style={styles.targetMatchedBox}>
+                          <Text style={styles.targetMatchedTitle}>
+                            🟢 가문 등록 회원 확인: {matchedAcc.name} ({matchedAcc.roleLabel || '가문 정회원'})
+                          </Text>
+                          <Text style={styles.targetMatchedSub}>
+                            가문: {matchedAcc.clan || '경주 김씨'} · 등록 부친: {matchedAcc.fatherName || '미등록'} · 등록 모친: {matchedAcc.motherName || '미등록'}
+                          </Text>
+                        </View>
+                      );
+                    }
+
+                    return (
+                      <View style={styles.targetUnregisteredBox}>
+                        <Text style={styles.targetUnregisteredTitle}>
+                          ℹ️ 신규 전화번호 감지
+                        </Text>
+                        <Text style={styles.targetUnregisteredSub}>
+                          아직 가입 전이거나 다른 번호일 수 있습니다. 신청 시 해당 번호로 결연 요청이 보관되며, 상대방이 가입/로그인 시 즉시 승인 알람이 표시됩니다.
+                        </Text>
+                      </View>
+                    );
+                  })()}
+
+                  {/* 2. My Sent Package Preview (신청인이 전송할 부모 정보 확인) */}
+                  <View style={styles.senderPackagePreviewBox}>
+                    <Text style={styles.senderPackagePreviewTitle}>
+                      📋 상대방에게 전송될 나의 기본 정보 및 부모 정보
+                    </Text>
+                    {(() => {
+                      const selfMem = allMembers.find(
+                        (m) => m.id === currentUser?.memberId || m.relationship === '본인'
+                      ) || allMembers[0];
+                      const father = allMembers.find(
+                        (m) =>
+                          selfMem?.parentIds?.includes(m.id) &&
+                          (m.gender === 'M' || m.relationship.includes('부') || m.relationship.includes('아버지'))
+                      );
+                      const mother = allMembers.find(
+                        (m) =>
+                          selfMem?.parentIds?.includes(m.id) &&
+                          (m.gender === 'F' || m.relationship.includes('모') || m.relationship.includes('어머니'))
+                      );
+
+                      return (
+                        <View style={styles.previewInfoGrid}>
+                          <View style={styles.previewInfoRow}>
+                            <Text style={styles.previewInfoLabel}>신청인</Text>
+                            <Text style={styles.previewInfoValBold}>
+                              {currentUser?.name || selfMem?.name || '본인'} (연락처: {formatPhoneNumber(currentUser?.phone || selfMem?.phone)})
+                            </Text>
+                          </View>
+                          <View style={styles.previewInfoRow}>
+                            <Text style={styles.previewInfoLabel}>등록 부친</Text>
+                            <Text style={styles.previewInfoVal}>
+                              {father?.name || currentUser?.fatherName || '미등록'}
+                            </Text>
+                          </View>
+                          <View style={styles.previewInfoRow}>
+                            <Text style={styles.previewInfoLabel}>등록 모친</Text>
+                            <Text style={styles.previewInfoVal}>
+                              {mother?.name || currentUser?.motherName || '미등록'}
+                            </Text>
+                          </View>
+                        </View>
+                      );
+                    })()}
+                  </View>
+
+                  {/* Submit Button */}
+                  <TouchableOpacity
+                    style={[
+                      styles.sendSiblingRequestBtn,
+                      stripPhoneNumber(siblingPhoneInput).length < 10 && styles.btnDisabled,
+                    ]}
+                    onPress={() => {
+                      const cleanPhone = stripPhoneNumber(siblingPhoneInput);
+                      if (cleanPhone.length < 10) {
+                        showToast('올바른 휴대전화 번호(10~11자리)를 입력해주세요.', 'error');
+                        return;
+                      }
+                      if (onSendSmartKinship) {
+                        const res = onSendSmartKinship(cleanPhone, 'sibling');
+                        if (res.success) {
+                          showToast(res.message, 'success');
+                          setSiblingPhoneInput('');
+                        } else {
+                          showToast(res.message, 'error');
+                        }
+                      }
+                    }}
+                    disabled={stripPhoneNumber(siblingPhoneInput).length < 10}
+                    activeOpacity={0.8}
+                  >
+                    <Text style={styles.sendSiblingRequestBtnText}>
+                      📱 형제 결연 신청 보내기 (부모 정보 대조 전송)
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+
+                {/* 3. 스마트 결연 신청 목록 (수신 및 발신 내역) */}
+                <View style={styles.requestHistorySection}>
+                  <Text style={styles.requestHistoryTitle}>
+                    📜 형제 결연 신청 및 수신 내역 ({smartRequests.length}건)
+                  </Text>
+                  {smartRequests.length === 0 ? (
+                    <View style={styles.emptyHistoryBox}>
+                      <Text style={styles.emptyHistoryText}>
+                        진행 중이거나 완료된 스마트 형제 결연 내역이 없습니다.
+                      </Text>
+                    </View>
+                  ) : (
+                    smartRequests.map((req) => {
+                      const isPending = req.status === 'pending';
+                      const isApproved = req.status === 'approved';
+                      const isRejected = req.status === 'rejected';
+                      const isIncoming = stripPhoneNumber(req.receiverPhone) === stripPhoneNumber(currentUser?.phone);
+
+                      return (
+                        <View key={req.id} style={styles.requestHistoryCard}>
+                          <View style={styles.reqCardHeader}>
+                            <View style={styles.reqCardBadgeGroup}>
+                              <View
+                                style={[
+                                  styles.statusPill,
+                                  isApproved
+                                    ? styles.statusPillApproved
+                                    : isRejected
+                                    ? styles.statusPillRejected
+                                    : styles.statusPillPending,
+                                ]}
+                              >
+                                <Text
+                                  style={[
+                                    styles.statusPillText,
+                                    isApproved
+                                      ? styles.statusPillTextApproved
+                                      : isRejected
+                                      ? styles.statusPillTextRejected
+                                      : styles.statusPillTextPending,
+                                  ]}
+                                >
+                                  {isApproved ? '✓ 결연 승인 완료 (통합)' : isRejected ? '❌ 반려됨' : '⏳ 승인 대기 중'}
+                                </Text>
+                              </View>
+                              <Text style={styles.reqTypeTag}>
+                                {isIncoming ? '📥 수신된 신청' : '📤 내가 보낸 신청'}
+                              </Text>
+                            </View>
+                            <Text style={styles.reqDateMini}>{req.createdAt}</Text>
+                          </View>
+
+                          <Text style={styles.reqDescText}>
+                            신청자: <Text style={{ fontWeight: '800' }}>{req.senderName}</Text> ({formatPhoneNumber(req.senderPhone)}) ➔ 수신자 ({formatPhoneNumber(req.receiverPhone)})
+                          </Text>
+                          <Text style={styles.reqParentDetailText}>
+                            등록 부모: 부 {req.senderFatherName || '미등록'} · 모 {req.senderMotherName || '미등록'}
+                          </Text>
+
+                          {req.certificateNo ? (
+                            <Text style={styles.reqCertNoText}>
+                              📜 {req.certificateNo}
+                            </Text>
+                          ) : null}
+
+                          {isPending && isIncoming && (
+                            <View style={styles.reqActionRow}>
+                              <TouchableOpacity
+                                style={styles.reqInspectBtn}
+                                onPress={() => {
+                                  if (onOpenSmartInspection) {
+                                    onOpenSmartInspection(req);
+                                  }
+                                }}
+                                activeOpacity={0.8}
+                              >
+                                <Text style={styles.reqInspectBtnText}>
+                                  🔍 부모 정보 1:1 대조 및 승인 검토 ➔
+                                </Text>
+                              </TouchableOpacity>
+                            </View>
+                          )}
+                        </View>
+                      );
+                    })
+                  )}
+                </View>
+              </View>
+            )}
+
             {/* ========================================================================= */}
             {/* TAB: DECENTRALIZED P2P WORKFLOW (2인 스마트폰 접속 + 생존 어르신 승인 시뮬레이터) */}
             {/* ========================================================================= */}
@@ -2592,5 +2872,263 @@ const styles = StyleSheet.create({
     color: '#ffffff',
     fontWeight: '800',
     fontSize: 13,
+  },
+  p2pInputCard: {
+    backgroundColor: '#ffffff',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: inkTheme.ink7,
+    padding: 16,
+    marginBottom: 16,
+  },
+  p2pInputCardTitle: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: inkTheme.ink1,
+    marginBottom: 12,
+  },
+  selectorLabel: {
+    fontSize: 12.5,
+    fontWeight: '700',
+    color: inkTheme.ink2,
+    marginBottom: 6,
+  },
+  btnDisabled: {
+    opacity: 0.5,
+  },
+  phoneInputWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#ffffff',
+    borderWidth: 1,
+    borderColor: inkTheme.ink7,
+    borderRadius: 8,
+    paddingHorizontal: 12,
+  },
+  phoneTextInput: {
+    flex: 1,
+    paddingVertical: 10,
+    fontSize: 14,
+    color: inkTheme.ink1,
+  },
+  phoneClearBtn: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    backgroundColor: '#f1f5f9',
+    borderRadius: 4,
+  },
+  phoneClearBtnText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: inkTheme.ink4,
+  },
+  inputNoticeGuide: {
+    fontSize: 11,
+    color: '#0284c7',
+    fontWeight: '600',
+    marginTop: 4,
+  },
+  targetMatchedBox: {
+    backgroundColor: '#ecfdf5',
+    borderWidth: 1,
+    borderColor: '#86efac',
+    borderRadius: 8,
+    padding: 10,
+    marginBottom: 12,
+  },
+  targetMatchedTitle: {
+    fontSize: 12.5,
+    fontWeight: '800',
+    color: '#15803d',
+  },
+  targetMatchedSub: {
+    fontSize: 11,
+    color: '#166534',
+    marginTop: 2,
+  },
+  targetUnregisteredBox: {
+    backgroundColor: '#f8fafc',
+    borderWidth: 1,
+    borderColor: '#cbd5e1',
+    borderRadius: 8,
+    padding: 10,
+    marginBottom: 12,
+  },
+  targetUnregisteredTitle: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#475569',
+  },
+  targetUnregisteredSub: {
+    fontSize: 11,
+    color: '#64748b',
+    marginTop: 2,
+  },
+  senderPackagePreviewBox: {
+    backgroundColor: '#fafaf9',
+    borderWidth: 1,
+    borderColor: inkTheme.ink8,
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 14,
+  },
+  senderPackagePreviewTitle: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: inkTheme.ink2,
+    marginBottom: 8,
+  },
+  previewInfoGrid: {
+    gap: 4,
+  },
+  previewInfoRow: {
+    flexDirection: 'row',
+  },
+  previewInfoLabel: {
+    width: 80,
+    fontSize: 11.5,
+    color: inkTheme.ink4,
+    fontWeight: '600',
+  },
+  previewInfoVal: {
+    flex: 1,
+    fontSize: 11.5,
+    color: inkTheme.ink2,
+  },
+  previewInfoValBold: {
+    flex: 1,
+    fontSize: 11.5,
+    fontWeight: '800',
+    color: inkTheme.ink1,
+  },
+  sendSiblingRequestBtn: {
+    backgroundColor: '#059669',
+    paddingVertical: 13,
+    borderRadius: 8,
+    alignItems: 'center',
+    shadowColor: '#059669',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  sendSiblingRequestBtnText: {
+    color: '#ffffff',
+    fontSize: 13.5,
+    fontWeight: '800',
+  },
+  requestHistorySection: {
+    marginTop: 20,
+  },
+  requestHistoryTitle: {
+    fontSize: 13.5,
+    fontWeight: '800',
+    color: inkTheme.ink1,
+    marginBottom: 10,
+  },
+  emptyHistoryBox: {
+    backgroundColor: '#fafaf9',
+    padding: 16,
+    borderRadius: 8,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: inkTheme.ink8,
+  },
+  emptyHistoryText: {
+    fontSize: 12,
+    color: inkTheme.ink4,
+  },
+  requestHistoryCard: {
+    backgroundColor: '#ffffff',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: inkTheme.ink8,
+    padding: 12,
+    marginBottom: 10,
+    shadowColor: '#000',
+    shadowOpacity: 0.04,
+    shadowRadius: 3,
+    elevation: 1,
+  },
+  reqCardHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 6,
+  },
+  reqCardBadgeGroup: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  statusPill: {
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  statusPillApproved: {
+    backgroundColor: '#dcfce7',
+  },
+  statusPillRejected: {
+    backgroundColor: '#fee2e2',
+  },
+  statusPillPending: {
+    backgroundColor: '#fef3c7',
+  },
+  statusPillText: {
+    fontSize: 10.5,
+    fontWeight: '800',
+  },
+  statusPillTextApproved: {
+    color: '#15803d',
+  },
+  statusPillTextRejected: {
+    color: '#b91c1c',
+  },
+  statusPillTextPending: {
+    color: '#b45309',
+  },
+  reqTypeTag: {
+    fontSize: 10.5,
+    color: inkTheme.ink4,
+    fontWeight: '600',
+  },
+  reqDateMini: {
+    fontSize: 10.5,
+    color: inkTheme.ink5,
+  },
+  reqDescText: {
+    fontSize: 12,
+    color: inkTheme.ink2,
+    marginBottom: 3,
+  },
+  reqParentDetailText: {
+    fontSize: 11,
+    color: '#0284c7',
+    fontWeight: '600',
+    marginBottom: 4,
+  },
+  reqCertNoText: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#15803d',
+    marginTop: 2,
+  },
+  reqActionRow: {
+    marginTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: '#f1f5f9',
+    paddingTop: 8,
+  },
+  reqInspectBtn: {
+    backgroundColor: '#0284c7',
+    paddingVertical: 8,
+    borderRadius: 6,
+    alignItems: 'center',
+  },
+  reqInspectBtnText: {
+    color: '#ffffff',
+    fontSize: 11.5,
+    fontWeight: '800',
   },
 });
