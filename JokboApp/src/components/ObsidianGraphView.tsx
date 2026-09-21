@@ -94,7 +94,7 @@ export const ObsidianGraphView: React.FC<ObsidianGraphViewProps> = ({
     );
 
     const patSpecialPositions: Record<string, { r: number; angleDeg: number }> = {
-      'pat-2-2': { r: 250, angleDeg: 180 }, // 부친 (정서쪽 9시 방향)
+      'pat-2-2': { r: 270, angleDeg: 230 }, // 부친 (북서쪽 10시 반 방향 - 상단)
       'pat-3-2': { r: 240, angleDeg: 215 }, // 남동생 (10시 반 방향)
       'pat-3-3': { r: 250, angleDeg: 250 }, // 여동생 (11시 반 방향)
       'pat-4-1': { r: 250, angleDeg: 290 }, // 아들 (12시 반 방향)
@@ -121,14 +121,24 @@ export const ObsidianGraphView: React.FC<ObsidianGraphViewProps> = ({
           x: CX + spec.r * Math.cos(rad),
           y: CY + spec.r * Math.sin(rad),
         };
+      } else if (
+        m.id.startsWith('father-') ||
+        (m.generation === 2 && m.gender === 'M' && (m.relationship?.includes('부') || m.relationship?.includes('아버지')))
+      ) {
+        // 부친은 상단 북서쪽 10시 반 방향 (230도) -> 중심 인물과 삼각형 구도 형성 (선 겹침 방지)
+        const rad = (230 * Math.PI) / 180;
+        posMap[m.id] = {
+          x: CX + 270 * Math.cos(rad),
+          y: CY + 270 * Math.sin(rad),
+        };
       } else {
         const startRad = (130 * Math.PI) / 180;
         const endRad = (240 * Math.PI) / 180;
         const step =
           paternalMembers.length > 1
             ? startRad + ((endRad - startRad) * idx) / (paternalMembers.length - 1)
-            : Math.PI;
-        const radius = m.generation === 1 ? 400 : m.generation === 2 ? 280 : 340;
+            : (230 * Math.PI) / 180;
+        const radius = m.generation === 1 ? 400 : m.generation === 2 ? 270 : 340;
         posMap[m.id] = {
           x: CX + radius * Math.cos(step),
           y: CY + radius * Math.sin(step),
@@ -140,7 +150,7 @@ export const ObsidianGraphView: React.FC<ObsidianGraphViewProps> = ({
     // 외가 (Maternal): Right / Upper-Right sector (-65° to 65°)
     // ==========================================
     const matSpecialPositions: Record<string, { r: number; angleDeg: number }> = {
-      'mat-2-1': { r: 250, angleDeg: 0 },   // 모친 (정동쪽 3시 방향)
+      'mat-2-1': { r: 270, angleDeg: 310 }, // 모친 (북동쪽 1시 반 방향 - 상단)
       'mat-1-1': { r: 420, angleDeg: -15 }, // 외조부
       'mat-1-2': { r: 420, angleDeg: 15 },  // 외조모
       'mat-2-2': { r: 360, angleDeg: -25 }, // 외숙 (외삼촌)
@@ -168,14 +178,24 @@ export const ObsidianGraphView: React.FC<ObsidianGraphViewProps> = ({
           x: CX + spec.r * Math.cos(rad),
           y: CY + spec.r * Math.sin(rad),
         };
+      } else if (
+        m.id.startsWith('mother-') ||
+        (m.generation === 2 && m.gender === 'F' && (m.relationship?.includes('모') || m.relationship?.includes('어머니')))
+      ) {
+        // 모친은 상단 북동쪽 1시 반 방향 (310도) -> 중심 인물과 삼각형 구도 형성 (선 겹침 방지)
+        const rad = (310 * Math.PI) / 180;
+        posMap[m.id] = {
+          x: CX + 270 * Math.cos(rad),
+          y: CY + 270 * Math.sin(rad),
+        };
       } else {
         const startRad = (-50 * Math.PI) / 180;
         const endRad = (50 * Math.PI) / 180;
         const step =
           maternalMembers.length > 1
             ? startRad + ((endRad - startRad) * idx) / (maternalMembers.length - 1)
-            : 0;
-        const radius = m.generation === 1 ? 420 : m.generation === 2 ? 340 : 440;
+            : (310 * Math.PI) / 180;
+        const radius = m.generation === 1 ? 420 : m.generation === 2 ? 270 : 440;
         posMap[m.id] = {
           x: CX + radius * Math.cos(step),
           y: CY + radius * Math.sin(step),
@@ -700,6 +720,30 @@ export const ObsidianGraphView: React.FC<ObsidianGraphViewProps> = ({
 
               const isHighlighted =
                 activeDragId === edge.fromId || activeDragId === edge.toId;
+
+              // 부부간 결합선이거나 점선인 경우, 중간 노드나 중심 인물과의 겹침을 방지하기 위해 완만한 외곽 호(Arc Path)로 렌더링
+              if (edge.dashed) {
+                const midX = (fromPos.x + toPos.x) / 2;
+                const midY = (fromPos.y + toPos.y) / 2;
+                const dx = midX - CX;
+                const dy = midY - CY;
+                const distFromCenter = Math.hypot(dx, dy) || 1;
+                // 바깥쪽으로 35px 볼록하게 휘어지는 아치형 곡선
+                const ctrlX = midX + (dx / distFromCenter) * 35;
+                const ctrlY = midY + (dy / distFromCenter) * 35;
+
+                return (
+                  <path
+                    key={`edge-${edge.fromId}-${edge.toId}-${i}`}
+                    d={`M ${fromPos.x} ${fromPos.y} Q ${ctrlX} ${ctrlY} ${toPos.x} ${toPos.y}`}
+                    fill="none"
+                    stroke={isHighlighted ? '#38bdf8' : edge.color}
+                    strokeWidth={isHighlighted ? edge.width + 1.5 : edge.width}
+                    strokeDasharray="6,5"
+                    strokeLinecap="round"
+                  />
+                );
+              }
 
               return (
                 <line
