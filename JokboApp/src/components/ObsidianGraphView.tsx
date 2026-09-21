@@ -318,6 +318,7 @@ export const ObsidianGraphView: React.FC<ObsidianGraphViewProps> = ({
     const patColor = isDarkMode ? 'rgba(239, 68, 68, 0.75)' : 'rgba(220, 38, 38, 0.75)'; // 친가 붉은색
     const matColor = isDarkMode ? 'rgba(59, 130, 246, 0.75)' : 'rgba(37, 99, 235, 0.75)'; // 외가 푸른색
     const inlawColor = isDarkMode ? 'rgba(245, 158, 11, 0.75)' : 'rgba(217, 119, 6, 0.75)'; // 사돈 황금색
+    const marriageColor = isDarkMode ? 'rgba(251, 191, 36, 0.85)' : 'rgba(217, 119, 6, 0.85)'; // 💍 부부 결합선 (옅은 금색 점선)
 
     // 🌟 [동적 직계 관계선 생성] 회원가입 및 가족등록으로 등록된 모든 실존 인물의 부모-자식, 부부 라인 자동 연결
     members.forEach((m) => {
@@ -332,12 +333,9 @@ export const ObsidianGraphView: React.FC<ObsidianGraphViewProps> = ({
         });
       }
 
-      // 2) 부부 결합선 (Spouse <-> Spouse: dashed marriage line)
+      // 2) 부부 결합선 (Spouse <-> Spouse: 💍 옅은 금색 점선)
       if (m.spouseId) {
-        const spouse = members.find((s) => s.id === m.spouseId);
-        const isInlaw = m.lineage?.startsWith('inlaw') || spouse?.lineage?.startsWith('inlaw');
-        const spouseColor = isInlaw ? inlawColor : patColor;
-        addEdge(m.id, m.spouseId, spouseColor, 2.2, true);
+        addEdge(m.id, m.spouseId, marriageColor, 2.5, true);
       }
     });
 
@@ -382,7 +380,7 @@ export const ObsidianGraphView: React.FC<ObsidianGraphViewProps> = ({
     addEdge(centerPerson.id, 'mat-3-1', 'rgba(59, 130, 246, 0.25)', 1.2, true);
 
     // --- In-Laws Tree Edges (사돈댁 황금색 - 모의 데이터 호환 보장) ---
-    addEdge(centerPerson.id, 'inlaw-pat-3-1', inlawColor, 3.2); // 나 - 아내
+    addEdge(centerPerson.id, 'inlaw-pat-3-1', marriageColor, 2.8, true); // 나 - 아내 (부부 결합선)
     addEdge('inlaw-pat-3-1', 'inlaw-pat-2-1', inlawColor, 2.0); // 아내 - 장인
     addEdge('inlaw-pat-3-1', 'inlaw-mat-2-1', inlawColor, 2.0); // 아내 - 장모
     addEdge('inlaw-pat-3-1', 'inlaw-pat-3-2', inlawColor, 1.8); // 아내 - 처남
@@ -621,8 +619,8 @@ export const ObsidianGraphView: React.FC<ObsidianGraphViewProps> = ({
             <Text style={[styles.legendLabel, { color: '#3b82f6' }]}>외가 (모친 계통 · 푸른선)</Text>
           </View>
           <View style={styles.legendItem}>
-            <View style={[styles.legendDot, { backgroundColor: '#f59e0b' }]} />
-            <Text style={[styles.legendLabel, { color: '#f59e0b' }]}>사돈댁 (처가 계통 · 황금선)</Text>
+            <View style={[styles.legendDot, { backgroundColor: '#fbbf24', borderRadius: 2 }]} />
+            <Text style={[styles.legendLabel, { color: '#fbbf24' }]}>💍 부부 결합 (옅은 금색 점선)</Text>
           </View>
           <View style={styles.legendItem}>
             <View style={[styles.legendDot, { backgroundColor: '#10b981' }]} />
