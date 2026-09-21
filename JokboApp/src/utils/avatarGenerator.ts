@@ -86,7 +86,7 @@ export function generateVirtualAvatarSvg(member: Partial<FamilyMember>): string 
       bgGradEnd = '#fed7aa';
       clothesColor = '#0f172a';
       clothesCollar = '#38bdf8';
-      // IT 창업가 본인(김준혁): 스마트 뿔테 안경
+      // 본인(홍길동): 스마트 뿔테 안경
       if (member.id === 'pat-3-1' || member.relationship?.includes('본인')) {
         accessory = `
           <rect x="42" y="50" width="14" height="11" rx="3" fill="none" stroke="#1e293b" stroke-width="2"/>

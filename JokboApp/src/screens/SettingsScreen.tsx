@@ -208,7 +208,7 @@ export default function SettingsScreen() {
               <Text style={styles.elderChipText}>👵 권정자 (외조모, 85세, 🌿 생존)</Text>
             </View>
             <View style={styles.elderChip}>
-              <Text style={styles.elderChipText}>👨 김영호 (친가 종손, 67세, 🌿 생존)</Text>
+              <Text style={styles.elderChipText}>👨 전우치 (친가 종손, 67세, 🌿 생존)</Text>
             </View>
             <View style={styles.elderChip}>
               <Text style={styles.elderChipText}>👨 김영수 (친부, 64세, 🌿 생존)</Text>

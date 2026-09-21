@@ -674,7 +674,7 @@ export const FramedMasterpieceView: React.FC<FramedMasterpieceViewProps> = ({
                   <line x1="320" y1="430" x2="1130" y2="430" stroke="#1f2937" strokeWidth="2.5" />
 
                   {/* 수직 분배 드롭선: 오직 혈육(본인, 남동생, 여동생)에게만 내려옴! */}
-                  {/* 1. 본인 김준혁 머리 위(X=320)로 드롭! */}
+                  {/* 1. 본인 홍길동 머리 위(X=320)로 드롭! */}
                   <line x1="320" y1="430" x2="320" y2="470" stroke="#1f2937" strokeWidth="2.5" />
                   <circle cx="320" cy="470" r="3.5" fill="#1f2937" />
 
@@ -829,7 +829,7 @@ export const FramedMasterpieceView: React.FC<FramedMasterpieceViewProps> = ({
                   </View>
                 </View>
 
-                {/* 1. 김준혁 본인 (left=218, top=470, center=320) */}
+                {/* 1. 홍길동 본인 (left=218, top=470, center=320) */}
                 <View style={[styles.absPosition, { left: 218, top: 470 }]}>
                   {renderCard(
                     pat3_1,

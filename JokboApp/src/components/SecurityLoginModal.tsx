@@ -827,7 +827,7 @@ export const SecurityLoginModal: React.FC<SecurityLoginModalProps> = ({
                             setPasswordInput('password123!');
                           }}
                         >
-                          <Text style={styles.quickFillChipText}>김준혁 (010-1234-5678)</Text>
+                          <Text style={styles.quickFillChipText}>홍길동 (010-1234-5678)</Text>
                         </TouchableOpacity>
                         <TouchableOpacity
                           style={styles.quickFillChip}
@@ -836,7 +836,7 @@ export const SecurityLoginModal: React.FC<SecurityLoginModalProps> = ({
                             setPasswordInput('password123!');
                           }}
                         >
-                          <Text style={styles.quickFillChipText}>김영호 (010-9182-4411)</Text>
+                          <Text style={styles.quickFillChipText}>전우치 (010-9182-4411)</Text>
                         </TouchableOpacity>
                       </View>
                     </View>

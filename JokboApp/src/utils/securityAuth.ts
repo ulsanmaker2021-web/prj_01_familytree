@@ -29,10 +29,10 @@ export function formatPhoneNumber(value: string | undefined | null): string {
 // 1. 공인 가문 보안 계정 레지스트리 (체험 및 시뮬레이션용 - DB에는 하이픈 없이 숫자만 저장)
 export const DEMO_SECURITY_ACCOUNTS: (UserProfile & { password: string })[] = [
   {
-    id: 'user-kim-junhyeok',
+    id: 'user-hong-gildong',
     memberId: 'pat-3-1',
-    name: '김준혁',
-    hanja: '金準赫',
+    name: '홍길동',
+    hanja: '洪吉童',
     clan: '경주 김씨 판도판서공파 (29세손)',
     role: 'direct_family',
     roleLabel: '직계 가족 (본인)',
@@ -44,10 +44,10 @@ export const DEMO_SECURITY_ACCOUNTS: (UserProfile & { password: string })[] = [
     securityTier: '2단계(2FA 완료)',
   },
   {
-    id: 'user-kim-youngho',
+    id: 'user-jeon-woochi',
     memberId: 'pat-2-1',
-    name: '김영호',
-    hanja: '金英浩',
+    name: '전우치',
+    hanja: '田禹治',
     clan: '경주 김씨 판도판서공파 (28세손)',
     role: 'admin',
     roleLabel: '가문 종손 (관리자)',
@@ -151,7 +151,7 @@ export const VALID_CLAN_INVITE_TOKENS: Record<string, ClanInviteToken> = {
     code: 'KJ-KIM-2026-9872X',
     clanName: '경주 김씨 (慶州 金氏)',
     branchName: '판도판서공파',
-    issuedByElderName: '김영호',
+    issuedByElderName: '전우치',
     issuedByElderTitle: '종친회 종손(宗孫)',
     validUntil: '2026-12-31',
     maxUses: 50,

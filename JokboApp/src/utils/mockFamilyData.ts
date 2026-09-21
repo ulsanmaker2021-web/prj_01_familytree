@@ -55,11 +55,11 @@ export const DEVICE_PROFILES: Record<DeviceId, DeviceProfile> = {
   device_A: {
     id: 'device_A',
     ownerId: 'pat-3-1',
-    ownerName: '김준혁',
+    ownerName: '홍길동',
     ownerRelation: '본인 (30대)',
-    title: '스마트폰 A (김준혁 본인)',
+    title: '스마트폰 A (홍길동 본인)',
     desc: '본인 직계 중심 (부모, 형제, 자녀) 족보 보유',
-    avatarText: '준혁',
+    avatarText: '길동',
     color: '#dc2626', // 친가: 선명한 붉은색
     initialMemberIds: ['pat-3-1', 'pat-2-2', 'mat-2-1', 'pat-3-2', 'pat-3-3', 'pat-4-1', 'pat-4-2', 'inlaw-pat-3-1'],
   },
@@ -77,11 +77,11 @@ export const DEVICE_PROFILES: Record<DeviceId, DeviceProfile> = {
   device_C: {
     id: 'device_C',
     ownerId: 'pat-2-1',
-    ownerName: '김영호',
+    ownerName: '전우치',
     ownerRelation: '백부/종손 (60대)',
-    title: '스마트폰 C (백부 김영호 종친)',
+    title: '스마트폰 C (백부 전우치 종친)',
     desc: '친가 윗대 조부모, 당숙, 4촌·5촌 방계 종친 대거 보유',
-    avatarText: '영호',
+    avatarText: '우치',
     color: '#1a1a18',
     initialMemberIds: ['pat-2-1', 'pat-1-1', 'pat-1-2', 'pat-2-2', 'pat-2-3', 'pat-3-1', 'pat-3-4', 'pat-2-4'],
   },
@@ -159,8 +159,8 @@ const RAW_FAMILY_DATA: FamilyMember[] = [
   {
     id: 'pat-2-1',
     photoUrl: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=240&auto=format&fit=crop&q=80',
-    name: '김영호',
-    hanja: '金英浩',
+    name: '전우치',
+    hanja: '田禹治',
     gender: 'M',
     generation: 2,
     lineage: 'paternal',
@@ -236,8 +236,8 @@ const RAW_FAMILY_DATA: FamilyMember[] = [
   {
     id: 'pat-3-1',
     photoUrl: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=240&auto=format&fit=crop&q=80',
-    name: '김준혁',
-    hanja: '金準赫',
+    name: '홍길동',
+    hanja: '洪吉童',
     gender: 'M',
     generation: 3,
     lineage: 'paternal',
@@ -991,7 +991,7 @@ const RAW_UNCONNECTED_MEMBERS: FamilyMember[] = [
     phone: '010-4321-9988',
     lastContactDate: '2026-09-10',
     contactCycleDays: 30,
-    memo: '대구 거주. 족보 등록을 위해 찾아온 백부 김영호의 숨겨진 장성한 차남 후보. 아직 부자 결연이 맺어지지 않은 상태.',
+    memo: '대구 거주. 족보 등록을 위해 찾아온 백부 전우치의 숨겨진 장성한 차남 후보. 아직 부자 결연이 맺어지지 않은 상태.',
   },
   {
     id: 'unc-2',
@@ -1188,7 +1188,7 @@ export const DESIGNATED_ELDERS: ElderApproverInfo[] = [
   },
   {
     id: 'pat-2-1',
-    name: '김영호',
+    name: '전우치',
     relation: '큰아버지 (백부 / 가문 종손, 67세)',
     generation: 2,
     reason: '가문의 장자이자 종손 어르신(생존)으로서 친족 혈통 및 방계 편입을 검증합니다.',
@@ -1280,7 +1280,7 @@ export function findElderApproverFor(
     }
   }
 
-  // 3. 친가 방계 결연: 조부(김태호)가 작고하셨으므로 생존해 계신 친조모(박순자) 또는 백부(김영호 종손) 매칭
+  // 3. 친가 방계 결연: 조부(김태호)가 작고하셨으므로 생존해 계신 친조모(박순자) 또는 백부(전우치 종손) 매칭
   const grandma = allMembers.find((m) => m.id === 'pat-1-2' && m.isAlive);
   if (grandma) {
     const elder = DESIGNATED_ELDERS.find((e) => e.id === 'pat-1-2');

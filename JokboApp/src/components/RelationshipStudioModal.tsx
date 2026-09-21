@@ -95,7 +95,7 @@ export const RelationshipStudioModal: React.FC<RelationshipStudioModalProps> = (
   const [p2pSenderId, setP2pSenderId] = useState<string>(
     unconnectedMembers.length > 0 ? unconnectedMembers[0].id : (initialPersonAId || 'pat-2-1')
   );
-  const [p2pReceiverId, setP2pReceiverId] = useState<string>('pat-2-1'); // Default 백부 김영호
+  const [p2pReceiverId, setP2pReceiverId] = useState<string>('pat-2-1'); // Default 백부 전우치
   const [p2pRelationType, setP2pRelationType] = useState<RelationType>('parent_child');
   const [p2pSelectedElderId, setP2pSelectedElderId] = useState<string>('pat-1-2'); // Default: 생존 친조모 박순자
   const [activeLinkId, setActiveLinkId] = useState<string | null>(null);
@@ -164,7 +164,7 @@ export const RelationshipStudioModal: React.FC<RelationshipStudioModalProps> = (
   // 1-Click Scenario Handler
   const handleRunPresetScenario = (scenarioIdx: number) => {
     if (scenarioIdx === 1) {
-      // Scenario 1: 김태성(미등록) ↔ 백부 김영호 (P2P 부자) -> 2차 생존 친조모 박순자 여사 (88세, 생존)
+      // Scenario 1: 김태성(미등록) ↔ 백부 전우치 (P2P 부자) -> 2차 생존 친조모 박순자 여사 (88세, 생존)
       const res = onRequestP2P('unc-1', 'pat-2-1', 'parent_child', 'pat-1-2');
       if (res.success && res.linkId) {
         setActiveLinkId(res.linkId);
@@ -929,14 +929,14 @@ export const RelationshipStudioModal: React.FC<RelationshipStudioModalProps> = (
                     <Text style={styles.presetStatusApproved}>정상 혈통 승인</Text>
                   </View>
                   <Text style={styles.presetTitle}>
-                    백부(김영호, 62세) ↔ 미등록 종친(김태성, 34세) 부자(父子) 결연
+                    백부(전우치, 62세) ↔ 미등록 종친(김태성, 34세) 부자(父子) 결연
                   </Text>
                   <Text style={styles.presetDesc}>
-                    • 1단계: 김태성이 스마트폰으로 백부 김영호에게 '부자(1촌)' 관계 P2P 결연 신청 및 상호 동의
+                    • 1단계: 김태성이 스마트폰으로 백부 전우치에게 '부자(1촌)' 관계 P2P 결연 신청 및 상호 동의
 
                     • 2단계: 가문 생존 최고령 어르신 친조모 박순자 여사(88세)가 친족 확인 후 [정식 공인 승인] (※ 조부 김태호 작고로 인하여 생존 직계 어르신 승인)
 
-                    • 결과: 친가 붉은 계보 및 본인(김준혁)과 4촌 사촌 형제 관계로 가계도 실시간 확장
+                    • 결과: 친가 계보 및 본인(홍길동)과 4촌 사촌 형제 관계로 가계도 실시간 확장
                   </Text>
                   <TouchableOpacity
                     style={styles.presetRunButton}
@@ -961,7 +961,7 @@ export const RelationshipStudioModal: React.FC<RelationshipStudioModalProps> = (
 
                     • 2단계: 생존 직계 부친 김영수(64세)가 혼인 성립 확인 후 [정식 승인]
 
-                    • 결과: 본인(김준혁)과 '제수씨' 인척 관계로 에메랄드 발광선 편입
+                    • 결과: 본인(홍길동)과 '제수씨' 인척 관계로 에메랄드 발광선 편입
                   </Text>
                   <TouchableOpacity
                     style={styles.presetRunButton}

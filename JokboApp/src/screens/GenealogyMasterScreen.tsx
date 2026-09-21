@@ -62,9 +62,9 @@ export default function GenealogyMasterScreen() {
     'hangul_pure' | 'religious' | 'modern_custom' | 'other'
   >('hangul_pure');
   const [selectedTier, setSelectedTier] = useState<MasterServiceTier>('standard');
-  const [applicantName, setApplicantName] = useState('김준혁');
+  const [applicantName, setApplicantName] = useState('홍길동');
   const [applicantPhone, setApplicantPhone] = useState('010-3847-1920');
-  const [applicantEmail, setApplicantEmail] = useState('junhyuk.kim@jokbo.com');
+  const [applicantEmail, setApplicantEmail] = useState('gildong.hong@jokbo.com');
   const [requestMemo, setRequestMemo] = useState(
     (selectedMember ? selectedMember.name : '김하은') +
       ' 님은 순우리말 이름으로 전통 항렬자가 들어가지 않았습니다. 문중 대동보 원전을 수기 실사하시어 공식 세수(世數)와 세손(世孫)을 확정해 주시기를 요청드립니다.'
