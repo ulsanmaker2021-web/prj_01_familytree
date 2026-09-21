@@ -292,9 +292,11 @@ export const ObsidianGraphView: React.FC<ObsidianGraphViewProps> = ({
   }, [calculateDefaultPositions]);
 
   // 2. Compute structured Edge definitions (Lines connecting nodes)
+  // 2. Compute structured Edge definitions (Lines connecting nodes)
   const edgeDefinitions = useMemo<EdgeDefinition[]>(() => {
     const memberIdSet = new Set(members.map((m) => m.id));
     const edges: EdgeDefinition[] = [];
+    const edgeKeySet = new Set<string>();
 
     const addEdge = (
       fromId: string,
@@ -304,7 +306,11 @@ export const ObsidianGraphView: React.FC<ObsidianGraphViewProps> = ({
       dashed = false,
       isDynamicLink = false
     ) => {
+      const key = `${fromId}->${toId}`;
+      const revKey = `${toId}->${fromId}`;
+      if (edgeKeySet.has(key) || edgeKeySet.has(revKey)) return;
       if (memberIdSet.has(fromId) && memberIdSet.has(toId)) {
+        edgeKeySet.add(key);
         edges.push({ fromId, toId, color, width, dashed, isDynamicLink });
       }
     };
@@ -313,7 +319,29 @@ export const ObsidianGraphView: React.FC<ObsidianGraphViewProps> = ({
     const matColor = isDarkMode ? 'rgba(59, 130, 246, 0.75)' : 'rgba(37, 99, 235, 0.75)'; // 외가 푸른색
     const inlawColor = isDarkMode ? 'rgba(245, 158, 11, 0.75)' : 'rgba(217, 119, 6, 0.75)'; // 사돈 황금색
 
-    // --- Paternal Tree Edges (친가 붉은색) ---
+    // 🌟 [동적 직계 관계선 생성] 회원가입 및 가족등록으로 등록된 모든 실존 인물의 부모-자식, 부부 라인 자동 연결
+    members.forEach((m) => {
+      // 1) 부모-자식 관계선 (Parent -> Child)
+      if (m.parentIds && m.parentIds.length > 0) {
+        m.parentIds.forEach((pId) => {
+          const parent = members.find((p) => p.id === pId);
+          const isMaternal = parent?.lineage === 'maternal' || m.lineage === 'maternal';
+          const edgeColor = isMaternal ? matColor : patColor;
+          const isDirectCenter = m.id === centerPerson.id || pId === centerPerson.id;
+          addEdge(pId, m.id, edgeColor, isDirectCenter ? 3.0 : 2.2);
+        });
+      }
+
+      // 2) 부부 결합선 (Spouse <-> Spouse: dashed marriage line)
+      if (m.spouseId) {
+        const spouse = members.find((s) => s.id === m.spouseId);
+        const isInlaw = m.lineage?.startsWith('inlaw') || spouse?.lineage?.startsWith('inlaw');
+        const spouseColor = isInlaw ? inlawColor : patColor;
+        addEdge(m.id, m.spouseId, spouseColor, 2.2, true);
+      }
+    });
+
+    // --- Paternal Tree Edges (친가 붉은색 - 모의 데이터 호환 보장) ---
     addEdge(centerPerson.id, 'pat-2-2', patColor, 3.0); // 나 - 아버지
     addEdge('pat-2-2', 'pat-1-1', patColor, 2.2); // 아버지 - 친조부
     addEdge('pat-2-2', 'pat-1-2', patColor, 2.2); // 아버지 - 친조모
@@ -330,7 +358,7 @@ export const ObsidianGraphView: React.FC<ObsidianGraphViewProps> = ({
     addEdge(centerPerson.id, 'pat-2-1', 'rgba(239, 68, 68, 0.25)', 1.2, true);
     addEdge(centerPerson.id, 'pat-3-4', 'rgba(239, 68, 68, 0.25)', 1.2, true);
 
-    // --- Maternal Tree Edges (외가 푸른색) ---
+    // --- Maternal Tree Edges (외가 푸른색 - 모의 데이터 호환 보장) ---
     addEdge(centerPerson.id, 'mat-2-1', matColor, 3.0); // 나 - 어머니
     addEdge('mat-2-1', 'mat-1-1', matColor, 2.2); // 어머니 - 외조부
     addEdge('mat-2-1', 'mat-1-2', matColor, 2.2); // 어머니 - 외조모
@@ -353,7 +381,7 @@ export const ObsidianGraphView: React.FC<ObsidianGraphViewProps> = ({
     addEdge(centerPerson.id, 'mat-2-3', 'rgba(59, 130, 246, 0.25)', 1.2, true);
     addEdge(centerPerson.id, 'mat-3-1', 'rgba(59, 130, 246, 0.25)', 1.2, true);
 
-    // --- In-Laws Tree Edges (사돈댁 황금색) ---
+    // --- In-Laws Tree Edges (사돈댁 황금색 - 모의 데이터 호환 보장) ---
     addEdge(centerPerson.id, 'inlaw-pat-3-1', inlawColor, 3.2); // 나 - 아내
     addEdge('inlaw-pat-3-1', 'inlaw-pat-2-1', inlawColor, 2.0); // 아내 - 장인
     addEdge('inlaw-pat-3-1', 'inlaw-mat-2-1', inlawColor, 2.0); // 아내 - 장모
