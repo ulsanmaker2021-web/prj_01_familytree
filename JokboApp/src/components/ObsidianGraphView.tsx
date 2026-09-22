@@ -76,8 +76,8 @@ export const ObsidianGraphView: React.FC<ObsidianGraphViewProps> = ({
   const { width: windowWidth, height: windowHeight } = useWindowDimensions();
   const isMobile = windowWidth < 768;
   const isLandscape = windowWidth > windowHeight;
-  const isNarrow = windowWidth < 900;
-  const isVeryNarrow = windowWidth < 600;
+  const isNarrow = windowWidth < 960;
+  const isVeryNarrow = windowWidth < 640;
 
   // Hover & touch tooltip state for canvas controller buttons
   const [activeCanvasTooltip, setActiveCanvasTooltip] = useState<string | null>(null);
@@ -617,33 +617,43 @@ export const ObsidianGraphView: React.FC<ObsidianGraphViewProps> = ({
         <View style={styles.titleArea}>
           <View style={styles.titleRow}>
             <Text style={[styles.headerTitle, { color: textColor }]}>
-              🌐 옵시디언 동적 가계도 네트워크 (Obsidian Dynamic Graph)
+              {isVeryNarrow
+                ? '🌐 옵시디언 가계도'
+                : isNarrow
+                ? '🌐 옵시디언 가계도 네트워크'
+                : '🌐 옵시디언 동적 가계도 네트워크 (Obsidian Dynamic Graph)'}
             </Text>
             {activeDragId ? (
               <View style={styles.draggingNotice}>
-                <Text style={styles.draggingNoticeText}>✨ 실시간 연쇄 이동 중</Text>
+                <Text style={styles.draggingNoticeText}>✨ 연쇄 이동 중</Text>
               </View>
             ) : null}
             {(() => {
               const pendingCount = establishedLinks.filter((l) => l.status === 'pending_elder').length;
               const approvedCount = establishedLinks.filter((l) => l.status === 'approved' || l.formationMode === 'centralized').length;
               return (
-                <View style={{ flexDirection: 'row', gap: 6 }}>
+                <View style={{ flexDirection: 'row', gap: 6, alignItems: 'center' }}>
                   {pendingCount > 0 && (
                     <TouchableOpacity
+                      // @ts-ignore
+                      title={`윗대 승인 대기 결연: 총 ${pendingCount}건`}
                       style={[styles.linkCountNotice, { backgroundColor: '#78350f', borderColor: '#f59e0b' }]}
                       onPress={onOpenRelationshipStudio}
                       activeOpacity={0.8}
                     >
                       <Text style={[styles.linkCountNoticeText, { color: '#fbbf24' }]}>
-                        🔔 윗대 승인 대기 {pendingCount}건
+                        🔔 {isVeryNarrow ? `${pendingCount}건` : `윗대 대기 ${pendingCount}건`}
                       </Text>
                     </TouchableOpacity>
                   )}
                   {approvedCount > 0 && (
-                    <View style={styles.linkCountNotice}>
+                    <View
+                      // @ts-ignore
+                      title={`어르신 공인 완료 결연: 총 ${approvedCount}건`}
+                      style={styles.linkCountNotice}
+                    >
                       <Text style={styles.linkCountNoticeText}>
-                        🛡️ 어르신 공인 {approvedCount}건 활성
+                        🛡️ {isVeryNarrow ? `${approvedCount}건` : `공인 ${approvedCount}건`}
                       </Text>
                     </View>
                   )}
@@ -651,9 +661,11 @@ export const ObsidianGraphView: React.FC<ObsidianGraphViewProps> = ({
               );
             })()}
           </View>
-          <Text style={[styles.headerSubtitle, { color: subtextColor }]}>
-            💡 노드 간 겹침 방지 궤도가 적용되었습니다. 상단 [🤝 친족 관계 형성 스튜디오]를 통해 미연결 친족과의 결연을 형성할 수 있습니다.
-          </Text>
+          {!isVeryNarrow && (
+            <Text style={[styles.headerSubtitle, { color: subtextColor }]}>
+              💡 노드 간 겹침 방지 궤도가 적용되었습니다. 상단 [🤝 친족 관계 형성 스튜디오]를 통해 미연결 친족과의 결연을 형성할 수 있습니다.
+            </Text>
+          )}
         </View>
 
         {/* Floating Canvas Tooltip Pill */}
@@ -672,12 +684,16 @@ export const ObsidianGraphView: React.FC<ObsidianGraphViewProps> = ({
               // @ts-ignore
               onMouseEnter={() => setActiveCanvasTooltip('친족 관계 형성 스튜디오')}
               onMouseLeave={() => setActiveCanvasTooltip(null)}
-              style={styles.studioLauncherBtn}
+              style={[styles.studioLauncherBtn, isVeryNarrow && styles.actionBtnCompact]}
               onPress={onOpenRelationshipStudio}
               activeOpacity={0.8}
             >
               <Text style={styles.studioLauncherBtnText}>
-                {isVeryNarrow ? '🤝' : isNarrow ? '🤝 스튜디오' : `🤝 친족 관계 형성 스튜디오 ${establishedLinks.length > 0 ? `(${establishedLinks.length})` : ''}`}
+                {isVeryNarrow
+                  ? `🤝${establishedLinks.length > 0 ? `(${establishedLinks.length})` : ''}`
+                  : isNarrow
+                  ? `🤝 스튜디오${establishedLinks.length > 0 ? `(${establishedLinks.length})` : ''}`
+                  : `🤝 친족 관계 형성 스튜디오 ${establishedLinks.length > 0 ? `(${establishedLinks.length})` : ''}`}
               </Text>
             </TouchableOpacity>
           )}
@@ -691,9 +707,17 @@ export const ObsidianGraphView: React.FC<ObsidianGraphViewProps> = ({
             style={[
               styles.actionBtn,
               enableClusterDrag && styles.actionBtnActive,
+              isVeryNarrow && styles.actionBtnCompact,
               { borderColor: isDarkMode ? '#475569' : inkTheme.ink7 },
             ]}
-            onPress={() => setEnableClusterDrag(!enableClusterDrag)}
+            onPress={() => {
+              setEnableClusterDrag(!enableClusterDrag);
+              showCanvasTooltip(
+                !enableClusterDrag
+                  ? '가계 가지 함께 이동이 켜졌습니다 (부모 이동 시 자녀 연쇄 이동).'
+                  : '개별 노드 이동 모드로 변경되었습니다.'
+              );
+            }}
             activeOpacity={0.8}
           >
             <Text
@@ -714,6 +738,7 @@ export const ObsidianGraphView: React.FC<ObsidianGraphViewProps> = ({
             onMouseLeave={() => setActiveCanvasTooltip(null)}
             style={[
               styles.actionBtn,
+              isVeryNarrow && styles.actionBtnCompact,
               { borderColor: isDarkMode ? '#475569' : inkTheme.ink7 },
             ]}
             onPress={() => {
@@ -735,9 +760,13 @@ export const ObsidianGraphView: React.FC<ObsidianGraphViewProps> = ({
             onMouseLeave={() => setActiveCanvasTooltip(null)}
             style={[
               styles.actionBtn,
+              isVeryNarrow && styles.actionBtnCompact,
               { borderColor: isDarkMode ? '#475569' : inkTheme.ink7 },
             ]}
-            onPress={() => setIsDarkMode(!isDarkMode)}
+            onPress={() => {
+              setIsDarkMode(!isDarkMode);
+              showCanvasTooltip(!isDarkMode ? '옵시디언 다크 모드가 적용되었습니다.' : '라이트 한지 모드가 적용되었습니다.');
+            }}
             activeOpacity={0.8}
           >
             <Text style={[styles.actionBtnText, { color: isDarkMode ? '#fde047' : '#0284c7' }]}>
@@ -773,14 +802,14 @@ export const ObsidianGraphView: React.FC<ObsidianGraphViewProps> = ({
 
       {/* 🌟 Viewport Zoom & Pan Navigation Controller (스마트폰 전체 화면 맞춤 및 확대/축소) */}
       <View style={[styles.viewportControlBar, { backgroundColor: isDarkMode ? '#1e293b' : '#f1f5f9', borderColor: bannerBorder }]}>
-        <View style={styles.viewportLeftGroup}>
+        <View style={styles.viewportCenterGroup}>
           <TouchableOpacity
             // @ts-ignore
             title="전체 화면 맞춤: 가계도 캔버스 전체가 한눈에 들어오도록 배율 자동 조정"
             // @ts-ignore
             onMouseEnter={() => setActiveCanvasTooltip('전체 화면 맞춤: 캔버스 전체 한눈에 보기')}
             onMouseLeave={() => setActiveCanvasTooltip(null)}
-            style={[styles.viewportBtn, styles.viewportBtnFit]}
+            style={[styles.viewportBtn, styles.viewportBtnFit, isVeryNarrow && styles.viewportBtnCompact]}
             onPress={() => {
               handleFitScreen();
               showCanvasTooltip('전체 화면 맞춤 배율이 적용되었습니다.');
@@ -798,12 +827,12 @@ export const ObsidianGraphView: React.FC<ObsidianGraphViewProps> = ({
             // @ts-ignore
             onMouseEnter={() => setActiveCanvasTooltip('가계도 확대 (+15%)')}
             onMouseLeave={() => setActiveCanvasTooltip(null)}
-            style={[styles.viewportBtn, { borderColor: isDarkMode ? '#475569' : '#cbd5e1' }]}
+            style={[styles.viewportBtn, isVeryNarrow && styles.viewportBtnCompact, { borderColor: isDarkMode ? '#475569' : '#cbd5e1' }]}
             onPress={handleZoomIn}
             activeOpacity={0.8}
           >
             <Text style={[styles.viewportBtnText, { color: textColor }]}>
-              {isNarrow ? '➕' : '➕ 확대'}
+              {isVeryNarrow ? '➕' : isNarrow ? '➕ 확대' : '➕ 확대'}
             </Text>
           </TouchableOpacity>
 
@@ -813,28 +842,26 @@ export const ObsidianGraphView: React.FC<ObsidianGraphViewProps> = ({
             // @ts-ignore
             onMouseEnter={() => setActiveCanvasTooltip('가계도 축소 (-15%)')}
             onMouseLeave={() => setActiveCanvasTooltip(null)}
-            style={[styles.viewportBtn, { borderColor: isDarkMode ? '#475569' : '#cbd5e1' }]}
+            style={[styles.viewportBtn, isVeryNarrow && styles.viewportBtnCompact, { borderColor: isDarkMode ? '#475569' : '#cbd5e1' }]}
             onPress={handleZoomOut}
             activeOpacity={0.8}
           >
             <Text style={[styles.viewportBtnText, { color: textColor }]}>
-              {isNarrow ? '➖' : '➖ 축소'}
+              {isVeryNarrow ? '➖' : isNarrow ? '➖ 축소' : '➖ 축소'}
             </Text>
           </TouchableOpacity>
 
           <View style={styles.zoomBadge}>
             <Text style={styles.zoomBadgeText}>{Math.round(zoomLevel * 100)}%</Text>
           </View>
-        </View>
 
-        <View style={styles.viewportRightGroup}>
           <TouchableOpacity
             // @ts-ignore
             title="가계도 중심 인물 위치로 캔버스 스크롤 이동"
             // @ts-ignore
             onMouseEnter={() => setActiveCanvasTooltip('가계도 중심 인물 보기')}
             onMouseLeave={() => setActiveCanvasTooltip(null)}
-            style={[styles.viewportBtn, styles.viewportBtnCenter]}
+            style={[styles.viewportBtn, styles.viewportBtnCenter, isVeryNarrow && styles.viewportBtnCompact]}
             onPress={() => {
               handleFocusCenter();
               showCanvasTooltip('중심 인물로 포커스가 이동되었습니다.');
@@ -852,7 +879,7 @@ export const ObsidianGraphView: React.FC<ObsidianGraphViewProps> = ({
             // @ts-ignore
             onMouseEnter={() => setActiveCanvasTooltip('100% 원본 배율로 초기화')}
             onMouseLeave={() => setActiveCanvasTooltip(null)}
-            style={[styles.viewportBtn, { borderColor: isDarkMode ? '#475569' : '#cbd5e1' }]}
+            style={[styles.viewportBtn, isVeryNarrow && styles.viewportBtnCompact, { borderColor: isDarkMode ? '#475569' : '#cbd5e1' }]}
             onPress={() => {
               handleResetZoom();
               showCanvasTooltip('100% 원본 배율로 재설정되었습니다.');
@@ -860,14 +887,14 @@ export const ObsidianGraphView: React.FC<ObsidianGraphViewProps> = ({
             activeOpacity={0.8}
           >
             <Text style={[styles.viewportBtnText, { color: textColor }]}>
-              {isNarrow ? '100%' : '100% 원본'}
+              {isVeryNarrow ? '100%' : '100% 원본'}
             </Text>
           </TouchableOpacity>
         </View>
       </View>
 
       {/* Mobile Guide Notice */}
-      {isMobile && (
+      {isMobile && !isVeryNarrow && (
         <View style={[styles.mobileGuideNotice, { backgroundColor: isDarkMode ? '#1e293b' : '#eff6ff' }]}>
           <Text style={[styles.mobileGuideNoticeText, { color: isDarkMode ? '#94a3b8' : '#1e40af' }]}>
             💡 <Text style={{ fontWeight: '800' }}>스마트폰 최적화</Text>: [🔍 전체 화면 맞춤]으로 가계도 전체를 한눈에 보거나, 좌우로 스크롤하여 탐색하세요.
@@ -880,6 +907,7 @@ export const ObsidianGraphView: React.FC<ObsidianGraphViewProps> = ({
         ref={horizontalScrollRef}
         horizontal
         showsHorizontalScrollIndicator={true}
+        style={styles.canvasScrollView}
         contentContainerStyle={[
           styles.canvasScroll,
           {
@@ -1190,23 +1218,31 @@ export const ObsidianGraphView: React.FC<ObsidianGraphViewProps> = ({
 
 const styles = StyleSheet.create({
   outerContainer: {
+    width: '100%',
+    maxWidth: '100%',
+    alignSelf: 'center',
     borderRadius: 14,
     borderWidth: 1.5,
     borderColor: '#334155',
     overflow: 'hidden',
-    marginVertical: 12,
+    marginVertical: 10,
   },
   controlBar: {
-    paddingHorizontal: 16,
-    paddingVertical: 12,
+    width: '100%',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
     borderBottomWidth: 1,
+    alignItems: 'center',
   },
   titleArea: {
-    marginBottom: 10,
+    width: '100%',
+    alignItems: 'center',
+    marginBottom: 8,
   },
   titleRow: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
     gap: 8,
     flexWrap: 'wrap',
   },
@@ -1214,6 +1250,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '900',
     letterSpacing: 0.3,
+    textAlign: 'center',
   },
   draggingNotice: {
     backgroundColor: '#0369a1',
@@ -1240,17 +1277,20 @@ const styles = StyleSheet.create({
   headerSubtitle: {
     fontSize: 11,
     marginTop: 3,
+    textAlign: 'center',
   },
   actionButtonsRow: {
+    width: '100%',
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    justifyContent: 'center',
+    gap: 6,
     flexWrap: 'wrap',
-    marginBottom: 10,
+    marginBottom: 8,
   },
   studioLauncherBtn: {
     backgroundColor: '#059669',
-    paddingHorizontal: 12,
+    paddingHorizontal: 11,
     paddingVertical: 6,
     borderRadius: 8,
     shadowColor: '#000',
@@ -1274,14 +1314,23 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(56, 189, 248, 0.15)',
     borderColor: '#38bdf8',
   },
+  actionBtnCompact: {
+    paddingHorizontal: 8,
+    paddingVertical: 5,
+    minWidth: 36,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   actionBtnText: {
     fontSize: 11,
     fontWeight: '700',
   },
   legendRow: {
+    width: '100%',
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 14,
+    justifyContent: 'center',
+    gap: 10,
     flexWrap: 'wrap',
     paddingTop: 4,
     borderTopWidth: 1,
@@ -1290,7 +1339,7 @@ const styles = StyleSheet.create({
   legendItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    gap: 5,
   },
   legendDot: {
     width: 8,
@@ -1303,24 +1352,18 @@ const styles = StyleSheet.create({
   },
   // Viewport Zoom & Pan Navigation Bar
   viewportControlBar: {
+    width: '100%',
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
+    justifyContent: 'center',
+    paddingHorizontal: 8,
+    paddingVertical: 6,
     borderBottomWidth: 1,
-    gap: 8,
-    flexWrap: 'wrap',
   },
-  viewportLeftGroup: {
+  viewportCenterGroup: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
-    flexWrap: 'wrap',
-  },
-  viewportRightGroup: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    justifyContent: 'center',
     gap: 6,
     flexWrap: 'wrap',
   },
@@ -1330,6 +1373,13 @@ const styles = StyleSheet.create({
     borderRadius: 6,
     borderWidth: 1,
     backgroundColor: 'rgba(255, 255, 255, 0.08)',
+  },
+  viewportBtnCompact: {
+    paddingHorizontal: 8,
+    paddingVertical: 5,
+    minWidth: 34,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   viewportBtnText: {
     fontSize: 11,
@@ -1352,6 +1402,10 @@ const styles = StyleSheet.create({
     color: '#ffffff',
     fontSize: 11,
     fontWeight: '800',
+  },
+  canvasScrollView: {
+    width: '100%',
+    maxWidth: '100%',
   },
   zoomBadge: {
     backgroundColor: '#334155',
