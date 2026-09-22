@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { TouchableOpacity, Text } from 'react-native';
+import { TouchableOpacity, Text, View } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
@@ -32,6 +32,7 @@ export default function App() {
     isLoginModalOpen,
     openLoginModal,
     closeLoginModal,
+    logout,
   } = useAuthStore();
 
   // Set web page title dynamically to match current user name for PDF export
@@ -63,31 +64,52 @@ export default function App() {
             },
             headerTitleAlign: 'center',
             headerRight: () => (
-              <TouchableOpacity
-                onPress={openLoginModal}
-                style={{
-                  marginRight: 14,
-                  backgroundColor: isAuthenticated ? '#0f172a' : '#991b1b',
-                  paddingHorizontal: 10,
-                  paddingVertical: 5,
-                  borderRadius: 6,
-                  borderWidth: 1,
-                  borderColor: isAuthenticated ? '#38bdf8' : '#fca5a5',
-                }}
-                activeOpacity={0.8}
-              >
-                <Text
+              <View style={{ flexDirection: 'row', alignItems: 'center', marginRight: 12 }}>
+                <TouchableOpacity
+                  onPress={openLoginModal}
                   style={{
-                    color: isAuthenticated ? '#38bdf8' : '#ffffff',
-                    fontSize: 11,
-                    fontWeight: '800',
+                    backgroundColor: isAuthenticated ? '#0f172a' : '#991b1b',
+                    paddingHorizontal: 9,
+                    paddingVertical: 5,
+                    borderRadius: 6,
+                    borderWidth: 1,
+                    borderColor: isAuthenticated ? '#38bdf8' : '#fca5a5',
+                    marginRight: isAuthenticated ? 6 : 0,
                   }}
+                  activeOpacity={0.8}
                 >
-                  {isAuthenticated
-                    ? `🛡️ ${currentUser.name} [${currentUser.roleLabel.split(' ')[0]}]`
-                    : '🔒 가문 로그인 필요'}
-                </Text>
-              </TouchableOpacity>
+                  <Text
+                    style={{
+                      color: isAuthenticated ? '#38bdf8' : '#ffffff',
+                      fontSize: 11,
+                      fontWeight: '800',
+                    }}
+                  >
+                    {isAuthenticated
+                      ? `🛡️ ${currentUser.name} [${currentUser.roleLabel.split(' ')[0]}]`
+                      : '🔒 가문 로그인 필요'}
+                  </Text>
+                </TouchableOpacity>
+
+                {isAuthenticated && (
+                  <TouchableOpacity
+                    onPress={logout}
+                    style={{
+                      backgroundColor: '#dc2626',
+                      paddingHorizontal: 8,
+                      paddingVertical: 5,
+                      borderRadius: 6,
+                      borderWidth: 1,
+                      borderColor: '#ef4444',
+                    }}
+                    activeOpacity={0.8}
+                  >
+                    <Text style={{ color: '#ffffff', fontSize: 11, fontWeight: '800' }}>
+                      🚪 로그아웃
+                    </Text>
+                  </TouchableOpacity>
+                )}
+              </View>
             ),
             tabBarStyle: {
               backgroundColor: inkTheme.paperDark,

@@ -60,6 +60,7 @@ export const SecurityLoginModal: React.FC<SecurityLoginModalProps> = ({
     verify2FA,
     registerWithClanCode,
     closeLoginModal,
+    logout,
   } = useAuthStore();
 
   const [activeTab, setActiveTab] = useState<'demo' | 'credentials' | 'register' | 'clan_code'>('credentials');
@@ -429,6 +430,68 @@ export const SecurityLoginModal: React.FC<SecurityLoginModalProps> = ({
               </TouchableOpacity>
             )}
           </View>
+
+          {/* Current Logged-in Account Banner */}
+          {isAuthenticated && (
+            <View
+              style={{
+                marginHorizontal: 16,
+                marginTop: 10,
+                marginBottom: 8,
+                padding: 12,
+                backgroundColor: '#f0fdf4',
+                borderRadius: 10,
+                borderWidth: 1.5,
+                borderColor: '#86efac',
+                flexDirection: 'row',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+              }}
+            >
+              <View style={{ flex: 1, marginRight: 10 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 2 }}>
+                  <Text style={{ fontSize: 13, fontWeight: '800', color: '#166534' }}>
+                    🛡️ 현재 로그인 계정
+                  </Text>
+                  <View
+                    style={{
+                      marginLeft: 6,
+                      backgroundColor: '#22c55e',
+                      paddingHorizontal: 6,
+                      paddingVertical: 1,
+                      borderRadius: 4,
+                    }}
+                  >
+                    <Text style={{ fontSize: 10, fontWeight: '800', color: '#ffffff' }}>인증됨</Text>
+                  </View>
+                </View>
+                <Text style={{ fontSize: 13, fontWeight: '700', color: '#1e293b' }}>
+                  {currentUser.name} ({currentUser.clan || '가문 정회원'})
+                </Text>
+                <Text style={{ fontSize: 11, color: '#64748b' }}>
+                  {currentUser.roleLabel || '직계 자손'} · {currentUser.phone || '연락처 등록됨'}
+                </Text>
+              </View>
+
+              <TouchableOpacity
+                onPress={() => {
+                  logout();
+                  showToast('안전하게 로그아웃되었습니다.', false, true);
+                }}
+                style={{
+                  backgroundColor: '#dc2626',
+                  paddingHorizontal: 12,
+                  paddingVertical: 8,
+                  borderRadius: 8,
+                }}
+                activeOpacity={0.8}
+              >
+                <Text style={{ color: '#ffffff', fontSize: 12, fontWeight: '800' }}>
+                  🚪 로그아웃
+                </Text>
+              </TouchableOpacity>
+            </View>
+          )}
 
           {/* Toast Message */}
           {statusMessage && (
