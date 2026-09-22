@@ -1459,6 +1459,7 @@ export const ObsidianGraphView: React.FC<ObsidianGraphViewProps> = ({
             const rel = getKinshipRelation(centerPerson.id, member.id, members);
             const isNewlyLinked =
               member.id.startsWith('unc-') ||
+              Boolean(member.isElderApproved) ||
               establishedLinks.some((l) => l.personAId === member.id || l.personBId === member.id);
             const isSelected = selectedNodeIds.includes(member.id);
 

@@ -26,6 +26,8 @@ export interface FamilyMember {
   descendantOrder?: number; // 시조 기준 세손/대손(孫) (예: 28세손 또는 29세손)
   hangnyeolChar?: string; // 공인 항렬자(돌림자) (예: '赫')
   isVerifiedLineage?: boolean; // 족보 항렬 및 세손 검증 공인 여부
+  isElderApproved?: boolean; // 윗대 어르신 또는 중앙 편찬 직권 공인 완료 여부
+  elderApprovedDate?: string; // 공인 일자 (YYYY-MM-DD)
 }
 
 export interface LineageInfo {

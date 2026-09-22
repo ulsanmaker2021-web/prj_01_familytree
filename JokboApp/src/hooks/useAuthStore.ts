@@ -35,10 +35,64 @@ export interface RegisterMemberParams {
   motherName?: string;
 }
 
+// ==========================================
+// 🔐 [로그인 세션 영구 저장소 (LocalStorage)]
+// ==========================================
+const AUTH_SESSION_KEY = 'jokbo_auth_session_v1';
+
+export function getStoredAuthSession(): { userId: string; authenticated: boolean } | null {
+  if (typeof window === 'undefined' || !window.localStorage) return null;
+  try {
+    const raw = window.localStorage.getItem(AUTH_SESSION_KEY);
+    if (!raw) return null;
+    const session = JSON.parse(raw);
+    return session && session.authenticated && session.userId ? session : null;
+  } catch (e) {
+    return null;
+  }
+}
+
+export function saveStoredAuthSession(userId: string): boolean {
+  if (typeof window === 'undefined' || !window.localStorage) return false;
+  try {
+    const session = {
+      userId,
+      authenticated: true,
+      loginAt: new Date().toISOString(),
+    };
+    window.localStorage.setItem(AUTH_SESSION_KEY, JSON.stringify(session));
+    return true;
+  } catch (e) {
+    return false;
+  }
+}
+
+export function clearStoredAuthSession(): void {
+  if (typeof window !== 'undefined' && window.localStorage) {
+    window.localStorage.removeItem(AUTH_SESSION_KEY);
+  }
+}
+
+// Initial session restore from localStorage
+const storedSession = getStoredAuthSession();
+let initialUser: UserProfile = DEMO_SECURITY_ACCOUNTS[0];
+let initialAuthenticated = false;
+let initialLoginModalOpen = true;
+
+if (storedSession) {
+  const all = getAllSecurityAccounts();
+  const matched = all.find((a) => a.id === storedSession.userId);
+  if (matched) {
+    initialUser = matched;
+    initialAuthenticated = true;
+    initialLoginModalOpen = false;
+  }
+}
+
 // Global Auth State
-let globalCurrentUser: UserProfile = DEMO_SECURITY_ACCOUNTS[0]; // 기본 프로필: 홍길동 (본인)
-let globalIsAuthenticated: boolean = false; // 기본 미인증 상태 (최초 접속 시 로그인 강제)
-let globalIsLoginModalOpen: boolean = true; // 최초 접속 시 보안 로그인 게이트웨이 즉시 표시
+let globalCurrentUser: UserProfile = initialUser;
+let globalIsAuthenticated: boolean = initialAuthenticated;
+let globalIsLoginModalOpen: boolean = initialLoginModalOpen;
 let globalPending2FA: {
   phone: string;
   expectedOtp: string;
@@ -112,6 +166,7 @@ export function useAuthStore() {
     globalIsAuthenticated = true;
     globalIsLoginModalOpen = false;
     globalPending2FA = null;
+    saveStoredAuthSession(target.id);
     notifyAuth();
 
     return {
@@ -243,6 +298,7 @@ export function useAuthStore() {
     globalIsAuthenticated = true;
     globalIsLoginModalOpen = false;
     globalPending2FA = null;
+    saveStoredAuthSession(globalCurrentUser.id);
     notifyAuth();
 
     return {
@@ -284,6 +340,7 @@ export function useAuthStore() {
     globalIsAuthenticated = true;
     globalIsLoginModalOpen = false;
     globalPending2FA = null;
+    saveStoredAuthSession(newUser.id);
     notifyAuth();
 
     return {
@@ -352,6 +409,7 @@ export function useAuthStore() {
 
   // 6. 보안 로그아웃
   const logout = () => {
+    clearStoredAuthSession();
     globalIsAuthenticated = false;
     globalIsLoginModalOpen = true;
     globalPending2FA = null;

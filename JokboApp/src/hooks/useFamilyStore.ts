@@ -28,10 +28,43 @@ import {
   getAllSecurityAccounts,
 } from '../utils/securityAuth';
 
+// ==========================================
+// 🔗 [공인 결연 및 어르신 승인 저장소 (LocalStorage)]
+// ==========================================
+const ESTABLISHED_LINKS_KEY_PREFIX = 'jokbo_established_links_v1_';
+
+export function getStoredEstablishedLinks(userId?: string): EstablishedLink[] {
+  if (typeof window === 'undefined' || !window.localStorage) return [];
+  try {
+    const key = ESTABLISHED_LINKS_KEY_PREFIX + (userId || 'global');
+    let raw = localStorage.getItem(key);
+    if (!raw && userId) {
+      raw = localStorage.getItem(ESTABLISHED_LINKS_KEY_PREFIX + 'global');
+    }
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch (e) {
+    return [];
+  }
+}
+
+export function saveStoredEstablishedLinks(links: EstablishedLink[], userId?: string): boolean {
+  if (typeof window === 'undefined' || !window.localStorage) return false;
+  try {
+    const key = ESTABLISHED_LINKS_KEY_PREFIX + (userId || 'global');
+    localStorage.setItem(key, JSON.stringify(links));
+    localStorage.setItem(ESTABLISHED_LINKS_KEY_PREFIX + 'global', JSON.stringify(links));
+    return true;
+  } catch (e) {
+    return false;
+  }
+}
+
 // Module-level shared store state
 let globalMembers: FamilyMember[] = [...INITIAL_FAMILY_DATA];
 let globalUnconnectedMembers: FamilyMember[] = [...UNCONNECTED_TEST_MEMBERS];
-let globalEstablishedLinks: EstablishedLink[] = [];
+let globalEstablishedLinks: EstablishedLink[] = getStoredEstablishedLinks();
 let globalOperationMode: OperationMode = 'decentralized'; // Default: Dual-Mode with Decentralized P2P Active
 
 // 4 Virtual Devices State
@@ -196,6 +229,7 @@ let globalIsViewingDemo: boolean = false;
 
 function syncWithAuth() {
   const currentUser = getGlobalCurrentUser();
+  globalEstablishedLinks = getStoredEstablishedLinks(currentUser?.id);
   if (currentUser && currentUser.isCustomRegistered && !globalIsViewingDemo) {
     let customTree = getStoredCustomFamily(currentUser.id);
     // 가상의 미등록 선조(gfather, gmother) 및 미입력 부모가 저장소에 남아있다면 자동 정리
@@ -357,8 +391,8 @@ export function useFamilyStore() {
       };
     }
 
-    let updatedA = { ...targetA };
-    let updatedB = { ...targetB };
+    let updatedA = { ...targetA, isElderApproved: true, isVerifiedLineage: true };
+    let updatedB = { ...targetB, isElderApproved: true, isVerifiedLineage: true };
 
     if (relationType === 'parent_child') {
       const existingParents = updatedB.parentIds || [];
@@ -416,6 +450,12 @@ export function useFamilyStore() {
       note: '중앙 족보 편찬 관리자 직권 공인',
     };
     globalEstablishedLinks = [newLink, ...globalEstablishedLinks];
+
+    const currentUser = getGlobalCurrentUser();
+    saveStoredEstablishedLinks(globalEstablishedLinks, currentUser?.id);
+    if (currentUser?.isCustomRegistered) {
+      saveStoredCustomFamily(currentUser.id, globalMembers);
+    }
 
     const kinship = calculateKinshipBetween(personAId, personBId, globalMembers);
     notify();
@@ -563,6 +603,11 @@ export function useFamilyStore() {
     };
 
     globalEstablishedLinks = [newLink, ...globalEstablishedLinks];
+    const currentUser = getGlobalCurrentUser();
+    saveStoredEstablishedLinks(globalEstablishedLinks, currentUser?.id);
+    if (currentUser?.isCustomRegistered) {
+      saveStoredCustomFamily(currentUser.id, globalMembers);
+    }
     notify();
 
     return {
@@ -618,8 +663,22 @@ export function useFamilyStore() {
         : l
     );
 
+    // Also update member elder approval flags
+    globalMembers = globalMembers.map((m) => {
+      if (m.id === link.personAId || m.id === link.personBId) {
+        return { ...m, isElderApproved: true, isVerifiedLineage: true };
+      }
+      return m;
+    });
+
     const personA = globalMembers.find((m) => m.id === link.personAId);
     const personB = globalMembers.find((m) => m.id === link.personBId);
+
+    const currentUser = getGlobalCurrentUser();
+    saveStoredEstablishedLinks(globalEstablishedLinks, currentUser?.id);
+    if (currentUser?.isCustomRegistered) {
+      saveStoredCustomFamily(currentUser.id, globalMembers);
+    }
 
     notify();
 
@@ -650,6 +709,11 @@ export function useFamilyStore() {
     }
 
     globalEstablishedLinks = globalEstablishedLinks.filter((l) => l.id !== linkId);
+    const currentUser = getGlobalCurrentUser();
+    saveStoredEstablishedLinks(globalEstablishedLinks, currentUser?.id);
+    if (currentUser?.isCustomRegistered) {
+      saveStoredCustomFamily(currentUser.id, globalMembers);
+    }
     notify();
 
     return {
@@ -685,6 +749,11 @@ export function useFamilyStore() {
     });
 
     globalEstablishedLinks = globalEstablishedLinks.filter((l) => l.id !== linkId);
+    const currentUser = getGlobalCurrentUser();
+    saveStoredEstablishedLinks(globalEstablishedLinks, currentUser?.id);
+    if (currentUser?.isCustomRegistered) {
+      saveStoredCustomFamily(currentUser.id, globalMembers);
+    }
     notify();
   };
 
@@ -693,6 +762,11 @@ export function useFamilyStore() {
     globalMembers = [...INITIAL_FAMILY_DATA];
     globalUnconnectedMembers = [...UNCONNECTED_TEST_MEMBERS];
     globalEstablishedLinks = [];
+    const currentUser = getGlobalCurrentUser();
+    saveStoredEstablishedLinks([], currentUser?.id);
+    if (currentUser?.isCustomRegistered) {
+      saveStoredCustomFamily(currentUser.id, globalMembers);
+    }
     notify();
   };
 
@@ -758,6 +832,11 @@ export function useFamilyStore() {
       device_D: false,
     };
     globalCenterPersonId = DEVICE_PROFILES.device_A.ownerId;
+    const currentUser = getGlobalCurrentUser();
+    saveStoredEstablishedLinks([], currentUser?.id);
+    if (currentUser?.isCustomRegistered) {
+      saveStoredCustomFamily(currentUser.id, globalMembers);
+    }
     notify();
   };
 
@@ -1169,6 +1248,7 @@ export function useFamilyStore() {
       note: `스마트 부모 일치 검증 완료 (부: ${req.senderFatherName || '일치'}, 모: ${req.senderMotherName || '일치'}) → 단일 가계도 통합`,
     };
     globalEstablishedLinks = [newLink, ...globalEstablishedLinks];
+    saveStoredEstablishedLinks(globalEstablishedLinks, currentUser?.id);
 
     notify();
 
