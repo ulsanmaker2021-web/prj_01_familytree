@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef } from 'react';
 import {
   Modal,
   StyleSheet,
@@ -75,6 +75,94 @@ interface RelationshipStudioModalProps {
   }) => FamilyMember;
   initialPersonAId?: string;
 }
+
+interface ScrollableSelectorRowProps {
+  label: string;
+  count: number;
+  badgeText?: string;
+  children: React.ReactNode;
+}
+
+const ScrollableSelectorRow: React.FC<ScrollableSelectorRowProps> = ({
+  label,
+  count,
+  badgeText,
+  children,
+}) => {
+  const [isGridMode, setIsGridMode] = useState(false);
+  const scrollRef = useRef<ScrollView>(null);
+  const scrollXRef = useRef(0);
+
+  const scrollBy = (offset: number) => {
+    const newX = Math.max(0, scrollXRef.current + offset);
+    scrollRef.current?.scrollTo({ x: newX, animated: true });
+    scrollXRef.current = newX;
+  };
+
+  return (
+    <View style={styles.selectorSection}>
+      <View style={styles.selectorHeaderRow}>
+        <View style={styles.selectorTitleGroup}>
+          <Text style={styles.fieldLabel}>{label}</Text>
+          <View style={styles.selectorCountBadge}>
+            <Text style={styles.selectorCountBadgeText}>
+              {badgeText ? `${badgeText} ` : ''}총 {count}명
+            </Text>
+          </View>
+        </View>
+
+        <View style={styles.selectorActionsGroup}>
+          <TouchableOpacity
+            style={[styles.gridToggleBtn, isGridMode && styles.gridToggleBtnActive]}
+            onPress={() => setIsGridMode(!isGridMode)}
+            activeOpacity={0.7}
+          >
+            <Text style={[styles.gridToggleBtnText, isGridMode && styles.gridToggleBtnTextActive]}>
+              {isGridMode ? '↔ 한줄 스크롤' : '▦ 전체 펼쳐보기'}
+            </Text>
+          </TouchableOpacity>
+
+          {!isGridMode && (
+            <View style={styles.scrollArrowGroup}>
+              <TouchableOpacity
+                style={styles.scrollArrowBtn}
+                onPress={() => scrollBy(-220)}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.scrollArrowBtnText}>◀</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.scrollArrowBtn}
+                onPress={() => scrollBy(220)}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.scrollArrowBtnText}>▶</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+        </View>
+      </View>
+
+      {isGridMode ? (
+        <View style={styles.chipsWrapGrid}>{children}</View>
+      ) : (
+        <ScrollView
+          ref={scrollRef}
+          horizontal
+          showsHorizontalScrollIndicator={true}
+          style={styles.chipsScroll}
+          contentContainerStyle={styles.chipsScrollContent}
+          onScroll={(e) => {
+            scrollXRef.current = e.nativeEvent.contentOffset.x;
+          }}
+          scrollEventThrottle={16}
+        >
+          {children}
+        </ScrollView>
+      )}
+    </View>
+  );
+};
 
 export const RelationshipStudioModal: React.FC<RelationshipStudioModalProps> = ({
   visible,
@@ -875,8 +963,10 @@ export const RelationshipStudioModal: React.FC<RelationshipStudioModalProps> = (
                     </Text>
 
                     {/* Sender Selector */}
-                    <Text style={styles.fieldLabel}>1. 본인(신청자) 프로필 선택</Text>
-                    <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipsScroll}>
+                    <ScrollableSelectorRow
+                      label="1. 본인(신청자) 프로필 선택"
+                      count={unconnectedMembers.length + allMembers.length}
+                    >
                       {unconnectedMembers.map((m) => (
                         <TouchableOpacity
                           key={m.id}
@@ -890,7 +980,7 @@ export const RelationshipStudioModal: React.FC<RelationshipStudioModalProps> = (
                           <Text style={styles.personChipName}>{m.name} ({m.relationship})</Text>
                         </TouchableOpacity>
                       ))}
-                      {allMembers.slice(0, 6).map((m) => (
+                      {allMembers.map((m) => (
                         <TouchableOpacity
                           key={m.id}
                           style={[
@@ -902,24 +992,31 @@ export const RelationshipStudioModal: React.FC<RelationshipStudioModalProps> = (
                           <Text style={styles.personChipName}>{m.name} ({m.relationship})</Text>
                         </TouchableOpacity>
                       ))}
-                    </ScrollView>
+                    </ScrollableSelectorRow>
 
                     {/* Receiver Selector */}
-                    <Text style={styles.fieldLabel}>2. 결연을 맺을 상대방 선택</Text>
-                    <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipsScroll}>
-                      {allMembers.filter((m) => m.id !== p2pSenderId).slice(0, 8).map((m) => (
-                        <TouchableOpacity
-                          key={m.id}
-                          style={[
-                            styles.personChip,
-                            p2pReceiverId === m.id && styles.personChipActive,
-                          ]}
-                          onPress={() => setP2pReceiverId(m.id)}
+                    {(() => {
+                      const receiverCandidates = allMembers.filter((m) => m.id !== p2pSenderId);
+                      return (
+                        <ScrollableSelectorRow
+                          label="2. 결연을 맺을 상대방 선택"
+                          count={receiverCandidates.length}
                         >
-                          <Text style={styles.personChipName}>{m.name} ({m.relationship})</Text>
-                        </TouchableOpacity>
-                      ))}
-                    </ScrollView>
+                          {receiverCandidates.map((m) => (
+                            <TouchableOpacity
+                              key={m.id}
+                              style={[
+                                styles.personChip,
+                                p2pReceiverId === m.id && styles.personChipActive,
+                              ]}
+                              onPress={() => setP2pReceiverId(m.id)}
+                            >
+                              <Text style={styles.personChipName}>{m.name} ({m.relationship})</Text>
+                            </TouchableOpacity>
+                          ))}
+                        </ScrollableSelectorRow>
+                      );
+                    })()}
 
                     {/* Relationship Type */}
                     <Text style={styles.fieldLabel}>3. 맺을 친족 관계 선택</Text>
@@ -951,8 +1048,10 @@ export const RelationshipStudioModal: React.FC<RelationshipStudioModalProps> = (
                     </View>
 
                     {/* 4. Verifying Living Elder Selector */}
-                    <Text style={styles.fieldLabel}>4. 2차 승인 담당 윗대 어르신 선택 (🌿 생존자만 가능)</Text>
-                    <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipsScroll}>
+                    <ScrollableSelectorRow
+                      label="4. 2차 승인 담당 윗대 어르신 선택 (🌿 생존자만 가능)"
+                      count={DESIGNATED_ELDERS.length}
+                    >
                       {DESIGNATED_ELDERS.map((elder) => {
                         const isSelected = activeElder.id === elder.id;
                         return (
@@ -969,7 +1068,7 @@ export const RelationshipStudioModal: React.FC<RelationshipStudioModalProps> = (
                           </TouchableOpacity>
                         );
                       })}
-                    </ScrollView>
+                    </ScrollableSelectorRow>
 
                     {/* 2nd Elder Approver Preview */}
                     <View style={styles.elderPreviewBox}>
@@ -1483,9 +1582,11 @@ export const RelationshipStudioModal: React.FC<RelationshipStudioModalProps> = (
                 </Text>
 
                 {/* Person A */}
-                <Text style={styles.fieldLabel}>기준 인물 (A)</Text>
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipsScroll}>
-                  {allMembers.slice(0, 10).map((m) => (
+                <ScrollableSelectorRow
+                  label="기준 인물 (A)"
+                  count={allMembers.length}
+                >
+                  {allMembers.map((m) => (
                     <TouchableOpacity
                       key={m.id}
                       style={[
@@ -1497,37 +1598,44 @@ export const RelationshipStudioModal: React.FC<RelationshipStudioModalProps> = (
                       <Text style={styles.personChipName}>{m.name} ({m.relationship})</Text>
                     </TouchableOpacity>
                   ))}
-                </ScrollView>
+                </ScrollableSelectorRow>
 
                 {/* Person B */}
-                <Text style={styles.fieldLabel}>결연 대상 인물 (B)</Text>
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipsScroll}>
-                  {unconnectedMembers.map((m) => (
-                    <TouchableOpacity
-                      key={m.id}
-                      style={[
-                        styles.personChip,
-                        selectedPersonBId === m.id && styles.personChipActive,
-                      ]}
-                      onPress={() => setSelectedPersonBId(m.id)}
+                {(() => {
+                  const bMembers = allMembers.filter((m) => m.id !== selectedPersonAId);
+                  return (
+                    <ScrollableSelectorRow
+                      label="결연 대상 인물 (B)"
+                      count={unconnectedMembers.length + bMembers.length}
                     >
-                      <Text style={styles.personChipBadge}>미등록</Text>
-                      <Text style={styles.personChipName}>{m.name} ({m.relationship})</Text>
-                    </TouchableOpacity>
-                  ))}
-                  {allMembers.filter((m) => m.id !== selectedPersonAId).slice(0, 6).map((m) => (
-                    <TouchableOpacity
-                      key={m.id}
-                      style={[
-                        styles.personChip,
-                        selectedPersonBId === m.id && styles.personChipActive,
-                      ]}
-                      onPress={() => setSelectedPersonBId(m.id)}
-                    >
-                      <Text style={styles.personChipName}>{m.name} ({m.relationship})</Text>
-                    </TouchableOpacity>
-                  ))}
-                </ScrollView>
+                      {unconnectedMembers.map((m) => (
+                        <TouchableOpacity
+                          key={m.id}
+                          style={[
+                            styles.personChip,
+                            selectedPersonBId === m.id && styles.personChipActive,
+                          ]}
+                          onPress={() => setSelectedPersonBId(m.id)}
+                        >
+                          <Text style={styles.personChipBadge}>미등록</Text>
+                          <Text style={styles.personChipName}>{m.name} ({m.relationship})</Text>
+                        </TouchableOpacity>
+                      ))}
+                      {bMembers.map((m) => (
+                        <TouchableOpacity
+                          key={m.id}
+                          style={[
+                            styles.personChip,
+                            selectedPersonBId === m.id && styles.personChipActive,
+                          ]}
+                          onPress={() => setSelectedPersonBId(m.id)}
+                        >
+                          <Text style={styles.personChipName}>{m.name} ({m.relationship})</Text>
+                        </TouchableOpacity>
+                      ))}
+                    </ScrollableSelectorRow>
+                  );
+                })()}
 
                 {/* Relation Type */}
                 <Text style={styles.fieldLabel}>편찬 관계 유형</Text>
@@ -2040,9 +2148,95 @@ const styles = StyleSheet.create({
     color: '#cbd5e1',
     marginTop: 4,
   },
+  selectorSection: {
+    marginVertical: 6,
+  },
+  selectorHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 6,
+    flexWrap: 'wrap',
+    gap: 6,
+  },
+  selectorTitleGroup: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  selectorCountBadge: {
+    backgroundColor: '#1e293b',
+    borderWidth: 1,
+    borderColor: '#38bdf8',
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderRadius: 12,
+  },
+  selectorCountBadgeText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#38bdf8',
+  },
+  selectorActionsGroup: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  gridToggleBtn: {
+    backgroundColor: '#1e293b',
+    paddingHorizontal: 9,
+    paddingVertical: 4,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#475569',
+  },
+  gridToggleBtnActive: {
+    backgroundColor: '#0284c7',
+    borderColor: '#38bdf8',
+  },
+  gridToggleBtnText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#cbd5e1',
+  },
+  gridToggleBtnTextActive: {
+    color: '#ffffff',
+  },
+  scrollArrowGroup: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  scrollArrowBtn: {
+    backgroundColor: '#1e293b',
+    width: 28,
+    height: 28,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#475569',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  scrollArrowBtnText: {
+    fontSize: 12,
+    fontWeight: '900',
+    color: '#38bdf8',
+  },
   chipsScroll: {
     flexDirection: 'row',
     marginBottom: 4,
+  },
+  chipsScrollContent: {
+    paddingVertical: 4,
+    paddingRight: 12,
+    alignItems: 'center',
+  },
+  chipsWrapGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginBottom: 6,
+    paddingVertical: 4,
   },
   personChip: {
     paddingHorizontal: 12,

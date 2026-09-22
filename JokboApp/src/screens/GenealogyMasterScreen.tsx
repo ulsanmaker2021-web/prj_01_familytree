@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef } from 'react';
 import {
   ScrollView,
   StyleSheet,
@@ -41,6 +41,17 @@ export default function GenealogyMasterScreen() {
   const [selectedMember, setSelectedMember] = useState<FamilyMember>(
     members.find((m) => m.id === 'pat-4-2') || members[0]
   );
+
+  // Member selection view mode and scrolling
+  const [isMemberGridMode, setIsMemberGridMode] = useState(false);
+  const memberScrollRef = useRef<ScrollView>(null);
+  const memberScrollXRef = useRef(0);
+
+  const handleMemberScrollBy = (offset: number) => {
+    const nextX = Math.max(0, memberScrollXRef.current + offset);
+    memberScrollRef.current?.scrollTo({ x: nextX, animated: true });
+    memberScrollXRef.current = nextX;
+  };
 
   // Available masters for selected member
   const availableMasters = useMemo(() => {
@@ -265,47 +276,136 @@ export default function GenealogyMasterScreen() {
                 </Text>
               </View>
 
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.memberScroll}>
-                {members.map((m) => {
-                  const isSelected = selectedMember?.id === m.id;
-                  const isPureHangul = m.name === '김하은' || m.name === '김하늘';
-                  const avatarUri = getMemberAvatar(m);
+              <View style={styles.memberSelectorControlRow}>
+                <View style={styles.memberCountBadge}>
+                  <Text style={styles.memberCountBadgeText}>가족 총 {members.length}명</Text>
+                </View>
+                <View style={styles.memberActionBtnsGroup}>
+                  <TouchableOpacity
+                    style={[styles.memberGridToggleBtn, isMemberGridMode && styles.memberGridToggleBtnActive]}
+                    onPress={() => setIsMemberGridMode(!isMemberGridMode)}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={[styles.memberGridToggleBtnText, isMemberGridMode && styles.memberGridToggleBtnTextActive]}>
+                      {isMemberGridMode ? '↔ 한줄 스크롤' : '▦ 전체 펼치기'}
+                    </Text>
+                  </TouchableOpacity>
+                  {!isMemberGridMode && (
+                    <View style={styles.memberScrollNavGroup}>
+                      <TouchableOpacity
+                        style={styles.memberArrowBtn}
+                        onPress={() => handleMemberScrollBy(-220)}
+                        activeOpacity={0.7}
+                      >
+                        <Text style={styles.memberArrowBtnText}>◀</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={styles.memberArrowBtn}
+                        onPress={() => handleMemberScrollBy(220)}
+                        activeOpacity={0.7}
+                      >
+                        <Text style={styles.memberArrowBtnText}>▶</Text>
+                      </TouchableOpacity>
+                    </View>
+                  )}
+                </View>
+              </View>
 
-                  return (
-                    <TouchableOpacity
-                      key={m.id}
-                      style={[
-                        styles.memberSelectCard,
-                        isSelected && styles.memberSelectCardActive,
-                      ]}
-                      onPress={() => {
-                        setSelectedMember(m);
-                        setRequestMemo(
-                          m.name +
-                            ' 님은 순우리말/현대식 성명으로 전통 항렬자가 성명에 들어가지 않았습니다. ' +
-                            (m.clan || '문중') +
-                            ' 대동보 원전을 실사하시어 공식 세수(世數)와 세손(世孫)을 확정해 주시기를 정중히 요청드립니다.'
-                        );
-                      }}
-                      activeOpacity={0.8}
-                    >
-                      <Image source={{ uri: avatarUri }} style={styles.memberAvatarMini} />
-                      <Text style={styles.memberSelectName}>{m.name}</Text>
-                      <Text style={styles.memberSelectRel}>{m.relationship}</Text>
-                      {isPureHangul && (
-                        <View style={styles.recommendTag}>
-                          <Text style={styles.recommendTagText}>✨ 고증 권장</Text>
-                        </View>
-                      )}
-                      {isSelected && (
-                        <View style={styles.checkCircle}>
-                          <Text style={styles.checkCircleText}>✓</Text>
-                        </View>
-                      )}
-                    </TouchableOpacity>
-                  );
-                })}
-              </ScrollView>
+              {isMemberGridMode ? (
+                <View style={styles.memberGridWrap}>
+                  {members.map((m) => {
+                    const isSelected = selectedMember?.id === m.id;
+                    const isPureHangul = m.name === '김하은' || m.name === '김하늘';
+                    const avatarUri = getMemberAvatar(m);
+
+                    return (
+                      <TouchableOpacity
+                        key={m.id}
+                        style={[
+                          styles.memberSelectCard,
+                          isSelected && styles.memberSelectCardActive,
+                        ]}
+                        onPress={() => {
+                          setSelectedMember(m);
+                          setRequestMemo(
+                            m.name +
+                              ' 님은 순우리말/현대식 성명으로 전통 항렬자가 성명에 들어가지 않았습니다. ' +
+                              (m.clan || '문중') +
+                              ' 대동보 원전을 실사하시어 공식 세수(世數)와 세손(世孫)을 확정해 주시기를 정중히 요청드립니다.'
+                          );
+                        }}
+                        activeOpacity={0.8}
+                      >
+                        <Image source={{ uri: avatarUri }} style={styles.memberAvatarMini} />
+                        <Text style={styles.memberSelectName}>{m.name}</Text>
+                        <Text style={styles.memberSelectRel}>{m.relationship}</Text>
+                        {isPureHangul && (
+                          <View style={styles.recommendTag}>
+                            <Text style={styles.recommendTagText}>✨ 고증 권장</Text>
+                          </View>
+                        )}
+                        {isSelected && (
+                          <View style={styles.checkCircle}>
+                            <Text style={styles.checkCircleText}>✓</Text>
+                          </View>
+                        )}
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              ) : (
+                <ScrollView
+                  ref={memberScrollRef}
+                  horizontal
+                  showsHorizontalScrollIndicator={true}
+                  style={styles.memberScroll}
+                  contentContainerStyle={styles.memberScrollContent}
+                  onScroll={(e) => {
+                    memberScrollXRef.current = e.nativeEvent.contentOffset.x;
+                  }}
+                  scrollEventThrottle={16}
+                >
+                  {members.map((m) => {
+                    const isSelected = selectedMember?.id === m.id;
+                    const isPureHangul = m.name === '김하은' || m.name === '김하늘';
+                    const avatarUri = getMemberAvatar(m);
+
+                    return (
+                      <TouchableOpacity
+                        key={m.id}
+                        style={[
+                          styles.memberSelectCard,
+                          isSelected && styles.memberSelectCardActive,
+                        ]}
+                        onPress={() => {
+                          setSelectedMember(m);
+                          setRequestMemo(
+                            m.name +
+                              ' 님은 순우리말/현대식 성명으로 전통 항렬자가 성명에 들어가지 않았습니다. ' +
+                              (m.clan || '문중') +
+                              ' 대동보 원전을 실사하시어 공식 세수(世數)와 세손(世孫)을 확정해 주시기를 정중히 요청드립니다.'
+                          );
+                        }}
+                        activeOpacity={0.8}
+                      >
+                        <Image source={{ uri: avatarUri }} style={styles.memberAvatarMini} />
+                        <Text style={styles.memberSelectName}>{m.name}</Text>
+                        <Text style={styles.memberSelectRel}>{m.relationship}</Text>
+                        {isPureHangul && (
+                          <View style={styles.recommendTag}>
+                            <Text style={styles.recommendTagText}>✨ 고증 권장</Text>
+                          </View>
+                        )}
+                        {isSelected && (
+                          <View style={styles.checkCircle}>
+                            <Text style={styles.checkCircleText}>✓</Text>
+                          </View>
+                        )}
+                      </TouchableOpacity>
+                    );
+                  })}
+                </ScrollView>
+              )}
             </View>
 
             {/* Step 2: 성씨·본관 자동 분석 및 족보 마스터 자동 매칭 */}
@@ -1035,9 +1135,88 @@ const styles = StyleSheet.create({
     fontSize: 11.5,
     color: '#64748b',
   },
+  memberSelectorControlRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: 6,
+    marginBottom: 6,
+    flexWrap: 'wrap',
+    gap: 6,
+  },
+  memberCountBadge: {
+    backgroundColor: '#f1f5f9',
+    borderWidth: 1,
+    borderColor: '#cbd5e1',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 12,
+  },
+  memberCountBadgeText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#0284c7',
+  },
+  memberActionBtnsGroup: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  memberGridToggleBtn: {
+    backgroundColor: '#f1f5f9',
+    paddingHorizontal: 9,
+    paddingVertical: 4,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#cbd5e1',
+  },
+  memberGridToggleBtnActive: {
+    backgroundColor: '#0284c7',
+    borderColor: '#0284c7',
+  },
+  memberGridToggleBtnText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#475569',
+  },
+  memberGridToggleBtnTextActive: {
+    color: '#ffffff',
+  },
+  memberScrollNavGroup: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  memberArrowBtn: {
+    backgroundColor: '#ffffff',
+    width: 28,
+    height: 28,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#cbd5e1',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  memberArrowBtnText: {
+    fontSize: 12,
+    fontWeight: '900',
+    color: '#0284c7',
+  },
   memberScroll: {
     flexDirection: 'row',
     marginTop: 4,
+  },
+  memberScrollContent: {
+    paddingVertical: 4,
+    paddingRight: 10,
+    alignItems: 'center',
+  },
+  memberGridWrap: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+    marginTop: 6,
+    paddingVertical: 4,
   },
   memberSelectCard: {
     width: 100,
