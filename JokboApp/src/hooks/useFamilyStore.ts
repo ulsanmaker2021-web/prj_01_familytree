@@ -247,6 +247,55 @@ function syncWithAuth() {
         }
         return m;
       });
+
+      // 🌿 [부모-자녀 세대(Generation) 및 계통 자동 보정]
+      // 중앙집권/P2P 결연 시 부모-자식이 역전되어 4대(자녀)로 저장된 케이스 원천 자동 복구
+      const selfMember = customTree.find((m) => m.relationship === '본인' || m.id.startsWith('mem-')) || customTree[0];
+      const selfGen = selfMember?.generation || 3;
+      const fatherMember = customTree.find((m) => m.id.startsWith('father-') || m.relationship.includes('아버지') || m.relationship === '부');
+      const motherMember = customTree.find((m) => m.id.startsWith('mother-') || m.relationship.includes('어머니') || m.relationship === '모');
+      const fatherId = fatherMember?.id || (currentUser ? `father-${currentUser.id}` : undefined);
+      const motherId = motherMember?.id || (currentUser ? `mother-${currentUser.id}` : undefined);
+
+      customTree = customTree.map((m) => {
+        // 아버지 노드: 본인보다 윗대(2대)로 고정, 부모 목록에서 본인 제거
+        if (m.id.startsWith('father-') || m.relationship.includes('아버지') || m.relationship === '부') {
+          return {
+            ...m,
+            generation: Math.max(1, selfGen - 1),
+            lineage: 'paternal' as LineageType,
+            relationship: '부 (아버지)',
+            parentIds: (m.parentIds || []).filter((pid) => pid !== selfMember.id),
+            spouseId: motherId || m.spouseId,
+            clanGeneration: m.clanGeneration || (selfMember.clanGeneration ? selfMember.clanGeneration - 1 : 29),
+            descendantOrder: m.descendantOrder || (selfMember.descendantOrder ? selfMember.descendantOrder - 1 : 28),
+          };
+        }
+        // 어머니 노드: 본인보다 윗대(2대)로 고정, 부모 목록에서 본인 제거
+        if (m.id.startsWith('mother-') || m.relationship.includes('어머니') || m.relationship === '모') {
+          return {
+            ...m,
+            generation: Math.max(1, selfGen - 1),
+            lineage: 'maternal' as LineageType,
+            relationship: '모 (어머니)',
+            parentIds: (m.parentIds || []).filter((pid) => pid !== selfMember.id),
+            spouseId: fatherId || m.spouseId,
+          };
+        }
+        // 본인 노드: parentIds에 부모님 정상 연결
+        if (m.id === selfMember.id || m.relationship === '본인') {
+          const parentsSet = new Set(m.parentIds || []);
+          if (fatherId) parentsSet.add(fatherId);
+          if (motherId) parentsSet.add(motherId);
+          return {
+            ...m,
+            generation: selfGen,
+            parentIds: Array.from(parentsSet),
+          };
+        }
+        return m;
+      });
+
       saveStoredCustomFamily(currentUser.id, customTree);
     }
     if (!customTree || customTree.length === 0) {
@@ -394,22 +443,42 @@ export function useFamilyStore() {
     let updatedA = { ...targetA, isElderApproved: true, isVerifiedLineage: true };
     let updatedB = { ...targetB, isElderApproved: true, isVerifiedLineage: true };
 
-    if (relationType === 'parent_child') {
-      const existingParents = updatedB.parentIds || [];
-      if (!existingParents.includes(updatedA.id)) {
-        updatedB.parentIds = [...existingParents, updatedA.id];
+    if (relationType === 'parent_child' || relationType === 'child_parent') {
+      const isBTheParent =
+        relationType === 'child_parent' ||
+        targetB.id.startsWith('father-') ||
+        targetB.id.startsWith('mother-') ||
+        (targetB.relationship && (targetB.relationship.includes('부') || targetB.relationship.includes('모') || targetB.relationship.includes('어머니') || targetB.relationship.includes('아버지'))) ||
+        (targetA.relationship === '본인' && targetB.relationship !== '자녀' && targetB.relationship !== '아들' && targetB.relationship !== '딸');
+
+      if (isBTheParent) {
+        // B가 부모, A가 자녀!
+        const existingParentsA = updatedA.parentIds || [];
+        if (!existingParentsA.includes(updatedB.id)) {
+          updatedA.parentIds = [...existingParentsA, updatedB.id];
+        }
+        updatedB.generation = Math.max(1, updatedA.generation - 1);
+        if (targetB.id.startsWith('father-') || updatedB.gender === 'M') {
+          updatedB.lineage = 'paternal';
+          updatedB.relationship = '부 (아버지)';
+        } else {
+          updatedB.lineage = 'maternal';
+          updatedB.relationship = '모 (어머니)';
+        }
+      } else {
+        // A가 부모, B가 자녀!
+        const existingParentsB = updatedB.parentIds || [];
+        if (!existingParentsB.includes(updatedA.id)) {
+          updatedB.parentIds = [...existingParentsB, updatedA.id];
+        }
+        updatedB.generation = updatedA.generation + 1;
+        updatedB.lineage = updatedA.lineage;
+        if (updatedB.gender === 'M') {
+          updatedB.relationship = '아들 (자녀)';
+        } else {
+          updatedB.relationship = '딸 (자녀)';
+        }
       }
-      updatedB.generation = updatedA.generation + 1;
-      updatedB.lineage = updatedA.lineage;
-      updatedB.relationship = updatedA.lineage === 'maternal'
-        ? (updatedB.gender === 'M' ? '이종사촌남동생 (4촌)' : '이종사촌여동생 (4촌)')
-        : (updatedB.gender === 'M' ? '사촌동생 (4촌)' : '사촌여동생 (4촌)');
-    } else if (relationType === 'child_parent') {
-      const existingParents = updatedA.parentIds || [];
-      if (!existingParents.includes(updatedB.id)) {
-        updatedA.parentIds = [...existingParents, updatedB.id];
-      }
-      updatedA.generation = updatedB.generation + 1;
     } else if (relationType === 'spouse') {
       updatedA.spouseId = updatedB.id;
       updatedB.spouseId = updatedA.id;
@@ -536,22 +605,42 @@ export function useFamilyStore() {
     let updatedA = { ...targetA };
     let updatedB = { ...targetB };
 
-    if (relationType === 'parent_child') {
-      const existingParents = updatedB.parentIds || [];
-      if (!existingParents.includes(updatedA.id)) {
-        updatedB.parentIds = [...existingParents, updatedA.id];
+    if (relationType === 'parent_child' || relationType === 'child_parent') {
+      const isBTheParent =
+        relationType === 'child_parent' ||
+        targetB.id.startsWith('father-') ||
+        targetB.id.startsWith('mother-') ||
+        (targetB.relationship && (targetB.relationship.includes('부') || targetB.relationship.includes('모') || targetB.relationship.includes('어머니') || targetB.relationship.includes('아버지'))) ||
+        (targetA.relationship === '본인' && targetB.relationship !== '자녀' && targetB.relationship !== '아들' && targetB.relationship !== '딸');
+
+      if (isBTheParent) {
+        // B가 부모, A가 자녀!
+        const existingParentsA = updatedA.parentIds || [];
+        if (!existingParentsA.includes(updatedB.id)) {
+          updatedA.parentIds = [...existingParentsA, updatedB.id];
+        }
+        updatedB.generation = Math.max(1, updatedA.generation - 1);
+        if (targetB.id.startsWith('father-') || updatedB.gender === 'M') {
+          updatedB.lineage = 'paternal';
+          updatedB.relationship = '부 (아버지)';
+        } else {
+          updatedB.lineage = 'maternal';
+          updatedB.relationship = '모 (어머니)';
+        }
+      } else {
+        // A가 부모, B가 자녀!
+        const existingParentsB = updatedB.parentIds || [];
+        if (!existingParentsB.includes(updatedA.id)) {
+          updatedB.parentIds = [...existingParentsB, updatedA.id];
+        }
+        updatedB.generation = updatedA.generation + 1;
+        updatedB.lineage = updatedA.lineage;
+        if (updatedB.gender === 'M') {
+          updatedB.relationship = '아들 (자녀)';
+        } else {
+          updatedB.relationship = '딸 (자녀)';
+        }
       }
-      updatedB.generation = updatedA.generation + 1;
-      updatedB.lineage = updatedA.lineage;
-      updatedB.relationship = updatedA.lineage === 'maternal'
-        ? (updatedB.gender === 'M' ? '이종사촌남동생 (4촌)' : '이종사촌여동생 (4촌)')
-        : (updatedB.gender === 'M' ? '사촌동생 (4촌)' : '사촌여동생 (4촌)');
-    } else if (relationType === 'child_parent') {
-      const existingParents = updatedA.parentIds || [];
-      if (!existingParents.includes(updatedB.id)) {
-        updatedA.parentIds = [...existingParents, updatedB.id];
-      }
-      updatedA.generation = updatedB.generation + 1;
     } else if (relationType === 'spouse') {
       updatedA.spouseId = updatedB.id;
       updatedB.spouseId = updatedA.id;
