@@ -80,6 +80,21 @@ export default function HomeScreen() {
   const { width: windowWidth, height: windowHeight } = useWindowDimensions();
   const isMobile = windowWidth < 768;
   const isLandscape = windowWidth > windowHeight;
+  const isNarrow = windowWidth < 960;
+  const isVeryNarrow = windowWidth < 640;
+
+  // Active hover/touch tooltip state for intuitive label guidance
+  const [activeTooltip, setActiveTooltip] = useState<string | null>(null);
+  const tooltipTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  const showTooltipBriefly = (text: string) => {
+    setActiveTooltip(text);
+    if (tooltipTimeoutRef.current) clearTimeout(tooltipTimeoutRef.current);
+    tooltipTimeoutRef.current = setTimeout(() => {
+      setActiveTooltip(null);
+    }, 2400);
+  };
+
   const [scrollY, setScrollY] = useState(0);
   const scrollViewRef = useRef<ScrollView>(null);
 
@@ -319,6 +334,13 @@ export default function HomeScreen() {
       {/* 1. DOCKED TOP MASTER CONTROL BAR (화면 스크롤 내려도 항상 최상단 영구 고정!) */}
       {/* ========================================================================= */}
       <View style={styles.dockedMasterBar}>
+        {/* Floating Tooltip Pill (마우스 호버 및 클릭 시 상세 안내) */}
+        {activeTooltip && (
+          <View style={styles.dockedTooltipPill}>
+            <Text style={styles.dockedTooltipText}>💡 {activeTooltip}</Text>
+          </View>
+        )}
+
         {/* Row 1: 4대 뷰 모드 전환 탭 + 빠른 추가/스튜디오 버튼 */}
         <View style={styles.dockedRow1}>
           <ScrollView
@@ -327,11 +349,20 @@ export default function HomeScreen() {
             contentContainerStyle={styles.dockedModeScroll}
           >
             <TouchableOpacity
+              // @ts-ignore
+              title="옵시디언 방사형: 360도 궤도망으로 친족 네트워크를 한눈에 탐색"
+              // @ts-ignore
+              onMouseEnter={() => setActiveTooltip('옵시디언 방사형: 360도 궤도망 동적 네트워크 뷰')}
+              onMouseLeave={() => setActiveTooltip(null)}
               style={[
                 styles.modeTabBtn,
                 viewMode === 'radial' && styles.modeTabBtnActive,
+                isVeryNarrow && styles.modeTabBtnIconOnly,
               ]}
-              onPress={() => setViewMode('radial')}
+              onPress={() => {
+                setViewMode('radial');
+                showTooltipBriefly('옵시디언 방사형 뷰로 전환되었습니다.');
+              }}
               activeOpacity={0.8}
             >
               <Text
@@ -340,16 +371,25 @@ export default function HomeScreen() {
                   viewMode === 'radial' && styles.modeTabBtnTextActive,
                 ]}
               >
-                🌐 옵시디언 방사형
+                {isVeryNarrow ? '🌐' : isNarrow ? '🌐 방사형' : '🌐 옵시디언 방사형'}
               </Text>
             </TouchableOpacity>
 
             <TouchableOpacity
+              // @ts-ignore
+              title="세대별 계통: 위아래 수직 1~5대 족보 계통도"
+              // @ts-ignore
+              onMouseEnter={() => setActiveTooltip('세대별 계통: 위아래 수직 1~5대 족보 계통도')}
+              onMouseLeave={() => setActiveTooltip(null)}
               style={[
                 styles.modeTabBtn,
                 viewMode === 'generation' && styles.modeTabBtnActive,
+                isVeryNarrow && styles.modeTabBtnIconOnly,
               ]}
-              onPress={() => setViewMode('generation')}
+              onPress={() => {
+                setViewMode('generation');
+                showTooltipBriefly('세대별 계통 뷰로 전환되었습니다.');
+              }}
               activeOpacity={0.8}
             >
               <Text
@@ -358,16 +398,25 @@ export default function HomeScreen() {
                   viewMode === 'generation' && styles.modeTabBtnTextActive,
                 ]}
               >
-                📜 세대별 계통
+                {isVeryNarrow ? '📜' : isNarrow ? '📜 세대별' : '📜 세대별 계통'}
               </Text>
             </TouchableOpacity>
 
             <TouchableOpacity
+              // @ts-ignore
+              title="거실 표구 액자형: 최고급 전통 족보 표구 액자 스타일"
+              // @ts-ignore
+              onMouseEnter={() => setActiveTooltip('거실 표구 액자형: 최고급 전통 족보 액자 뷰')}
+              onMouseLeave={() => setActiveTooltip(null)}
               style={[
                 styles.modeTabBtn,
                 viewMode === 'framed' && [styles.modeTabBtnActive, { backgroundColor: '#854d0e', borderColor: '#b45309' }],
+                isVeryNarrow && styles.modeTabBtnIconOnly,
               ]}
-              onPress={() => setViewMode('framed')}
+              onPress={() => {
+                setViewMode('framed');
+                showTooltipBriefly('거실 표구 액자형 뷰로 전환되었습니다.');
+              }}
               activeOpacity={0.8}
             >
               <Text
@@ -376,16 +425,25 @@ export default function HomeScreen() {
                   viewMode === 'framed' && { color: '#ffffff', fontWeight: '800' },
                 ]}
               >
-                🖼️ 거실 표구 액자형
+                {isVeryNarrow ? '🖼️' : isNarrow ? '🖼️ 표구형' : '🖼️ 거실 표구 액자형'}
               </Text>
             </TouchableOpacity>
 
             <TouchableOpacity
+              // @ts-ignore
+              title="수평 마인드맵: 중심 인물을 기준으로 좌우 3대 수평 펼침 트리"
+              // @ts-ignore
+              onMouseEnter={() => setActiveTooltip('수평 마인드맵: 3대 친족 수평 펼침 트리')}
+              onMouseLeave={() => setActiveTooltip(null)}
               style={[
                 styles.modeTabBtn,
                 viewMode === 'mindmap' && [styles.modeTabBtnActive, { backgroundColor: '#0369a1', borderColor: '#0ea5e9' }],
+                isVeryNarrow && styles.modeTabBtnIconOnly,
               ]}
-              onPress={() => setViewMode('mindmap')}
+              onPress={() => {
+                setViewMode('mindmap');
+                showTooltipBriefly('수평 마인드맵 뷰로 전환되었습니다.');
+              }}
               activeOpacity={0.8}
             >
               <Text
@@ -394,22 +452,34 @@ export default function HomeScreen() {
                   viewMode === 'mindmap' && { color: '#ffffff', fontWeight: '800' },
                 ]}
               >
-                🧠 수평 마인드맵 (3대)
+                {isVeryNarrow ? '🧠' : isNarrow ? '🧠 마인드맵' : '🧠 수평 마인드맵 (3대)'}
               </Text>
             </TouchableOpacity>
 
             <View style={styles.dockedDividerVertical} />
 
             <TouchableOpacity
-              style={styles.dockedActionBtnAdd}
+              // @ts-ignore
+              title="가족 구성원 추가: 부모, 배우자, 자녀 등 새로운 친족 등록"
+              // @ts-ignore
+              onMouseEnter={() => setActiveTooltip('가족 구성원 추가: 부모·배우자·자녀 등록')}
+              onMouseLeave={() => setActiveTooltip(null)}
+              style={[styles.dockedActionBtnAdd, isVeryNarrow && styles.modeTabBtnIconOnly]}
               onPress={() => setIsAddMemberModalOpen(true)}
               activeOpacity={0.8}
             >
-              <Text style={styles.dockedActionBtnAddText}>➕ 가족 추가</Text>
+              <Text style={styles.dockedActionBtnAddText}>
+                {isVeryNarrow ? '➕' : isNarrow ? '➕ 추가' : '➕ 가족 추가'}
+              </Text>
             </TouchableOpacity>
 
             <TouchableOpacity
-              style={styles.dockedActionBtnStudio}
+              // @ts-ignore
+              title="친족 관계 형성 스튜디오: 분산 결연 신청 및 윗대 어르신 승인 관리"
+              // @ts-ignore
+              onMouseEnter={() => setActiveTooltip('친족 관계 스튜디오: P2P 결연 및 윗대 어르신 승인')}
+              onMouseLeave={() => setActiveTooltip(null)}
+              style={[styles.dockedActionBtnStudio, isVeryNarrow && styles.modeTabBtnIconOnly]}
               onPress={() => {
                 setStudioPreselectedPersonAId(undefined);
                 setStudioVisible(true);
@@ -417,7 +487,11 @@ export default function HomeScreen() {
               activeOpacity={0.8}
             >
               <Text style={styles.dockedActionBtnStudioText}>
-                🤝 관계 스튜디오 {pendingElderLinks.length > 0 ? `(🔔${pendingElderLinks.length})` : ''}
+                {isVeryNarrow
+                  ? `🤝${pendingElderLinks.length > 0 ? `(🔔${pendingElderLinks.length})` : ''}`
+                  : isNarrow
+                  ? `🤝 스튜디오${pendingElderLinks.length > 0 ? `(🔔${pendingElderLinks.length})` : ''}`
+                  : `🤝 관계 스튜디오 ${pendingElderLinks.length > 0 ? `(🔔${pendingElderLinks.length})` : ''}`}
               </Text>
             </TouchableOpacity>
           </ScrollView>
@@ -432,32 +506,56 @@ export default function HomeScreen() {
           >
             {/* 1. 친족 범위 필터 (직계 / 4촌 / 5·6촌) */}
             <View style={styles.filterChipGroup}>
-              <Text style={styles.filterGroupLabel}>범위:</Text>
+              <Text style={styles.filterGroupLabel}>{isVeryNarrow ? '' : '범위:'}</Text>
               <TouchableOpacity
+                // @ts-ignore
+                title="직계 범위: 2~3촌 직계 존비속 (부모, 자녀, 손자녀)만 표시"
+                // @ts-ignore
+                onMouseEnter={() => setActiveTooltip('표시 범위: 직계 (2~3촌 존비속만 표시)')}
+                onMouseLeave={() => setActiveTooltip(null)}
                 style={[styles.filterChip, kinshipScope === 'direct' && styles.filterChipActive]}
-                onPress={() => setKinshipScope('direct')}
+                onPress={() => {
+                  setKinshipScope('direct');
+                  showTooltipBriefly('직계(2~3촌) 친족만 표시됩니다.');
+                }}
                 activeOpacity={0.8}
               >
                 <Text style={[styles.filterChipText, kinshipScope === 'direct' && styles.filterChipTextActive]}>
-                  직계 (2~3촌)
+                  {isVeryNarrow ? '직계' : isNarrow ? '직계' : '직계 (2~3촌)'}
                 </Text>
               </TouchableOpacity>
               <TouchableOpacity
+                // @ts-ignore
+                title="4촌 사촌 범위: 백숙부, 고모, 이모, 외삼촌 및 4촌 사촌 형제자매 포함"
+                // @ts-ignore
+                onMouseEnter={() => setActiveTooltip('표시 범위: 4촌 사촌 형제자매까지 포함')}
+                onMouseLeave={() => setActiveTooltip(null)}
                 style={[styles.filterChip, kinshipScope === 'cousin4' && styles.filterChipActive]}
-                onPress={() => setKinshipScope('cousin4')}
+                onPress={() => {
+                  setKinshipScope('cousin4');
+                  showTooltipBriefly('4촌 사촌 형제자매까지 포함하여 표시됩니다.');
+                }}
                 activeOpacity={0.8}
               >
                 <Text style={[styles.filterChipText, kinshipScope === 'cousin4' && styles.filterChipTextActive]}>
-                  4촌 사촌 포함
+                  {isVeryNarrow ? '4촌' : isNarrow ? '4촌 사촌' : '4촌 사촌 포함'}
                 </Text>
               </TouchableOpacity>
               <TouchableOpacity
+                // @ts-ignore
+                title="5·6촌 종친 범위: 5촌 당숙, 6촌 재종형제자매 등 가문 종친 전원 포함"
+                // @ts-ignore
+                onMouseEnter={() => setActiveTooltip('표시 범위: 5·6촌 가문 종친 전원 포함')}
+                onMouseLeave={() => setActiveTooltip(null)}
                 style={[styles.filterChip, kinshipScope === 'extended6' && styles.filterChipActive]}
-                onPress={() => setKinshipScope('extended6')}
+                onPress={() => {
+                  setKinshipScope('extended6');
+                  showTooltipBriefly('5·6촌 종친까지 전원 포함하여 표시됩니다.');
+                }}
                 activeOpacity={0.8}
               >
                 <Text style={[styles.filterChipText, kinshipScope === 'extended6' && styles.filterChipTextActive]}>
-                  5·6촌 종친 포함
+                  {isVeryNarrow ? '5·6촌' : isNarrow ? '5·6촌 종친' : '5·6촌 종친 포함'}
                 </Text>
               </TouchableOpacity>
             </View>
@@ -466,41 +564,73 @@ export default function HomeScreen() {
 
             {/* 2. 계통 집중 필터 (전체 / 친가 / 외가 / 처가) */}
             <View style={styles.filterChipGroup}>
-              <Text style={styles.filterGroupLabel}>계통:</Text>
+              <Text style={styles.filterGroupLabel}>{isVeryNarrow ? '' : '계통:'}</Text>
               <TouchableOpacity
+                // @ts-ignore
+                title="계통 집중: 친가, 외가, 처가를 고르게 균형 있게 전체 표시"
+                // @ts-ignore
+                onMouseEnter={() => setActiveTooltip('계통 집중: 전체 가계 균형 표시')}
+                onMouseLeave={() => setActiveTooltip(null)}
                 style={[styles.filterChip, focusLineage === 'all' && styles.filterChipActive]}
-                onPress={() => setFocusLineage('all')}
+                onPress={() => {
+                  setFocusLineage('all');
+                  showTooltipBriefly('전체 계통을 균형 있게 표시합니다.');
+                }}
                 activeOpacity={0.8}
               >
                 <Text style={[styles.filterChipText, focusLineage === 'all' && styles.filterChipTextActive]}>
-                  🌿 전체 균형
+                  {isVeryNarrow ? '🌿' : isNarrow ? '🌿 전체' : '🌿 전체 균형'}
                 </Text>
               </TouchableOpacity>
               <TouchableOpacity
+                // @ts-ignore
+                title="친가 확장: 부친 및 친가 계통 혈통 중심 집중 표시 (붉은선)"
+                // @ts-ignore
+                onMouseEnter={() => setActiveTooltip('계통 집중: 🔴 친가 계통 확장 (부친 혈통)')}
+                onMouseLeave={() => setActiveTooltip(null)}
                 style={[styles.filterChip, focusLineage === 'paternal' && [styles.filterChipActive, { backgroundColor: '#fee2e2', borderColor: '#b91c1c' }]]}
-                onPress={() => setFocusLineage('paternal')}
+                onPress={() => {
+                  setFocusLineage('paternal');
+                  showTooltipBriefly('🔴 친가 계통 중심으로 확장되었습니다.');
+                }}
                 activeOpacity={0.8}
               >
                 <Text style={[styles.filterChipText, focusLineage === 'paternal' && { color: '#b91c1c', fontWeight: '800' }]}>
-                  🔴 친가 확장
+                  {isVeryNarrow ? '🔴' : isNarrow ? '🔴 친가' : '🔴 친가 확장'}
                 </Text>
               </TouchableOpacity>
               <TouchableOpacity
+                // @ts-ignore
+                title="외가 확장: 모친 및 외가 계통 혈통 중심 집중 표시 (푸른선)"
+                // @ts-ignore
+                onMouseEnter={() => setActiveTooltip('계통 집중: 🟢 외가 계통 확장 (모친 혈통)')}
+                onMouseLeave={() => setActiveTooltip(null)}
                 style={[styles.filterChip, focusLineage === 'maternal' && [styles.filterChipActive, { backgroundColor: '#dbeafe', borderColor: '#1d4ed8' }]]}
-                onPress={() => setFocusLineage('maternal')}
+                onPress={() => {
+                  setFocusLineage('maternal');
+                  showTooltipBriefly('🟢 외가 계통 중심으로 확장되었습니다.');
+                }}
                 activeOpacity={0.8}
               >
                 <Text style={[styles.filterChipText, focusLineage === 'maternal' && { color: '#1d4ed8', fontWeight: '800' }]}>
-                  🟢 외가 확장
+                  {isVeryNarrow ? '🟢' : isNarrow ? '🟢 외가' : '🟢 외가 확장'}
                 </Text>
               </TouchableOpacity>
               <TouchableOpacity
+                // @ts-ignore
+                title="처가/사돈 확장: 배우자 및 처가/사돈 계통 중심 표시 (황금선)"
+                // @ts-ignore
+                onMouseEnter={() => setActiveTooltip('계통 집중: 🟡 처가·사돈 계통 확장')}
+                onMouseLeave={() => setActiveTooltip(null)}
                 style={[styles.filterChip, focusLineage === 'inlaw' && [styles.filterChipActive, { backgroundColor: '#fef3c7', borderColor: '#b45309' }]]}
-                onPress={() => setFocusLineage('inlaw')}
+                onPress={() => {
+                  setFocusLineage('inlaw');
+                  showTooltipBriefly('🟡 처가·사돈 계통 중심으로 확장되었습니다.');
+                }}
                 activeOpacity={0.8}
               >
                 <Text style={[styles.filterChipText, focusLineage === 'inlaw' && { color: '#b45309', fontWeight: '800' }]}>
-                  🟡 처가 확장
+                  {isVeryNarrow ? '🟡' : isNarrow ? '🟡 처가' : '🟡 처가 확장'}
                 </Text>
               </TouchableOpacity>
             </View>
@@ -509,30 +639,59 @@ export default function HomeScreen() {
 
             {/* 3. 중심인물 성함 & 본인 복귀 & 인원수 */}
             <View style={styles.filterChipGroup}>
-              <Text style={styles.filterGroupLabel}>중심:</Text>
-              <View style={styles.centerNameBadge}>
+              <Text style={styles.filterGroupLabel}>{isVeryNarrow ? '' : '중심:'}</Text>
+              <View
+                // @ts-ignore
+                title={`가계도 중심 기준 인물: ${centerPerson?.name || ''}`}
+                // @ts-ignore
+                onMouseEnter={() => setActiveTooltip(`가계도 중심 인물: ${centerPerson?.name || ''}`)}
+                onMouseLeave={() => setActiveTooltip(null)}
+                style={styles.centerNameBadge}
+              >
                 <Text style={styles.centerNameBadgeText}>
                   🎯 {centerPerson ? centerPerson.name : '선택 없음'}
                 </Text>
               </View>
               {isOwnerCentered ? (
-                <View style={styles.ownerBadgeMini}>
+                <View
+                  // @ts-ignore
+                  title="현재 본인이 가계도 중심 기준 인물입니다"
+                  // @ts-ignore
+                  onMouseEnter={() => setActiveTooltip('현재 본인이 가계도 중심입니다.')}
+                  onMouseLeave={() => setActiveTooltip(null)}
+                  style={styles.ownerBadgeMini}
+                >
                   <Text style={styles.ownerBadgeMiniText}>본인</Text>
                 </View>
               ) : (
                 <TouchableOpacity
+                  // @ts-ignore
+                  title={`본인(${currentDevice.ownerName}) 중심으로 가계도 즉시 복귀`}
+                  // @ts-ignore
+                  onMouseEnter={() => setActiveTooltip(`본인(${currentDevice.ownerName}) 중심으로 복귀`)}
+                  onMouseLeave={() => setActiveTooltip(null)}
                   style={styles.resetCenterBtnMini}
-                  onPress={resetCenterToOwner}
+                  onPress={() => {
+                    resetCenterToOwner();
+                    showTooltipBriefly(`본인(${currentDevice.ownerName}) 중심으로 복귀되었습니다.`);
+                  }}
                   activeOpacity={0.8}
                 >
                   <Text style={styles.resetCenterBtnMiniText}>
-                    ↩ {currentDevice.ownerName} 중심으로 복귀
+                    {isVeryNarrow ? '↩ 복귀' : `↩ ${currentDevice.ownerName} 복귀`}
                   </Text>
                 </TouchableOpacity>
               )}
-              <View style={styles.countBadgeMini}>
+              <View
+                // @ts-ignore
+                title={`현재 조건에 부합하는 친족 총 ${filteredMembers.length}명 표시 중`}
+                // @ts-ignore
+                onMouseEnter={() => setActiveTooltip(`현재 표시 친족: 총 ${filteredMembers.length}명`)}
+                onMouseLeave={() => setActiveTooltip(null)}
+                style={styles.countBadgeMini}
+              >
                 <Text style={styles.countBadgeMiniText}>
-                  👥 친족 {filteredMembers.length}명
+                  👥 {isVeryNarrow ? `${filteredMembers.length}` : `${filteredMembers.length}명`}
                 </Text>
               </View>
             </View>
@@ -1158,6 +1317,36 @@ const styles = StyleSheet.create({
   modeTabBtnTextActive: {
     color: '#ffffff',
     fontWeight: '900',
+  },
+  modeTabBtnIconOnly: {
+    paddingHorizontal: 9,
+    paddingVertical: 6,
+    minWidth: 36,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  dockedTooltipPill: {
+    position: 'absolute',
+    top: 76,
+    alignSelf: 'center',
+    backgroundColor: 'rgba(15, 23, 42, 0.94)',
+    paddingHorizontal: 14,
+    paddingVertical: 5.5,
+    borderRadius: 20,
+    borderWidth: 1.2,
+    borderColor: '#38bdf8',
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.25,
+    shadowRadius: 5,
+    elevation: 12,
+    zIndex: 1001,
+  },
+  dockedTooltipText: {
+    color: '#ffffff',
+    fontSize: 11.5,
+    fontWeight: '800',
+    letterSpacing: 0.3,
   },
   dockedDividerVertical: {
     width: 1,
