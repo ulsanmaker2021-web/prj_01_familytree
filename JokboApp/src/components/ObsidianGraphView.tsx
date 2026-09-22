@@ -105,6 +105,11 @@ export const ObsidianGraphView: React.FC<ObsidianGraphViewProps> = ({
   const centerOnNode = useCallback(
     (x: number, y: number) => {
       if (!horizontalScrollRef.current) return;
+      const scaledWidth = WIDTH * zoomLevel;
+      if (scaledWidth <= windowWidth) {
+        horizontalScrollRef.current.scrollTo({ x: 0, animated: true });
+        return;
+      }
       const targetScrollX = Math.max(0, x * zoomLevel - windowWidth / 2);
       horizontalScrollRef.current.scrollTo({ x: targetScrollX, animated: true });
     },
@@ -120,10 +125,16 @@ export const ObsidianGraphView: React.FC<ObsidianGraphViewProps> = ({
 
   const handleZoomIn = () => {
     setZoomLevel((prev) => Math.min(1.8, +(prev + 0.15).toFixed(2)));
+    setTimeout(() => {
+      centerOnNode(CX, CY);
+    }, 50);
   };
 
   const handleZoomOut = () => {
     setZoomLevel((prev) => Math.max(0.25, +(prev - 0.15).toFixed(2)));
+    setTimeout(() => {
+      centerOnNode(CX, CY);
+    }, 50);
   };
 
   const handleResetZoom = () => {
@@ -911,23 +922,38 @@ export const ObsidianGraphView: React.FC<ObsidianGraphViewProps> = ({
         contentContainerStyle={[
           styles.canvasScroll,
           {
-            width: Math.max(windowWidth, WIDTH * zoomLevel),
-            height: HEIGHT * zoomLevel + 20,
+            minWidth: '100%',
+            width: Math.max(windowWidth, WIDTH * zoomLevel + 24),
+            height: HEIGHT * zoomLevel + 24,
+            alignItems: 'center',
+            justifyContent: 'center',
           },
         ]}
       >
+        {/* Dynamic Centered Canvas Frame based on current scale */}
         <View
-          style={[
-            styles.canvas,
-            {
-              width: WIDTH,
-              height: HEIGHT,
-              transform: [{ scale: zoomLevel }],
-              transformOrigin: '0 0',
-              backgroundColor: canvasBg,
-            },
-          ]}
+          style={{
+            width: WIDTH * zoomLevel,
+            height: HEIGHT * zoomLevel,
+            alignSelf: 'center',
+            position: 'relative',
+            overflow: 'visible',
+          }}
         >
+          <View
+            style={[
+              styles.canvas,
+              {
+                width: WIDTH,
+                height: HEIGHT,
+                transform: [{ scale: zoomLevel }],
+                transformOrigin: '0 0',
+                backgroundColor: canvasBg,
+                borderRadius: 12,
+                overflow: 'hidden',
+              },
+            ]}
+          >
           <View
             style={[
               styles.orbitRing,
@@ -1210,6 +1236,7 @@ export const ObsidianGraphView: React.FC<ObsidianGraphViewProps> = ({
               </View>
             );
           })}
+          </View>
         </View>
       </ScrollView>
     </View>
@@ -1430,6 +1457,8 @@ const styles = StyleSheet.create({
   },
   canvasScroll: {
     padding: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   canvas: {
     position: 'relative',
