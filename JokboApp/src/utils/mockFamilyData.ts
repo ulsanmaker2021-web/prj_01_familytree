@@ -885,89 +885,285 @@ export interface KinshipResult {
   chonText?: string;
 }
 
+// Helper to clean up raw relationship strings for "친족 (호칭)" display
+export function formatKinshipTitle(raw: string): string {
+  if (!raw || raw === '친족' || raw === '미등록 친족 후보' || raw === '미등록 친족' || raw === '미등록') {
+    return '친족';
+  }
+  if (raw.startsWith('친족 (')) {
+    return raw;
+  }
+  if (raw.includes('본인')) {
+    return '본인 (중심)';
+  }
+  // Specific compound kinships must be checked BEFORE general '부' / '모'
+  if (raw.includes('외할아버지') || raw.includes('외조부')) {
+    return '친족 (외할아버지)';
+  }
+  if (raw.includes('외할머니') || raw.includes('외조모')) {
+    return '친족 (외할머니)';
+  }
+  if (raw.includes('친할아버지') || raw.includes('친조부') || raw.includes('할아버지') || raw.includes('조부')) {
+    return '친족 (할아버지)';
+  }
+  if (raw.includes('친할머니') || raw.includes('친조모') || raw.includes('할머니') || raw.includes('조모')) {
+    return '친족 (할머니)';
+  }
+  if (raw.includes('큰아버지') || raw.includes('백부')) {
+    return '친족 (큰아버지)';
+  }
+  if (raw.includes('작은아버지') || raw.includes('숙부')) {
+    return '친족 (작은아버지)';
+  }
+  if (raw.includes('외숙모')) {
+    return '친족 (외숙모)';
+  }
+  if (raw.includes('이모부')) {
+    return '친족 (이모부)';
+  }
+  if (raw.includes('고모부')) {
+    return '친족 (고모부)';
+  }
+  if (raw.includes('외삼촌') || raw.includes('외숙')) {
+    return '친족 (외삼촌)';
+  }
+  if (raw.includes('고모')) {
+    return '친족 (고모)';
+  }
+  if (raw.includes('이모')) {
+    return '친족 (이모)';
+  }
+  if (raw.includes('사촌')) {
+    return '친족 (사촌)';
+  }
+  if (raw.includes('당숙')) {
+    return '친족 (당숙)';
+  }
+  if (raw.includes('남동생')) {
+    return '친족 (남동생)';
+  }
+  if (raw.includes('여동생')) {
+    return '친족 (여동생)';
+  }
+  if (raw.includes('오빠')) {
+    return '친족 (오빠)';
+  }
+  if (raw.includes('누나')) {
+    return '친족 (누나)';
+  }
+  if (raw.includes('언니')) {
+    return '친족 (언니)';
+  }
+  if (raw.includes('형') && !raw.includes('형제')) {
+    return '친족 (형)';
+  }
+  if (raw.includes('동기간') || raw.includes('형제') || raw.includes('남매') || raw.includes('자매')) {
+    return '친족 (동기간)';
+  }
+  if (raw.includes('아내') || raw.includes('남편') || raw.includes('배우자')) {
+    return '친족 (배우자)';
+  }
+  if (raw.includes('아들') || raw.includes('장남') || raw.includes('차남')) {
+    return '친족 (아들)';
+  }
+  if (raw.includes('딸') || raw.includes('장녀') || raw.includes('차녀')) {
+    return '친족 (딸)';
+  }
+  if (raw.includes('아버지') || raw.includes('부친') || raw.includes('선친') || /(^|[^\w가-힣])부([^\w가-힣]|$)/.test(raw) || raw === '부') {
+    return '친족 (아버지)';
+  }
+  if (raw.includes('어머니') || raw.includes('모친') || /(^|[^\w가-힣])모([^\w가-힣]|$)/.test(raw) || raw === '모') {
+    return '친족 (어머니)';
+  }
+
+  // Fallback for custom labels
+  const clean = raw.replace(/\(.*?\)/g, '').replace(/[0-9]/g, '').trim();
+  return clean ? `친족 (${clean})` : '친족';
+}
+
 // Compute kinship relationship from the perspective of centerId
-export function getKinshipRelation(centerId: string, targetId: string): KinshipResult {
+export function getKinshipRelation(
+  centerId: string,
+  targetId: string,
+  allMembers?: FamilyMember[]
+): KinshipResult {
   if (targetId === centerId) {
     return { title: '본인 (중심)' };
   }
 
-  // Known relation lookups for main personas
-  if (centerId === 'pat-3-1') {
-    // Kim Jun-hyeok's perspective
-    if (targetId === 'inlaw-pat-3-1') return { title: '배우자 (아내)', chonText: '0촌' };
-    if (targetId === 'pat-2-2') return { title: '아버지 (부친)', chonText: '1촌' };
-    if (targetId === 'mat-2-1') return { title: '어머니 (모친)', chonText: '1촌' };
-    if (targetId === 'pat-3-2') return { title: '남동생', chonText: '2촌' };
-    if (targetId === 'pat-3-3') return { title: '여동생', chonText: '2촌' };
-    if (targetId === 'pat-4-1') return { title: '장남 (아들)', chonText: '1촌' };
-    if (targetId === 'pat-4-2') return { title: '장녀 (딸)', chonText: '1촌' };
-    if (targetId === 'pat-1-1') return { title: '친조부 (할아버지)', chonText: '2촌' };
-    if (targetId === 'pat-1-2') return { title: '친조모 (할머니)', chonText: '2촌' };
-    if (targetId === 'mat-1-1') return { title: '외조부 (외할아버지)', chonText: '2촌' };
-    if (targetId === 'mat-1-2') return { title: '외조모 (외할머니)', chonText: '2촌' };
-    if (targetId === 'pat-2-1') return { title: '큰아버지 (백부)', chonText: '3촌' };
-    if (targetId === 'pat-2-3') return { title: '고모', chonText: '3촌' };
-    if (targetId === 'pat-3-4') return { title: '사촌형 (종형)', chonText: '4촌' };
-    if (targetId === 'pat-2-4') return { title: '당숙 (5촌 당숙)', chonText: '5촌' };
-    if (targetId === 'mat-2-2') return { title: '외삼촌 (외숙)', chonText: '3촌' };
-    if (targetId === 'mat-2-5') return { title: '외숙모 (외삼촌댁)', chonText: '인척' };
-    if (targetId === 'mat-2-3') return { title: '큰이모', chonText: '3촌' };
-    if (targetId === 'mat-2-6') return { title: '이모부', chonText: '인척' };
-    if (targetId === 'mat-2-7') return { title: '작은이모', chonText: '3촌' };
-    if (targetId === 'mat-3-1') return { title: '외사촌동생 (이시우)', chonText: '4촌' };
-    if (targetId === 'mat-3-2') return { title: '외사촌형 (이태우)', chonText: '4촌' };
-    if (targetId === 'mat-3-3') return { title: '이종사촌여동생 (최하린)', chonText: '4촌' };
-    if (targetId === 'mat-3-4') return { title: '이종사촌남동생 (최민우)', chonText: '4촌' };
-    if (targetId === 'mat-4-1') return { title: '외종조카 (이준우)', chonText: '5촌' };
-    if (targetId === 'mat-4-2') return { title: '외종질녀 (이서아)', chonText: '5촌' };
-    if (targetId === 'mat-2-4') return { title: '외당숙 (5촌)', chonText: '5촌' };
-    if (targetId === 'inlaw-pat-2-1') return { title: '장인어른', chonText: '인척' };
-    if (targetId === 'inlaw-mat-2-1') return { title: '장모님', chonText: '인척' };
-    if (targetId === 'inlaw-pat-3-2') return { title: '처남', chonText: '인척' };
-  } else if (centerId === 'inlaw-pat-3-1') {
-    // Jeong Seo-yeon's perspective
-    if (targetId === 'pat-3-1') return { title: '남편', chonText: '0촌' };
-    if (targetId === 'inlaw-pat-2-1') return { title: '아버지 (친정)', chonText: '1촌' };
-    if (targetId === 'inlaw-mat-2-1') return { title: '어머니 (친정)', chonText: '1촌' };
-    if (targetId === 'inlaw-pat-3-2') return { title: '남동생', chonText: '2촌' };
-    if (targetId === 'pat-2-2') return { title: '시아버지', chonText: '인척' };
-    if (targetId === 'mat-2-1') return { title: '시어머니', chonText: '인척' };
-    if (targetId === 'pat-4-1') return { title: '장남 (아들)', chonText: '1촌' };
-    if (targetId === 'pat-4-2') return { title: '장녀 (딸)', chonText: '1촌' };
-    if (targetId === 'inlaw-pat-2-2') return { title: '큰아버지 (백부)', chonText: '3촌' };
-    if (targetId === 'inlaw-mat-2-2') return { title: '외삼촌', chonText: '3촌' };
-    if (targetId === 'inlaw-mat-2-3') return { title: '이모', chonText: '3촌' };
-  } else if (centerId === 'pat-2-1') {
-    // Kim Yeong-ho's perspective
-    if (targetId === 'pat-1-1') return { title: '선친 (부친)', chonText: '1촌' };
-    if (targetId === 'pat-1-2') return { title: '어머님 (모친)', chonText: '1촌' };
-    if (targetId === 'pat-2-2') return { title: '아우 (남동생)', chonText: '2촌' };
-    if (targetId === 'pat-2-3') return { title: '여동생', chonText: '2촌' };
-    if (targetId === 'pat-3-1') return { title: '조카 (준혁)', chonText: '3촌' };
-    if (targetId === 'pat-3-4') return { title: '장남 (태혁)', chonText: '1촌' };
-    if (targetId === 'pat-2-4') return { title: '사촌형제 (당숙)', chonText: '4촌' };
-  } else if (centerId === 'mat-2-2') {
-    // Lee Eun-cheol's perspective
-    if (targetId === 'mat-1-1') return { title: '선친 (부친)', chonText: '1촌' };
-    if (targetId === 'mat-1-2') return { title: '어머님 (모친)', chonText: '1촌' };
-    if (targetId === 'mat-2-1') return { title: '누님', chonText: '2촌' };
-    if (targetId === 'mat-2-3') return { title: '큰여동생 (이모)', chonText: '2촌' };
-    if (targetId === 'mat-2-5') return { title: '배우자 (아내)', chonText: '0촌' };
-    if (targetId === 'mat-2-6') return { title: '매제 (이모부)', chonText: '인척' };
-    if (targetId === 'mat-2-7') return { title: '작은여동생', chonText: '2촌' };
-    if (targetId === 'pat-3-1') return { title: '생질 (조카)', chonText: '3촌' };
-    if (targetId === 'mat-3-1') return { title: '차남 (시우)', chonText: '1촌' };
-    if (targetId === 'mat-3-2') return { title: '장남 (태우)', chonText: '1촌' };
-    if (targetId === 'mat-3-3') return { title: '생질녀 (최하린)', chonText: '3촌' };
-    if (targetId === 'mat-3-4') return { title: '생질 (최민우)', chonText: '3촌' };
-    if (targetId === 'mat-4-1') return { title: '손자 (이준우)', chonText: '2촌' };
-    if (targetId === 'mat-4-2') return { title: '손녀 (이서아)', chonText: '2촌' };
-    if (targetId === 'mat-2-4') return { title: '사촌형제 (성국)', chonText: '4촌' };
+  // 1. Dynamic graph-based kinship analysis if allMembers is provided
+  if (allMembers && allMembers.length > 0) {
+    const center = allMembers.find((m) => m.id === centerId);
+    const target = allMembers.find((m) => m.id === targetId);
+
+    if (center && target) {
+      // 1-1. Direct Parent of center (1촌)
+      if (center.parentIds && center.parentIds.includes(target.id)) {
+        const isMale =
+          target.gender === 'M' ||
+          target.relationship?.includes('부') ||
+          target.relationship?.includes('아버지');
+        return {
+          title: isMale ? '친족 (아버지)' : '친족 (어머니)',
+          chonText: '1촌',
+        };
+      }
+
+      // 1-2. Direct Child of center (1촌)
+      if (target.parentIds && target.parentIds.includes(center.id)) {
+        const isMale = target.gender === 'M';
+        return {
+          title: isMale ? '친족 (아들)' : '친족 (딸)',
+          chonText: '1촌',
+        };
+      }
+
+      // 1-3. Spouse (0촌)
+      if (center.spouseId === target.id || target.spouseId === center.id) {
+        return {
+          title: '친족 (배우자)',
+          chonText: '0촌',
+        };
+      }
+
+      // 1-4. Siblings (2촌) - Same parents
+      const sharedParents = (center.parentIds || []).filter((pid) => (target.parentIds || []).includes(pid));
+      if (sharedParents.length > 0) {
+        const isTargetOlder = (target.birthDate || '9999') < (center.birthDate || '9999');
+        let sibTitle = '친족 (동기간)';
+        if (target.gender === 'M') {
+          if (center.gender === 'F') {
+            sibTitle = isTargetOlder ? '친족 (오빠)' : '친족 (남동생)';
+          } else {
+            sibTitle = isTargetOlder ? '친족 (형)' : '친족 (남동생)';
+          }
+        } else if (target.gender === 'F') {
+          if (center.gender === 'F') {
+            sibTitle = isTargetOlder ? '친족 (언니)' : '친족 (여동생)';
+          } else {
+            sibTitle = isTargetOlder ? '친족 (누나)' : '친족 (여동생)';
+          }
+        }
+        return {
+          title: sibTitle,
+          chonText: '2촌',
+        };
+      }
+
+      // 1-5. Grandparents (2촌)
+      const centerParents = allMembers.filter((m) => (center.parentIds || []).includes(m.id));
+      const father = centerParents.find((p) => p.gender === 'M' || p.relationship?.includes('부') || p.relationship?.includes('아버지'));
+      const mother = centerParents.find((p) => p.gender === 'F' || p.relationship?.includes('모') || p.relationship?.includes('어머니'));
+
+      if (father && father.parentIds && father.parentIds.includes(target.id)) {
+        return {
+          title: target.gender === 'M' ? '친족 (할아버지)' : '친족 (할머니)',
+          chonText: '2촌',
+        };
+      }
+      if (mother && mother.parentIds && mother.parentIds.includes(target.id)) {
+        return {
+          title: target.gender === 'M' ? '친족 (외할아버지)' : '친족 (외할머니)',
+          chonText: '2촌',
+        };
+      }
+
+      // 1-6. Target has a specified relationship field
+      if (target.relationship && target.relationship !== '친족' && target.relationship !== '미등록') {
+        const formatted = formatKinshipTitle(target.relationship);
+        let chonText: string | undefined = undefined;
+        if (formatted.includes('아버지') || formatted.includes('어머니') || formatted.includes('아들') || formatted.includes('딸')) chonText = '1촌';
+        else if (formatted.includes('배우자')) chonText = '0촌';
+        else if (formatted.includes('형') || formatted.includes('동생') || formatted.includes('오빠') || formatted.includes('누나') || formatted.includes('언니') || formatted.includes('할아버지') || formatted.includes('할머니') || formatted.includes('동기간')) chonText = '2촌';
+        else if (formatted.includes('삼촌') || formatted.includes('고모') || formatted.includes('이모') || formatted.includes('백부') || formatted.includes('숙부')) chonText = '3촌';
+        else if (formatted.includes('사촌')) chonText = '4촌';
+        else if (formatted.includes('당숙')) chonText = '5촌';
+
+        return {
+          title: formatted,
+          chonText,
+        };
+      }
+    }
   }
 
-  const targetMember = INITIAL_FAMILY_DATA.find((m) => m.id === targetId);
-  if (targetMember) {
-    return { title: targetMember.relationship };
+  // 2. Known relation lookups for main personas in simulation demo mode
+  if (centerId === 'pat-3-1') {
+    // Kim Jun-hyeok's perspective
+    if (targetId === 'inlaw-pat-3-1') return { title: '친족 (아내)', chonText: '0촌' };
+    if (targetId === 'pat-2-2') return { title: '친족 (아버지)', chonText: '1촌' };
+    if (targetId === 'mat-2-1') return { title: '친족 (어머니)', chonText: '1촌' };
+    if (targetId === 'pat-3-2') return { title: '친족 (남동생)', chonText: '2촌' };
+    if (targetId === 'pat-3-3') return { title: '친족 (여동생)', chonText: '2촌' };
+    if (targetId === 'pat-4-1') return { title: '친족 (아들)', chonText: '1촌' };
+    if (targetId === 'pat-4-2') return { title: '친족 (딸)', chonText: '1촌' };
+    if (targetId === 'pat-1-1') return { title: '친족 (할아버지)', chonText: '2촌' };
+    if (targetId === 'pat-1-2') return { title: '친족 (할머니)', chonText: '2촌' };
+    if (targetId === 'mat-1-1') return { title: '친족 (외할아버지)', chonText: '2촌' };
+    if (targetId === 'mat-1-2') return { title: '친족 (외할머니)', chonText: '2촌' };
+    if (targetId === 'pat-2-1') return { title: '친족 (큰아버지)', chonText: '3촌' };
+    if (targetId === 'pat-2-3') return { title: '친족 (고모)', chonText: '3촌' };
+    if (targetId === 'pat-3-4') return { title: '친족 (사촌형)', chonText: '4촌' };
+    if (targetId === 'pat-2-4') return { title: '친족 (당숙)', chonText: '5촌' };
+    if (targetId === 'mat-2-2') return { title: '친족 (외삼촌)', chonText: '3촌' };
+    if (targetId === 'mat-2-5') return { title: '친족 (외숙모)', chonText: '인척' };
+    if (targetId === 'mat-2-3') return { title: '친족 (큰이모)', chonText: '3촌' };
+    if (targetId === 'mat-2-6') return { title: '친족 (이모부)', chonText: '인척' };
+    if (targetId === 'mat-2-7') return { title: '친족 (작은이모)', chonText: '3촌' };
+    if (targetId === 'mat-3-1') return { title: '친족 (외사촌동생)', chonText: '4촌' };
+    if (targetId === 'mat-3-2') return { title: '친족 (외사촌형)', chonText: '4촌' };
+    if (targetId === 'mat-3-3') return { title: '친족 (이종사촌)', chonText: '4촌' };
+    if (targetId === 'mat-3-4') return { title: '친족 (이종사촌)', chonText: '4촌' };
+    if (targetId === 'mat-4-1') return { title: '친족 (외종조카)', chonText: '5촌' };
+    if (targetId === 'mat-4-2') return { title: '친족 (외종질녀)', chonText: '5촌' };
+    if (targetId === 'mat-2-4') return { title: '친족 (외당숙)', chonText: '5촌' };
+    if (targetId === 'inlaw-pat-2-1') return { title: '친족 (장인어른)', chonText: '인척' };
+    if (targetId === 'inlaw-mat-2-1') return { title: '친족 (장모님)', chonText: '인척' };
+    if (targetId === 'inlaw-pat-3-2') return { title: '친족 (처남)', chonText: '인척' };
+  } else if (centerId === 'inlaw-pat-3-1') {
+    // Jeong Seo-yeon's perspective
+    if (targetId === 'pat-3-1') return { title: '친족 (남편)', chonText: '0촌' };
+    if (targetId === 'inlaw-pat-2-1') return { title: '친족 (친정아버지)', chonText: '1촌' };
+    if (targetId === 'inlaw-mat-2-1') return { title: '친족 (친정어머니)', chonText: '1촌' };
+    if (targetId === 'inlaw-pat-3-2') return { title: '친족 (남동생)', chonText: '2촌' };
+    if (targetId === 'pat-2-2') return { title: '친족 (시아버지)', chonText: '인척' };
+    if (targetId === 'mat-2-1') return { title: '친족 (시어머니)', chonText: '인척' };
+    if (targetId === 'pat-4-1') return { title: '친족 (아들)', chonText: '1촌' };
+    if (targetId === 'pat-4-2') return { title: '친족 (딸)', chonText: '1촌' };
+    if (targetId === 'inlaw-pat-2-2') return { title: '친족 (큰아버지)', chonText: '3촌' };
+    if (targetId === 'inlaw-mat-2-2') return { title: '친족 (외삼촌)', chonText: '3촌' };
+    if (targetId === 'inlaw-mat-2-3') return { title: '친족 (이모)', chonText: '3촌' };
+  } else if (centerId === 'pat-2-1') {
+    // Kim Yeong-ho's perspective
+    if (targetId === 'pat-1-1') return { title: '친족 (선친/부)', chonText: '1촌' };
+    if (targetId === 'pat-1-2') return { title: '친족 (어머님/모)', chonText: '1촌' };
+    if (targetId === 'pat-2-2') return { title: '친족 (남동생)', chonText: '2촌' };
+    if (targetId === 'pat-2-3') return { title: '친족 (여동생)', chonText: '2촌' };
+    if (targetId === 'pat-3-1') return { title: '친족 (조카)', chonText: '3촌' };
+    if (targetId === 'pat-3-4') return { title: '친족 (아들)', chonText: '1촌' };
+    if (targetId === 'pat-2-4') return { title: '친족 (당숙)', chonText: '4촌' };
+  } else if (centerId === 'mat-2-2') {
+    // Lee Eun-cheol's perspective
+    if (targetId === 'mat-1-1') return { title: '친족 (선친/부)', chonText: '1촌' };
+    if (targetId === 'mat-1-2') return { title: '친족 (어머님/모)', chonText: '1촌' };
+    if (targetId === 'mat-2-1') return { title: '친족 (누님)', chonText: '2촌' };
+    if (targetId === 'mat-2-3') return { title: '친족 (여동생)', chonText: '2촌' };
+    if (targetId === 'mat-2-5') return { title: '친족 (아내)', chonText: '0촌' };
+    if (targetId === 'mat-2-6') return { title: '친족 (매제)', chonText: '인척' };
+    if (targetId === 'mat-2-7') return { title: '친족 (여동생)', chonText: '2촌' };
+    if (targetId === 'pat-3-1') return { title: '친족 (조카)', chonText: '3촌' };
+    if (targetId === 'mat-3-1') return { title: '친족 (차남)', chonText: '1촌' };
+    if (targetId === 'mat-3-2') return { title: '친족 (장남)', chonText: '1촌' };
+    if (targetId === 'mat-3-3') return { title: '친족 (생질녀)', chonText: '3촌' };
+    if (targetId === 'mat-3-4') return { title: '친족 (생질)', chonText: '3촌' };
+    if (targetId === 'mat-4-1') return { title: '친족 (손자)', chonText: '2촌' };
+    if (targetId === 'mat-4-2') return { title: '친족 (손녀)', chonText: '2촌' };
+    if (targetId === 'mat-2-4') return { title: '친족 (사촌)', chonText: '4촌' };
+  }
+
+  const targetMember = (allMembers || INITIAL_FAMILY_DATA).find((m) => m.id === targetId);
+  if (targetMember && targetMember.relationship && targetMember.relationship !== '친족') {
+    return { title: formatKinshipTitle(targetMember.relationship) };
   }
   return { title: '친족' };
 }

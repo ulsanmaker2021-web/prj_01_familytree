@@ -232,7 +232,7 @@ export default function HomeScreen() {
   ) => {
     const lineage = LINEAGES[member.lineage];
     const life = getLifeStatus(member);
-    const relInfo = centerPerson ? getKinshipRelation(centerPerson.id, member.id) : null;
+    const relInfo = centerPerson ? getKinshipRelation(centerPerson.id, member.id, allMembers) : null;
 
     // 부계는 붉은 계열 테두리, 모계는 푸른 계열 테두리, 사돈/처가는 황금 앰버 테두리
     const isPaternal = member.lineage === 'paternal';

@@ -192,10 +192,8 @@ export const HorizontalMindmapView: React.FC<HorizontalMindmapViewProps> = ({
   const getDisplayRelationTag = (member: FamilyMember, defaultRole?: string) => {
     if (defaultRole) return defaultRole;
     if (member.id === centerPerson.id) return '본인(주인공)';
-    if (member.id === centerPerson.spouseId) return '배우자';
-    if (member.relationship) return member.relationship;
-    const kinship = getKinshipRelation(centerPerson.id, member.id);
-    return kinship.title || '친족';
+    const kinship = getKinshipRelation(centerPerson.id, member.id, members);
+    return kinship.title || (member.relationship ? member.relationship : '친족');
   };
 
   // Render a compact Mindmap Node with optional on-demand expand drawer

@@ -1107,7 +1107,7 @@ export const ObsidianGraphView: React.FC<ObsidianGraphViewProps> = ({
             const isCenter = member.id === centerPerson.id;
             const pos = positions[member.id] || { x: CX, y: CY };
             const life = getLifeStatus(member);
-            const rel = getKinshipRelation(centerPerson.id, member.id);
+            const rel = getKinshipRelation(centerPerson.id, member.id, members);
             const isNewlyLinked =
               member.id.startsWith('unc-') ||
               establishedLinks.some((l) => l.personAId === member.id || l.personBId === member.id);
