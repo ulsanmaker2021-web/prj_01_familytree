@@ -749,11 +749,11 @@ export default function HomeScreen() {
               <DeviceSimulatorBar />
             )}
 
-            {/* 🔔 스마트 형제·친족 결연 신청 알람 (도착 시 컴팩트 슬림 배너) */}
+            {/* 🔔 스마트 형제·남매·자매 결연 신청 알람 (도착 시 컴팩트 슬림 배너) */}
             {pendingSmartRequests.length > 0 && (
               <View style={styles.compactAlertBar}>
                 <Text style={styles.compactAlertText}>
-                  🔔 <Text style={{ fontWeight: '800' }}>{pendingSmartRequests[0].senderName}</Text>님께서 친형제 결연 및 가계도 통합을 신청하셨습니다!
+                  🔔 <Text style={{ fontWeight: '800' }}>{pendingSmartRequests[0].senderName}</Text>님께서 {pendingSmartRequests[0].siblingSubtypeLabel || '형제·남매·자매'} 결연 및 가계도 통합을 신청하셨습니다!
                 </Text>
                 <TouchableOpacity
                   style={styles.compactAlertBtn}
@@ -821,7 +821,7 @@ export default function HomeScreen() {
               </>
             )}
 
-            {/* 🔔 스마트 형제·친족 결연 신청 알람 배너 */}
+            {/* 🔔 스마트 형제·남매·자매 결연 신청 알람 배너 */}
             {pendingSmartRequests.length > 0 && (
               <View style={styles.smartAlertBanner}>
                 <View style={styles.smartAlertLeft}>
@@ -830,11 +830,11 @@ export default function HomeScreen() {
                   </View>
                   <View style={styles.smartAlertTextWrap}>
                     <View style={styles.smartAlertBadgeRow}>
-                      <Text style={styles.smartAlertBadge}>형제 결연 신청 도착</Text>
+                      <Text style={styles.smartAlertBadge}>{pendingSmartRequests[0].siblingSubtypeLabel || '형제·남매·자매'} 결연 신청 도착</Text>
                       <Text style={styles.smartAlertTime}>실시간 알림</Text>
                     </View>
                     <Text style={styles.smartAlertTitle}>
-                      {pendingSmartRequests[0].senderName}님께서 친형제 결연 및 가계도 통합을 신청하셨습니다!
+                      {pendingSmartRequests[0].senderName}님께서 {pendingSmartRequests[0].siblingSubtypeLabel || '형제·남매·자매'} 결연 및 가계도 통합을 신청하셨습니다!
                     </Text>
                     <Text style={styles.smartAlertSubtitle}>
                       신청인이 등록한 부모(부: {pendingSmartRequests[0].senderFatherName || '미입력'}, 모: {pendingSmartRequests[0].senderMotherName || '미입력'})와 내 부모 정보를 1:1 대조하고 승인하세요.

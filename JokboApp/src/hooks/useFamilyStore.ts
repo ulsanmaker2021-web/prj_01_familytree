@@ -10,6 +10,7 @@ import {
   OperationMode,
   ApprovalStatus,
   SmartKinshipRequest,
+  SiblingSubtype,
 } from '../types/family';
 import {
   INITIAL_FAMILY_DATA,
@@ -853,7 +854,9 @@ export function useFamilyStore() {
   // 📱 스마트 형제·친족 전화번호 결연 신청
   const sendSmartKinshipRequest = (
     receiverPhoneInput: string,
-    relationType: RelationType = 'sibling'
+    relationType: RelationType = 'sibling',
+    siblingSubtype: SiblingSubtype = 'brother',
+    siblingSubtypeLabel: string = '형제'
   ): { success: boolean; message: string; request?: SmartKinshipRequest } => {
     const cleanReceiverPhone = stripPhoneNumber(receiverPhoneInput);
     if (cleanReceiverPhone.length < 10) {
@@ -903,12 +906,15 @@ export function useFamilyStore() {
       senderName: selfMember.name,
       senderPhone: cleanSelfPhone,
       senderBirthDate: selfMember.birthDate,
+      senderGender: (selfMember.gender as 'M' | 'F') || (currentUser?.gender as 'M' | 'F') || 'M',
       senderFatherName,
       senderMotherName,
       senderClan: selfMember.clan,
       receiverPhone: cleanReceiverPhone,
       receiverUserId: targetAccount?.id,
       relationType,
+      siblingSubtype,
+      siblingSubtypeLabel,
       status: 'pending',
       createdAt: new Date().toISOString().substring(0, 10),
     };
@@ -935,12 +941,12 @@ export function useFamilyStore() {
     const targetLabel = targetAccount ? `${targetAccount.name} 회원님` : `${formatPhoneNumber(cleanReceiverPhone)} 님`;
     return {
       success: true,
-      message: `🎉 [결연 신청 완료] ${targetLabel}께 스마트 형제 결연 신청이 전송되었습니다! 상대방이 앱에서 부모 정보를 확인 후 승인하면 가계도가 하나로 통합됩니다.`,
+      message: `🎉 [${siblingSubtypeLabel} 결연 신청 완료] ${targetLabel}께 스마트 ${siblingSubtypeLabel} 결연 신청이 전송되었습니다! 상대방이 앱에서 부모 정보를 확인 후 승인하면 가계도가 하나로 통합됩니다.`,
       request: newReq,
     };
   };
 
-  // 🤝 스마트 형제 결연 승인 및 부모 노드 단일화 & 가계도 통합 (Merge)
+  // 🤝 스마트 형제·남매·자매 결연 승인 및 부모 노드 단일화 & 가계도 통합 (Merge)
   const approveSmartKinshipRequest = (
     requestId: string
   ): { success: boolean; message: string; certificateNo?: string } => {
@@ -1027,12 +1033,49 @@ export function useFamilyStore() {
 
     selfMember.parentIds = existingParentIds;
 
-    // 3. 신청자를 형제 노드로 수신자 가계도에 편입
+    // 3. 신청자를 형제·남매·자매 노드로 수신자 가계도에 편입 (성별 및 연령 맞춤 호칭 산정)
     const isSenderOlder =
       req.senderBirthDate && selfMember.birthDate
         ? req.senderBirthDate < selfMember.birthDate
         : false;
-    const siblingRel = isSenderOlder ? '형 (형제)' : '남동생 (형제)';
+
+    const senderGender: 'M' | 'F' = req.senderGender || 'M';
+    const selfGender: 'M' | 'F' = (selfMember.gender as 'M' | 'F') || 'M';
+    const subtypeLabel = req.siblingSubtypeLabel || (
+      senderGender === selfGender ? (senderGender === 'M' ? '형제' : '자매') : '남매'
+    );
+
+    // 호칭 계산 (신청자가 수신자에게 어떤 호칭인가?)
+    let siblingRel = '동기간';
+    if (senderGender === 'M') {
+      if (selfGender === 'F') {
+        siblingRel = isSenderOlder ? '오빠 (남매)' : '남동생 (남매)';
+      } else {
+        siblingRel = isSenderOlder ? '형 (형제)' : '남동생 (형제)';
+      }
+    } else {
+      if (selfGender === 'F') {
+        siblingRel = isSenderOlder ? '언니 (자매)' : '여동생 (자매)';
+      } else {
+        siblingRel = isSenderOlder ? '누나 (남매)' : '여동생 (남매)';
+      }
+    }
+
+    // 역호칭 계산 (수신자가 신청자에게 어떤 호칭인가?)
+    let reverseRel = '동기간';
+    if (selfGender === 'M') {
+      if (senderGender === 'F') {
+        reverseRel = isSenderOlder ? '남동생 (남매)' : '오빠 (남매)';
+      } else {
+        reverseRel = isSenderOlder ? '남동생 (형제)' : '형 (형제)';
+      }
+    } else {
+      if (senderGender === 'F') {
+        reverseRel = isSenderOlder ? '여동생 (자매)' : '언니 (자매)';
+      } else {
+        reverseRel = isSenderOlder ? '여동생 (남매)' : '누나 (남매)';
+      }
+    }
 
     const existingSibling = globalMembers.find(
       (m) =>
@@ -1044,17 +1087,19 @@ export function useFamilyStore() {
     if (existingSibling) {
       brotherNode = {
         ...existingSibling,
+        gender: senderGender,
         parentIds: [...existingParentIds], // 동일 부모 노드 공유
         relationship: siblingRel,
         isVerifiedLineage: true,
-        memo: `스마트 족보 결연: 동일 부모(${req.senderFatherName || '부'}, ${req.senderMotherName || '모'}) 확인 및 가계도 편입 (${certificateNo})`,
+        achievements: [`가문 족보 ${subtypeLabel} 결연 공인`],
+        memo: `스마트 족보 결연: 동일 부모(${req.senderFatherName || '부'}, ${req.senderMotherName || '모'}) 확인 및 ${subtypeLabel} 가계도 편입 (${certificateNo})`,
       };
       globalMembers = globalMembers.map((m) => (m.id === brotherNode.id ? brotherNode : m));
     } else {
       brotherNode = {
-        id: req.senderMemberId || `mem-brother-${Date.now()}`,
+        id: req.senderMemberId || `mem-sibling-${Date.now()}`,
         name: req.senderName,
-        gender: 'M',
+        gender: senderGender,
         generation: selfMember.generation || 3,
         lineage: 'paternal',
         relationship: siblingRel,
@@ -1064,8 +1109,8 @@ export function useFamilyStore() {
         parentIds: [...existingParentIds], // 동일 부모 노드 공유!
         phone: req.senderPhone,
         isVerifiedLineage: true,
-        achievements: ['가문 족보 형제 결연 공인'],
-        memo: `스마트 족보 결연: 동일 부모(${req.senderFatherName || '부'}, ${req.senderMotherName || '모'}) 확인 및 가계도 편입 (${certificateNo})`,
+        achievements: [`가문 족보 ${subtypeLabel} 결연 공인`],
+        memo: `스마트 족보 결연: 동일 부모(${req.senderFatherName || '부'}, ${req.senderMotherName || '모'}) 확인 및 ${subtypeLabel} 가계도 편입 (${certificateNo})`,
       };
       globalMembers.push(brotherNode);
     }
@@ -1075,18 +1120,17 @@ export function useFamilyStore() {
       saveStoredCustomFamily(currentUser.id, globalMembers);
     }
 
-    // 4. 신청자의 저장된 가계도에도 수신자를 형제로 상호 편입
+    // 4. 신청자의 저장된 가계도에도 수신자를 형제·남매·자매로 상호 편입
     if (req.senderUserId) {
       const senderTree = getStoredCustomFamily(req.senderUserId);
       if (senderTree && senderTree.length > 0) {
         const senderSelf =
           senderTree.find((m) => m.id === req.senderMemberId || m.relationship === '본인') ||
           senderTree[0];
-        const reverseRel = isSenderOlder ? '남동생 (형제)' : '형 (형제)';
         const recipientAsBrother: FamilyMember = {
           id: selfMember.id,
           name: selfMember.name,
-          gender: selfMember.gender,
+          gender: selfGender,
           generation: selfMember.generation,
           lineage: 'paternal',
           relationship: reverseRel,
@@ -1096,8 +1140,8 @@ export function useFamilyStore() {
           parentIds: senderSelf.parentIds || [],
           phone: selfMember.phone,
           isVerifiedLineage: true,
-          achievements: ['가문 족보 형제 결연 공인'],
-          memo: `스마트 족보 결연: 동일 부모 확인 및 가계도 편입 (${certificateNo})`,
+          achievements: [`가문 족보 ${subtypeLabel} 결연 공인`],
+          memo: `스마트 족보 결연: 동일 부모 확인 및 ${subtypeLabel} 가계도 편입 (${certificateNo})`,
         };
         const updatedSenderTree = senderTree.filter((m) => m.id !== selfMember.id);
         updatedSenderTree.push(recipientAsBrother);
@@ -1120,8 +1164,8 @@ export function useFamilyStore() {
       certificateIssued: true,
       certificateNo,
       titleAtoB: siblingRel,
-      titleBtoA: isSenderOlder ? '남동생' : '형',
-      chonText: '2촌 (형제)',
+      titleBtoA: reverseRel.split(' ')[0],
+      chonText: `2촌 (${subtypeLabel})`,
       note: `스마트 부모 일치 검증 완료 (부: ${req.senderFatherName || '일치'}, 모: ${req.senderMotherName || '일치'}) → 단일 가계도 통합`,
     };
     globalEstablishedLinks = [newLink, ...globalEstablishedLinks];
@@ -1131,7 +1175,7 @@ export function useFamilyStore() {
     return {
       success: true,
       certificateNo,
-      message: `🎉 [친형제 결연 승인 완료] ${req.senderName}님과의 형제 관계가 공인되었습니다! 부모 노드가 하나로 단일화되고 가계도에 형제로 등록되었습니다. (${certificateNo})`,
+      message: `🎉 [${subtypeLabel} 결연 승인 완료] ${req.senderName}님과의 ${subtypeLabel} 관계가 공인되었습니다! 부모 노드가 하나로 단일화되고 가계도에 편입되었습니다. (${certificateNo})`,
     };
   };
 

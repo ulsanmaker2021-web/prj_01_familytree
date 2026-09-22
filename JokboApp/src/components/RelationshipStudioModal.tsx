@@ -8,7 +8,7 @@ import {
   ScrollView,
   TextInput,
 } from 'react-native';
-import { FamilyMember, RelationType, EstablishedLink, OperationMode, SmartKinshipRequest } from '../types/family';
+import { FamilyMember, RelationType, EstablishedLink, OperationMode, SmartKinshipRequest, SiblingSubtype } from '../types/family';
 import {
   calculateKinshipBetween,
   findElderApproverFor,
@@ -33,7 +33,9 @@ interface RelationshipStudioModalProps {
   onSetOperationMode: (mode: OperationMode) => void;
   onSendSmartKinship?: (
     receiverPhone: string,
-    relationType: RelationType
+    relationType: RelationType,
+    siblingSubtype?: SiblingSubtype,
+    siblingSubtypeLabel?: string
   ) => { success: boolean; message: string; request?: SmartKinshipRequest };
   onApproveSmartKinship?: (requestId: string) => { success: boolean; message: string; certificateNo?: string };
   onRejectSmartKinship?: (requestId: string, reason?: string) => { success: boolean; message: string };
@@ -164,6 +166,38 @@ const ScrollableSelectorRow: React.FC<ScrollableSelectorRowProps> = ({
   );
 };
 
+export const SIBLING_SUBTYPES: {
+  key: SiblingSubtype;
+  label: string;
+  badge: string;
+  desc: string;
+}[] = [
+  {
+    key: 'brother',
+    label: '형제 (남-남)',
+    badge: '👦-👦 형제',
+    desc: '형 / 남동생 관계 (동복 형제)',
+  },
+  {
+    key: 'sibling_mixed',
+    label: '남매 (남-여)',
+    badge: '👦-👧 남매',
+    desc: '오빠-여동생 / 누나-남동생 (동복 남매)',
+  },
+  {
+    key: 'sister',
+    label: '자매 (여-여)',
+    badge: '👧-👧 자매',
+    desc: '언니 / 여동생 관계 (동복 자매)',
+  },
+  {
+    key: 'general',
+    label: '동기간 (친족)',
+    badge: '🌱 동기간',
+    desc: '부모 공유 모든 친족 (형제·남매·자매)',
+  },
+];
+
 export const RelationshipStudioModal: React.FC<RelationshipStudioModalProps> = ({
   visible,
   onClose,
@@ -195,8 +229,9 @@ export const RelationshipStudioModal: React.FC<RelationshipStudioModalProps> = (
     'p2p_flow' | 'presets' | 'phone_sibling' | 'elder_inbox' | 'register_custom' | 'central_custom' | 'central_manage'
   >('phone_sibling');
 
-  // Sibling phone input
+  // Sibling phone input & selected subtype
   const [siblingPhoneInput, setSiblingPhoneInput] = useState('');
+  const [selectedSiblingSubtype, setSelectedSiblingSubtype] = useState<SiblingSubtype>('brother');
 
   // P2P Simulator Workflow State
   const [p2pStep, setP2pStep] = useState<'step1_request' | 'step2_peer_agree' | 'step3_elder_verify' | 'completed'>('step1_request');
@@ -546,7 +581,7 @@ export const RelationshipStudioModal: React.FC<RelationshipStudioModalProps> = (
                   <Text
                     style={[styles.subTabText, subTab === 'phone_sibling' && styles.subTabTextActive]}
                   >
-                    📞 전화번호 형제 결연 {smartRequests.filter((r) => r.status === 'pending').length > 0 ? `(${smartRequests.filter((r) => r.status === 'pending').length})` : ''}
+                    📞 전화번호 형제·자매·남매 결연 {smartRequests.filter((r) => r.status === 'pending').length > 0 ? `(${smartRequests.filter((r) => r.status === 'pending').length})` : ''}
                   </Text>
                 </TouchableOpacity>
 
@@ -630,25 +665,54 @@ export const RelationshipStudioModal: React.FC<RelationshipStudioModalProps> = (
           {/* 3. MAIN CONTENT AREA */}
           <ScrollView style={styles.scrollArea} contentContainerStyle={styles.scrollContent}>
             {/* ========================================================================= */}
-            {/* TAB: SMART PHONE SIBLING ALLIANCE (전화번호 형제 결연 & 스마트 부모 대조 통합) */}
+            {/* TAB: SMART PHONE SIBLING ALLIANCE (전화번호 형제·남매·자매 결연 & 스마트 부모 대조 통합) */}
             {/* ========================================================================= */}
             {subTab === 'phone_sibling' && (
               <View style={styles.sectionBlock}>
                 {/* Intro Explanation */}
                 <View style={styles.protocolExplainBox}>
                   <Text style={styles.protocolExplainTitle}>
-                    📱 전화번호 기반 스마트 형제·친족 결연 (Smart Sibling Alliance)
+                    📱 전화번호 기반 스마트 형제·남매·자매 결연 (동기간 스마트 결연)
                   </Text>
                   <Text style={styles.protocolExplainDesc}>
-                    형제가 각자 스마트폰으로 가입하여 부모님 성함을 등록한 경우, 상대방의 전화번호를 입력하여 결연을 신청합니다.
-                    신청 시 본인의 기본 정보와 부모님 성함이 결연 패키지로 전송되며, 수신자가 웹앱 알림을 통해 부모 정보를 대조·확인 후 승인하면 중복된 부모 노드가 하나로 자동 통합되고 가계도가 완성됩니다.
+                    형제, 남매, 자매(동기간)가 각자 스마트폰으로 가입하여 부모님 성함을 등록한 경우, 관계 유형을 선택하고 상대방의 전화번호를 입력하여 결연을 신청합니다.
+                    신청 시 본인의 기본 정보와 부모님 성함이 결연 패키지로 안전하게 전송되며, 수신자가 웹앱 알림을 통해 부모 정보를 대조·확인 후 승인하면 중복된 부모 노드가 하나로 자동 통합(Merge)되고 서로의 가계도에 정확한 호칭(형/오빠/누나/언니/남동생/여동생)으로 편입됩니다.
                   </Text>
                 </View>
 
                 {/* Form Card */}
                 <View style={styles.p2pInputCard}>
+                  {/* Step 1: Subtype Selector Grid */}
                   <Text style={styles.p2pInputCardTitle}>
-                    1. 결연 대상 형제(동생 / 형) 전화번호 입력
+                    1. 결연 관계 유형 선택 (형제 / 남매 / 자매 / 동기간)
+                  </Text>
+                  <View style={styles.subtypeGrid}>
+                    {SIBLING_SUBTYPES.map((sub) => {
+                      const isSelected = selectedSiblingSubtype === sub.key;
+                      return (
+                        <TouchableOpacity
+                          key={sub.key}
+                          style={[styles.subtypeCard, isSelected && styles.subtypeCardActive]}
+                          onPress={() => setSelectedSiblingSubtype(sub.key)}
+                          activeOpacity={0.8}
+                        >
+                          <View style={styles.subtypeCardHeader}>
+                            <Text style={[styles.subtypeBadgeText, isSelected && styles.subtypeBadgeTextActive]}>
+                              {sub.badge}
+                            </Text>
+                            {isSelected && <Text style={styles.subtypeCheckText}>✓ 선택됨</Text>}
+                          </View>
+                          <Text style={[styles.subtypeDescText, isSelected && styles.subtypeDescTextActive]}>
+                            {sub.desc}
+                          </Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
+
+                  {/* Step 2: Target Phone Input */}
+                  <Text style={[styles.p2pInputCardTitle, { marginTop: 8 }]}>
+                    2. 결연 대상 상대방 휴대전화 번호 입력
                   </Text>
 
                   {/* Sibling Phone Number Input with Clear Button and Guide */}
@@ -712,7 +776,7 @@ export const RelationshipStudioModal: React.FC<RelationshipStudioModalProps> = (
                     );
                   })()}
 
-                  {/* 2. My Sent Package Preview (신청인이 전송할 부모 정보 확인) */}
+                  {/* 3. My Sent Package Preview (신청인이 전송할 부모 정보 확인) */}
                   <View style={styles.senderPackagePreviewBox}>
                     <Text style={styles.senderPackagePreviewTitle}>
                       📋 상대방에게 전송될 나의 기본 정보 및 부모 정보
@@ -757,46 +821,59 @@ export const RelationshipStudioModal: React.FC<RelationshipStudioModalProps> = (
                     })()}
                   </View>
 
-                  {/* Submit Button */}
-                  <TouchableOpacity
-                    style={[
-                      styles.sendSiblingRequestBtn,
-                      stripPhoneNumber(siblingPhoneInput).length < 10 && styles.btnDisabled,
-                    ]}
-                    onPress={() => {
-                      const cleanPhone = stripPhoneNumber(siblingPhoneInput);
-                      if (cleanPhone.length < 10) {
-                        showToast('올바른 휴대전화 번호(10~11자리)를 입력해주세요.', 'error');
-                        return;
-                      }
-                      if (onSendSmartKinship) {
-                        const res = onSendSmartKinship(cleanPhone, 'sibling');
-                        if (res.success) {
-                          showToast(res.message, 'success');
-                          setSiblingPhoneInput('');
-                        } else {
-                          showToast(res.message, 'error');
-                        }
-                      }
-                    }}
-                    disabled={stripPhoneNumber(siblingPhoneInput).length < 10}
-                    activeOpacity={0.8}
-                  >
-                    <Text style={styles.sendSiblingRequestBtnText}>
-                      📱 형제 결연 신청 보내기 (부모 정보 대조 전송)
-                    </Text>
-                  </TouchableOpacity>
+                  {/* Submit Button with Dynamic Subtype Label */}
+                  {(() => {
+                    const currentSubtypeObj =
+                      SIBLING_SUBTYPES.find((s) => s.key === selectedSiblingSubtype) || SIBLING_SUBTYPES[0];
+                    const subtypeSimpleLabel = currentSubtypeObj.label.split(' ')[0];
+
+                    return (
+                      <TouchableOpacity
+                        style={[
+                          styles.sendSiblingRequestBtn,
+                          stripPhoneNumber(siblingPhoneInput).length < 10 && styles.btnDisabled,
+                        ]}
+                        onPress={() => {
+                          const cleanPhone = stripPhoneNumber(siblingPhoneInput);
+                          if (cleanPhone.length < 10) {
+                            showToast('올바른 휴대전화 번호(10~11자리)를 입력해주세요.', 'error');
+                            return;
+                          }
+                          if (onSendSmartKinship) {
+                            const res = onSendSmartKinship(
+                              cleanPhone,
+                              'sibling',
+                              selectedSiblingSubtype,
+                              subtypeSimpleLabel
+                            );
+                            if (res.success) {
+                              showToast(res.message, 'success');
+                              setSiblingPhoneInput('');
+                            } else {
+                              showToast(res.message, 'error');
+                            }
+                          }
+                        }}
+                        disabled={stripPhoneNumber(siblingPhoneInput).length < 10}
+                        activeOpacity={0.8}
+                      >
+                        <Text style={styles.sendSiblingRequestBtnText}>
+                          📱 {subtypeSimpleLabel} 결연 신청 보내기 (부모 정보 대조 전송)
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })()}
                 </View>
 
                 {/* 3. 스마트 결연 신청 목록 (수신 및 발신 내역) */}
                 <View style={styles.requestHistorySection}>
                   <Text style={styles.requestHistoryTitle}>
-                    📜 형제 결연 신청 및 수신 내역 ({smartRequests.length}건)
+                    📜 형제·남매·자매 결연 신청 및 수신 내역 ({smartRequests.length}건)
                   </Text>
                   {smartRequests.length === 0 ? (
                     <View style={styles.emptyHistoryBox}>
                       <Text style={styles.emptyHistoryText}>
-                        진행 중이거나 완료된 스마트 형제 결연 내역이 없습니다.
+                        진행 중이거나 완료된 스마트 형제·남매·자매 결연 내역이 없습니다.
                       </Text>
                     </View>
                   ) : (
@@ -805,6 +882,7 @@ export const RelationshipStudioModal: React.FC<RelationshipStudioModalProps> = (
                       const isApproved = req.status === 'approved';
                       const isRejected = req.status === 'rejected';
                       const isIncoming = stripPhoneNumber(req.receiverPhone) === stripPhoneNumber(currentUser?.phone);
+                      const reqSubtypeLabel = req.siblingSubtypeLabel || '형제';
 
                       return (
                         <View key={req.id} style={styles.requestHistoryCard}>
@@ -833,6 +911,9 @@ export const RelationshipStudioModal: React.FC<RelationshipStudioModalProps> = (
                                   {isApproved ? '✓ 결연 승인 완료 (통합)' : isRejected ? '❌ 반려됨' : '⏳ 승인 대기 중'}
                                 </Text>
                               </View>
+                              <Text style={styles.reqSubtypeTag}>
+                                🏷️ {reqSubtypeLabel}
+                              </Text>
                               <Text style={styles.reqTypeTag}>
                                 {isIncoming ? '📥 수신된 신청' : '📤 내가 보낸 신청'}
                               </Text>
@@ -841,7 +922,7 @@ export const RelationshipStudioModal: React.FC<RelationshipStudioModalProps> = (
                           </View>
 
                           <Text style={styles.reqDescText}>
-                            신청자: <Text style={{ fontWeight: '800' }}>{req.senderName}</Text> ({formatPhoneNumber(req.senderPhone)}) ➔ 수신자 ({formatPhoneNumber(req.receiverPhone)})
+                            신청자: <Text style={{ fontWeight: '800' }}>{req.senderName}</Text> ({formatPhoneNumber(req.senderPhone)}) ➔ {reqSubtypeLabel} 결연 ➔ 수신자 ({formatPhoneNumber(req.receiverPhone)})
                           </Text>
                           <Text style={styles.reqParentDetailText}>
                             등록 부모: 부 {req.senderFatherName || '미등록'} · 모 {req.senderMotherName || '미등록'}
@@ -865,7 +946,7 @@ export const RelationshipStudioModal: React.FC<RelationshipStudioModalProps> = (
                                 activeOpacity={0.8}
                               >
                                 <Text style={styles.reqInspectBtnText}>
-                                  🔍 부모 정보 1:1 대조 및 승인 검토 ➔
+                                  🔍 부모 정보 1:1 대조 및 결연 승인하기 ➔
                                 </Text>
                               </TouchableOpacity>
                             </View>
@@ -3324,5 +3405,61 @@ const styles = StyleSheet.create({
     color: '#ffffff',
     fontSize: 11.5,
     fontWeight: '800',
+  },
+  subtypeGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginBottom: 14,
+  },
+  subtypeCard: {
+    width: '48%',
+    minWidth: 140,
+    flexGrow: 1,
+    backgroundColor: '#f8fafc',
+    borderWidth: 1.5,
+    borderColor: '#cbd5e1',
+    borderRadius: 8,
+    padding: 10,
+  },
+  subtypeCardActive: {
+    backgroundColor: '#f0fdf4',
+    borderColor: '#16a34a',
+  },
+  subtypeCardHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  subtypeBadgeText: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#1e293b',
+  },
+  subtypeBadgeTextActive: {
+    color: '#15803d',
+  },
+  subtypeCheckText: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#16a34a',
+  },
+  subtypeDescText: {
+    fontSize: 11,
+    color: '#64748b',
+  },
+  subtypeDescTextActive: {
+    color: '#166534',
+    fontWeight: '600',
+  },
+  reqSubtypeTag: {
+    fontSize: 10.5,
+    fontWeight: '800',
+    color: '#0f766e',
+    backgroundColor: '#ccfbf1',
+    paddingHorizontal: 6,
+    paddingVertical: 1,
+    borderRadius: 4,
   },
 });

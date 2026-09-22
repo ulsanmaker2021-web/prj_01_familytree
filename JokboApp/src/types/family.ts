@@ -69,7 +69,9 @@ export interface EstablishedLink {
   chonText?: string;
 }
 
-// 📱 스마트 형제·친족 전화번호 결연 신청 및 부모 대조 패키지
+// 📱 스마트 형제·남매·자매(동기간) 전화번호 결연 신청 및 부모 대조 패키지
+export type SiblingSubtype = 'brother' | 'sister' | 'sibling_mixed' | 'general';
+
 export interface SmartKinshipRequest {
   id: string;
   senderUserId: string;
@@ -77,12 +79,15 @@ export interface SmartKinshipRequest {
   senderName: string;
   senderPhone: string;
   senderBirthDate?: string;
+  senderGender?: 'M' | 'F';
   senderFatherName?: string;
   senderMotherName?: string;
   senderClan?: string;
-  receiverPhone: string; // 수신 대상 형제 전화번호 (숫자만)
+  receiverPhone: string; // 수신 대상 동기간 전화번호 (숫자만)
   receiverUserId?: string;
   relationType: RelationType; // 'sibling'
+  siblingSubtype?: SiblingSubtype; // 'brother' (형제), 'sister' (자매), 'sibling_mixed' (남매), 'general' (동기간)
+  siblingSubtypeLabel?: string; // 예: '형제', '남매', '자매', '동기간'
   status: 'pending' | 'approved' | 'rejected';
   createdAt: string;
   fatherMatched?: boolean;

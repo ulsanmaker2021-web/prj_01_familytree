@@ -54,6 +54,7 @@ export const SmartKinshipInspectionModal: React.FC<SmartKinshipInspectionModalPr
 
   const isFullMatch = fatherMatches && motherMatches;
   const isPartialMatch = (fatherMatches && !motherMatches) || (!fatherMatches && motherMatches);
+  const subtypeLabel = request.siblingSubtypeLabel || '형제·남매·자매';
 
   const handleApprove = () => {
     const res = onApprove(request.id);
@@ -87,12 +88,12 @@ export const SmartKinshipInspectionModal: React.FC<SmartKinshipInspectionModalPr
             <View>
               <View style={styles.headerBadgeRow}>
                 <View style={styles.reqBadge}>
-                  <Text style={styles.reqBadgeText}>🔔 형제 결연 신청 도착</Text>
+                  <Text style={styles.reqBadgeText}>🔔 {subtypeLabel} 결연 신청 도착</Text>
                 </View>
                 <Text style={styles.dateText}>{request.createdAt}</Text>
               </View>
               <Text style={styles.headerTitle}>
-                {request.senderName}님의 친형제 결연 및 가계도 통합 신청
+                {request.senderName}님의 {subtypeLabel} 결연 및 가계도 통합 신청
               </Text>
             </View>
             <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
@@ -230,15 +231,15 @@ export const SmartKinshipInspectionModal: React.FC<SmartKinshipInspectionModalPr
               >
                 <Text style={styles.verdictTitle}>
                   {isFullMatch
-                    ? '🛡️ [자동 검증 통과] 직계 동복(同腹) 친형제 관계 입증'
+                    ? `🛡️ [자동 검증 통과] 직계 동복(同腹) ${subtypeLabel} 관계 입증`
                     : isPartialMatch
                     ? '💡 [부분 일치] 부모 한 분의 성함이 일치합니다.'
                     : '📋 [본인 확인 필요] 입력된 부모 정보를 확인하고 결연을 승인하세요.'}
                 </Text>
                 <Text style={styles.verdictDesc}>
                   {isFullMatch
-                    ? '양측이 등록한 아버지와 어머니 성함이 완벽히 일치합니다. 승인 시 두 사람의 부모 노드가 하나로 단일화(Merge)되며, 서로의 가계도에 친형제(2촌)로 나란히 편입됩니다.'
-                    : '등록된 정보가 실제 가족 관계가 맞는지 검토 후 승인해주세요. 승인하시면 부모 노드가 통합되고 형제로 가계도가 확장됩니다.'}
+                    ? `양측이 등록한 아버지와 어머니 성함이 완벽히 일치합니다. 승인 시 두 사람의 부모 노드가 하나로 단일화(Merge)되며, 서로의 가계도에 ${subtypeLabel}(2촌)로 나란히 편입됩니다.`
+                    : `등록된 정보가 실제 가족 관계가 맞는지 검토 후 승인해주세요. 승인하시면 부모 노드가 통합되고 ${subtypeLabel}로 가계도가 확장됩니다.`}
                 </Text>
               </View>
             </View>
@@ -250,7 +251,7 @@ export const SmartKinshipInspectionModal: React.FC<SmartKinshipInspectionModalPr
                 • 중복 등록되었던 부모 노드가 하나로 자동 통합(단일화)됩니다.
               </Text>
               <Text style={styles.guideBullet}>
-                • {request.senderName}님이 본인의 형제 노드로 나란히 배치되어 동일한 부모 라인을 공유합니다.
+                • {request.senderName}님이 본인의 {subtypeLabel} 노드로 나란히 배치되어 동일한 부모 라인을 공유합니다.
               </Text>
               <Text style={styles.guideBullet}>
                 • 공인 친족 증서(제2026-B호)가 발행되어 양측 스마트폰에 동시 보관됩니다.
@@ -275,7 +276,7 @@ export const SmartKinshipInspectionModal: React.FC<SmartKinshipInspectionModalPr
                   activeOpacity={0.8}
                 >
                   <Text style={styles.approveBtnText}>
-                    🤝 친형제 결연 승인 및 가계도 통합
+                    🤝 {subtypeLabel} 결연 승인 및 가계도 통합
                   </Text>
                 </TouchableOpacity>
               </View>
