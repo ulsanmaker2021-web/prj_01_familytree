@@ -172,197 +172,244 @@ export const ObsidianGraphView: React.FC<ObsidianGraphViewProps> = ({
     posMap[centerPerson.id] = { x: CX, y: CY };
 
     const otherMembers = members.filter((m) => m.id !== centerPerson.id);
-    const paternalMembers = otherMembers.filter((m) => m.lineage === 'paternal');
-    const maternalMembers = otherMembers.filter((m) => m.lineage === 'maternal');
-    const inlawMembers = otherMembers.filter(
-      (m) => m.lineage === 'inlaw_paternal' || m.lineage === 'inlaw_maternal'
-    );
 
-    const patSpecialPositions: Record<string, { r: number; angleDeg: number }> = {
-      'pat-2-2': { r: 270, angleDeg: 230 }, // 부친 (북서쪽 10시 반 방향 - 상단)
-      'pat-3-2': { r: 240, angleDeg: 215 }, // 남동생 (10시 반 방향)
-      'pat-3-3': { r: 250, angleDeg: 250 }, // 여동생 (11시 반 방향)
-      'pat-4-1': { r: 250, angleDeg: 290 }, // 아들 (12시 반 방향)
-      'pat-4-2': { r: 240, angleDeg: 325 }, // 딸 (1시 반 방향)
-
-      // 조부모 및 방계 친족
-      'pat-1-1': { r: 410, angleDeg: 165 }, // 친조부
-      'pat-1-2': { r: 410, angleDeg: 195 }, // 친조모
-      'pat-2-1': { r: 380, angleDeg: 140 }, // 백부
-      'pat-3-4': { r: 500, angleDeg: 130 }, // 사촌형 (백부 장남)
+    // 1. Fixed Mock Preset Positions (하위 호환성 보장)
+    const specialPresets: Record<string, { r: number; angleDeg: number }> = {
+      // 친가 직계/방계
+      'pat-2-2': { r: 270, angleDeg: 225 }, // 부친 (북서쪽 10시 반)
+      'pat-3-2': { r: 230, angleDeg: 200 }, // 남동생 (9시 반)
+      'pat-3-3': { r: 240, angleDeg: 240 }, // 여동생 (11시)
+      'pat-4-1': { r: 250, angleDeg: 125 }, // 아들 (5시)
+      'pat-4-2': { r: 240, angleDeg: 145 }, // 딸 (4시 반)
+      'pat-1-1': { r: 420, angleDeg: 165 }, // 친조부 (8시 반)
+      'pat-1-2': { r: 420, angleDeg: 190 }, // 친조모 (9시 반)
+      'pat-2-1': { r: 380, angleDeg: 140 }, // 백부 (7시)
+      'pat-3-4': { r: 490, angleDeg: 130 }, // 사촌형 (백부 장남)
       'pat-2-3': { r: 390, angleDeg: 215 }, // 고모
-      'pat-2-4': { r: 510, angleDeg: 115 }, // 당숙
+      'pat-2-4': { r: 500, angleDeg: 115 }, // 당숙
+      'unc-1': { r: 440, angleDeg: 145 },   // 김태성 (백부 차남 결연 시)
+      'unc-3': { r: 270, angleDeg: 215 },   // 박지민 (남동생 배우자 결연 시)
 
-      // 신규 결연 테스트 인물 (친가)
-      'unc-1': { r: 450, angleDeg: 145 }, // 김태성 (백부 차남 결연 시)
-      'unc-3': { r: 280, angleDeg: 228 }, // 박지민 (남동생 배우자 결연 시)
-    };
-
-    paternalMembers.forEach((m, idx) => {
-      if (patSpecialPositions[m.id]) {
-        const spec = patSpecialPositions[m.id];
-        const rad = (spec.angleDeg * Math.PI) / 180;
-        posMap[m.id] = {
-          x: CX + spec.r * Math.cos(rad),
-          y: CY + spec.r * Math.sin(rad),
-        };
-      } else if (
-        m.id.startsWith('father-') ||
-        (m.generation === 2 && m.gender === 'M' && (m.relationship?.includes('부') || m.relationship?.includes('아버지')))
-      ) {
-        // 부친은 상단 북서쪽 10시 반 방향 (230도) -> 중심 인물과 삼각형 구도 형성 (선 겹침 방지)
-        const rad = (230 * Math.PI) / 180;
-        posMap[m.id] = {
-          x: CX + 270 * Math.cos(rad),
-          y: CY + 270 * Math.sin(rad),
-        };
-      } else if (
-        m.generation === 3 &&
-        (m.relationship?.includes('형') ||
-          m.relationship?.includes('동생') ||
-          m.relationship?.includes('형제') ||
-          m.id.includes('brother'))
-      ) {
-        // 형제(동생/형)는 중심 본인(CX, CY) 근처의 9시 방향에 자연스럽게 배치
-        const rad = (205 * Math.PI) / 180;
-        posMap[m.id] = {
-          x: CX + 190 * Math.cos(rad),
-          y: CY + 190 * Math.sin(rad),
-        };
-      } else {
-        const startRad = (130 * Math.PI) / 180;
-        const endRad = (240 * Math.PI) / 180;
-        const step =
-          paternalMembers.length > 1
-            ? startRad + ((endRad - startRad) * idx) / (paternalMembers.length - 1)
-            : (230 * Math.PI) / 180;
-        const radius = m.generation === 1 ? 400 : m.generation === 2 ? 270 : 340;
-        posMap[m.id] = {
-          x: CX + radius * Math.cos(step),
-          y: CY + radius * Math.sin(step),
-        };
-      }
-    });
-
-    // ==========================================
-    // 외가 (Maternal): Right / Upper-Right sector (-65° to 65°)
-    // ==========================================
-    const matSpecialPositions: Record<string, { r: number; angleDeg: number }> = {
-      'mat-2-1': { r: 270, angleDeg: 310 }, // 모친 (북동쪽 1시 반 방향 - 상단)
-      'mat-1-1': { r: 420, angleDeg: -15 }, // 외조부
-      'mat-1-2': { r: 420, angleDeg: 15 },  // 외조모
-      'mat-2-2': { r: 360, angleDeg: -25 }, // 외숙 (외삼촌)
-      'mat-2-5': { r: 470, angleDeg: -25 }, // 외숙모
-      'mat-3-1': { r: 460, angleDeg: -45 }, // 외사촌동생 (시우)
-      'mat-3-2': { r: 470, angleDeg: -58 }, // 외사촌형 (태우)
-      'mat-4-1': { r: 560, angleDeg: -45 }, // 외종조카 (준우)
-      'mat-4-2': { r: 570, angleDeg: -58 }, // 외종질녀 (서아)
+      // 외가 직계/방계
+      'mat-2-1': { r: 270, angleDeg: 315 }, // 모친 (북동쪽 1시 반)
+      'mat-1-1': { r: 420, angleDeg: 350 }, // 외조부 (3시)
+      'mat-1-2': { r: 420, angleDeg: 15 },  // 외조모 (3시 반)
+      'mat-2-2': { r: 360, angleDeg: 335 }, // 외숙 (외삼촌)
+      'mat-2-5': { r: 470, angleDeg: 335 }, // 외숙모
+      'mat-3-1': { r: 460, angleDeg: 315 }, // 외사촌동생 (시우)
+      'mat-3-2': { r: 470, angleDeg: 300 }, // 외사촌형 (태우)
+      'mat-4-1': { r: 560, angleDeg: 315 }, // 외종조카 (준우)
+      'mat-4-2': { r: 570, angleDeg: 300 }, // 외종질녀 (서아)
       'mat-2-3': { r: 360, angleDeg: 25 },  // 큰이모
       'mat-2-6': { r: 470, angleDeg: 25 },  // 이모부
       'mat-3-3': { r: 460, angleDeg: 40 },  // 이종사촌여동생 (하린)
-      'mat-3-4': { r: 480, angleDeg: 52 },  // 이종사촌남동생 (민우)
-      'mat-2-7': { r: 380, angleDeg: 68 },  // 작은이모
-      'mat-2-4': { r: 530, angleDeg: -10 }, // 외당숙
+      'mat-3-4': { r: 480, angleDeg: 55 },  // 이종사촌남동생 (민우)
+      'mat-2-7': { r: 380, angleDeg: 70 },  // 작은이모
+      'mat-2-4': { r: 530, angleDeg: 350 }, // 외당숙
+      'unc-2': { r: 450, angleDeg: 35 },    // 최소율 (큰이모 차녀 결연 시)
 
-      // 신규 결연 테스트 인물 (외가)
-      'unc-2': { r: 450, angleDeg: 32 },  // 최소율 (큰이모 차녀 결연 시)
-    };
-
-    maternalMembers.forEach((m, idx) => {
-      if (matSpecialPositions[m.id]) {
-        const spec = matSpecialPositions[m.id];
-        const rad = (spec.angleDeg * Math.PI) / 180;
-        posMap[m.id] = {
-          x: CX + spec.r * Math.cos(rad),
-          y: CY + spec.r * Math.sin(rad),
-        };
-      } else if (
-        m.id.startsWith('mother-') ||
-        (m.generation === 2 && m.gender === 'F' && (m.relationship?.includes('모') || m.relationship?.includes('어머니')))
-      ) {
-        // 모친은 상단 북동쪽 1시 반 방향 (310도) -> 중심 인물과 삼각형 구도 형성 (선 겹침 방지)
-        const rad = (310 * Math.PI) / 180;
-        posMap[m.id] = {
-          x: CX + 270 * Math.cos(rad),
-          y: CY + 270 * Math.sin(rad),
-        };
-      } else {
-        const startRad = (-50 * Math.PI) / 180;
-        const endRad = (50 * Math.PI) / 180;
-        const step =
-          maternalMembers.length > 1
-            ? startRad + ((endRad - startRad) * idx) / (maternalMembers.length - 1)
-            : (310 * Math.PI) / 180;
-        const radius = m.generation === 1 ? 420 : m.generation === 2 ? 270 : 440;
-        posMap[m.id] = {
-          x: CX + radius * Math.cos(step),
-          y: CY + radius * Math.sin(step),
-        };
-      }
-    });
-
-    // ==========================================
-    // 사돈댁 (In-Laws): Lower sector (70° to 110°)
-    // ==========================================
-    const inlawSpecialPositions: Record<string, { r: number; angleDeg: number }> = {
+      // 사돈댁 / 배우자
       'inlaw-pat-3-1': { r: 180, angleDeg: 90 },  // 배우자 (정남쪽 6시 방향)
-      'inlaw-pat-2-1': { r: 320, angleDeg: 78 },  // 장인어른
-      'inlaw-mat-2-1': { r: 320, angleDeg: 102 }, // 장모님
-      'inlaw-pat-3-2': { r: 350, angleDeg: 118 }, // 처남
-      'inlaw-pat-1-1': { r: 460, angleDeg: 72 },  // 처조부
-      'inlaw-pat-1-2': { r: 470, angleDeg: 84 },  // 처조모
-      'inlaw-pat-2-2': { r: 470, angleDeg: 62 },  // 처백부
-      'inlaw-mat-1-1': { r: 460, angleDeg: 96 },  // 처외조부
-      'inlaw-mat-1-2': { r: 470, angleDeg: 108 }, // 처외조모
-      'inlaw-mat-2-2': { r: 470, angleDeg: 120 }, // 처외숙
-      'inlaw-mat-2-3': { r: 480, angleDeg: 132 }, // 처이모
+      'inlaw-pat-2-1': { r: 320, angleDeg: 75 },  // 장인어른
+      'inlaw-mat-2-1': { r: 320, angleDeg: 105 }, // 장모님
+      'inlaw-pat-3-2': { r: 350, angleDeg: 120 }, // 처남
+      'inlaw-pat-1-1': { r: 460, angleDeg: 70 },  // 처조부
+      'inlaw-pat-1-2': { r: 470, angleDeg: 82 },  // 처조모
+      'inlaw-pat-2-2': { r: 470, angleDeg: 60 },  // 처백부
+      'inlaw-mat-1-1': { r: 460, angleDeg: 98 },  // 처외조부
+      'inlaw-mat-1-2': { r: 470, angleDeg: 110 }, // 처외조모
+      'inlaw-mat-2-2': { r: 470, angleDeg: 122 }, // 처외숙
+      'inlaw-mat-2-3': { r: 480, angleDeg: 135 }, // 처이모
     };
 
-    inlawMembers.forEach((m, idx) => {
-      if (inlawSpecialPositions[m.id]) {
-        const spec = inlawSpecialPositions[m.id];
+    // 2. Separate Dynamic Members (Preset 없는 신규/중앙 결연 인물)
+    const dynamicMembers: FamilyMember[] = [];
+    otherMembers.forEach((m) => {
+      if (specialPresets[m.id]) {
+        const spec = specialPresets[m.id];
         const rad = (spec.angleDeg * Math.PI) / 180;
         posMap[m.id] = {
           x: CX + spec.r * Math.cos(rad),
           y: CY + spec.r * Math.sin(rad),
         };
       } else {
-        const startRad = (75 * Math.PI) / 180;
-        const endRad = (105 * Math.PI) / 180;
-        const step =
-          inlawMembers.length > 1
-            ? startRad + ((endRad - startRad) * idx) / (inlawMembers.length - 1)
-            : (90 * Math.PI) / 180;
-        posMap[m.id] = {
-          x: CX + 280 * Math.cos(step),
-          y: CY + 280 * Math.sin(step),
-        };
+        dynamicMembers.push(m);
       }
     });
 
-    // ==========================================
-    // 🛡️ Automated Anti-Collision Relaxation Pass
-    // ==========================================
-    const CARD_W = 125;
-    const CARD_H = 58;
-    const SAFE_MARGIN_X = 18;
-    const SAFE_MARGIN_Y = 14;
+    // 3. Smart Categorization for Dynamic Members
+    const eldersGen2: FamilyMember[] = [];
+    const grandparentsGen1: FamilyMember[] = [];
+    const siblingsGen3: FamilyMember[] = [];
+    const childrenGen4: FamilyMember[] = [];
+    const spouseAndInlaws: FamilyMember[] = [];
+    const others: FamilyMember[] = [];
 
-    const allKeys = Object.keys(posMap);
+    dynamicMembers.forEach((m) => {
+      const relStr = m.relationship || '';
+      const isFather = m.id.startsWith('father-') || relStr.includes('부') || relStr.includes('아버지');
+      const isMother = m.id.startsWith('mother-') || relStr.includes('모') || relStr.includes('어머니');
+      const isElder = isFather || isMother || relStr.includes('숙') || relStr.includes('고모') || relStr.includes('이모') || relStr.includes('백부') || m.generation === 2;
+      const isGrandparent = m.generation === 1 || relStr.includes('조부') || relStr.includes('조모') || relStr.includes('할아') || relStr.includes('할머');
+      const isSpouse = m.spouseId === centerPerson.id || relStr.includes('배우자') || relStr.includes('아내') || relStr.includes('남편');
+      const isSibling = m.generation === 3 || relStr.includes('형') || relStr.includes('동생') || relStr.includes('누나') || relStr.includes('오빠') || relStr.includes('언니') || relStr.includes('형제') || relStr.includes('자매');
+      const isChild = m.generation === 4 || relStr.includes('자녀') || relStr.includes('아들') || relStr.includes('딸') || relStr.includes('조카');
+
+      if (isSpouse || m.lineage.startsWith('inlaw')) {
+        spouseAndInlaws.push(m);
+      } else if (isGrandparent) {
+        grandparentsGen1.push(m);
+      } else if (isElder || (m.birthDate && !isChild && !isSibling)) {
+        eldersGen2.push(m);
+      } else if (isSibling) {
+        siblingsGen3.push(m);
+      } else if (isChild) {
+        childrenGen4.push(m);
+      } else {
+        others.push(m);
+      }
+    });
+
+    // Position Generation 2 (Parents & Elders) - Ring 2 (r = 270px)
+    if (eldersGen2.length === 1) {
+      const el = eldersGen2[0];
+      const isMat = el.lineage === 'maternal' || el.gender === 'F' || (el.relationship?.includes('모'));
+      const angleDeg = isMat ? 315 : 225;
+      const rad = (angleDeg * Math.PI) / 180;
+      posMap[el.id] = { x: CX + 270 * Math.cos(rad), y: CY + 270 * Math.sin(rad) };
+    } else if (eldersGen2.length === 2) {
+      // 🌟 [핵심] 2명의 부모/어르신인 경우: 한 명은 북서(225°), 다른 한 명은 북동(315°)으로 완벽한 대칭 삼각형 배치!
+      // 이렇게 배치하면 중심 본인과의 직계 연결선 및 두 어르신 간 결연선이 절대 인물 카드나 다른 선과 겹치지 않습니다.
+      const el1 = eldersGen2[0];
+      const el2 = eldersGen2[1];
+      const el2IsMother = el2.gender === 'F' || el2.lineage === 'maternal' || (el2.relationship?.includes('모'));
+      const leftMember = el2IsMother ? el1 : el2;
+      const rightMember = el2IsMother ? el2 : el1;
+
+      const radLeft = (225 * Math.PI) / 180;
+      const radRight = (315 * Math.PI) / 180;
+      posMap[leftMember.id] = { x: CX + 270 * Math.cos(radLeft), y: CY + 270 * Math.sin(radLeft) };
+      posMap[rightMember.id] = { x: CX + 270 * Math.cos(radRight), y: CY + 270 * Math.sin(radRight) };
+    } else if (eldersGen2.length > 2) {
+      // 3명 이상인 경우: 친가는 북서쪽(195° ~ 250°), 외가는 북동쪽(290° ~ 345°)에 최소 35° 간격으로 분산 배치
+      const patElders = eldersGen2.filter((m) => m.lineage !== 'maternal' && m.gender !== 'F');
+      const matElders = eldersGen2.filter((m) => m.lineage === 'maternal' || m.gender === 'F');
+
+      patElders.forEach((m, idx) => {
+        const startDeg = 195;
+        const endDeg = 245;
+        const angleDeg = patElders.length > 1 ? startDeg + ((endDeg - startDeg) * idx) / (patElders.length - 1) : 225;
+        const rad = (angleDeg * Math.PI) / 180;
+        posMap[m.id] = { x: CX + 270 * Math.cos(rad), y: CY + 270 * Math.sin(rad) };
+      });
+
+      matElders.forEach((m, idx) => {
+        const startDeg = 295;
+        const endDeg = 345;
+        const angleDeg = matElders.length > 1 ? startDeg + ((endDeg - startDeg) * idx) / (matElders.length - 1) : 315;
+        const rad = (angleDeg * Math.PI) / 180;
+        posMap[m.id] = { x: CX + 270 * Math.cos(rad), y: CY + 270 * Math.sin(rad) };
+      });
+    }
+
+    // Position Generation 1 (Grandparents) - Ring 3 (r = 420px, 150° ~ 185° & 355° ~ 30°)
+    grandparentsGen1.forEach((m, idx) => {
+      const isMat = m.lineage === 'maternal';
+      const startDeg = isMat ? 355 : 155;
+      const endDeg = isMat ? 30 : 185;
+      const angleDeg = grandparentsGen1.length > 1 ? startDeg + ((endDeg - startDeg) * idx) / (grandparentsGen1.length - 1) : (isMat ? 10 : 170);
+      const rad = (angleDeg * Math.PI) / 180;
+      posMap[m.id] = { x: CX + 420 * Math.cos(rad), y: CY + 420 * Math.sin(rad) };
+    });
+
+    // Position Generation 3 (Siblings) - Ring 1 (r = 200px, 160° ~ 190°)
+    siblingsGen3.forEach((m, idx) => {
+      const startDeg = 160;
+      const endDeg = 195;
+      const angleDeg = siblingsGen3.length > 1 ? startDeg + ((endDeg - startDeg) * idx) / (siblingsGen3.length - 1) : 180;
+      const rad = (angleDeg * Math.PI) / 180;
+      posMap[m.id] = { x: CX + 200 * Math.cos(rad), y: CY + 200 * Math.sin(rad) };
+    });
+
+    // Position Spouse & In-laws - South (r = 180px, 90°)
+    spouseAndInlaws.forEach((m, idx) => {
+      const startDeg = 75;
+      const endDeg = 105;
+      const angleDeg = spouseAndInlaws.length > 1 ? startDeg + ((endDeg - startDeg) * idx) / (spouseAndInlaws.length - 1) : 90;
+      const rad = (angleDeg * Math.PI) / 180;
+      posMap[m.id] = { x: CX + 180 * Math.cos(rad), y: CY + 180 * Math.sin(rad) };
+    });
+
+    // Position Children - Ring 1 Lower (r = 250px, 120° ~ 150°)
+    childrenGen4.forEach((m, idx) => {
+      const startDeg = 120;
+      const endDeg = 150;
+      const angleDeg = childrenGen4.length > 1 ? startDeg + ((endDeg - startDeg) * idx) / (childrenGen4.length - 1) : 135;
+      const rad = (angleDeg * Math.PI) / 180;
+      posMap[m.id] = { x: CX + 250 * Math.cos(rad), y: CY + 250 * Math.sin(rad) };
+    });
+
+    // Position Any Remaining Others
+    others.forEach((m, idx) => {
+      const rad = ((250 + idx * 30) * Math.PI) / 180;
+      posMap[m.id] = { x: CX + 320 * Math.cos(rad), y: CY + 320 * Math.sin(rad) };
+    });
+
+    // =========================================================================
+    // 🛡️ PASS 1: Automated Radial Angular De-confliction (방사형 각도 겹침 방지)
+    // 두 노드가 동일한 방사 각도상에 놓여 중심선이 카드를 관통하는 현상을 원천 방지
+    // =========================================================================
+    const MIN_RADIAL_GAP_RAD = (28 * Math.PI) / 180; // 최소 28도 방사 각도 간격 보장
+    const allIds = Object.keys(posMap).filter((id) => id !== centerPerson.id);
+
+    for (let iter = 0; iter < 12; iter++) {
+      let angleMoved = false;
+      for (let i = 0; i < allIds.length; i++) {
+        for (let j = i + 1; j < allIds.length; j++) {
+          const pA = posMap[allIds[i]];
+          const pB = posMap[allIds[j]];
+          const rA = Math.hypot(pA.x - CX, pA.y - CY) || 1;
+          const rB = Math.hypot(pB.x - CX, pB.y - CY) || 1;
+          let thA = Math.atan2(pA.y - CY, pA.x - CX);
+          let thB = Math.atan2(pB.y - CY, pB.x - CX);
+          let diff = thB - thA;
+          while (diff > Math.PI) diff -= 2 * Math.PI;
+          while (diff < -Math.PI) diff += 2 * Math.PI;
+
+          if (Math.abs(diff) < MIN_RADIAL_GAP_RAD) {
+            angleMoved = true;
+            const pushAngle = (MIN_RADIAL_GAP_RAD - Math.abs(diff)) / 2;
+            const sign = diff >= 0 ? 1 : -1;
+            thB += pushAngle * sign;
+            thA -= pushAngle * sign;
+            posMap[allIds[i]] = { x: CX + rA * Math.cos(thA), y: CY + rA * Math.sin(thA) };
+            posMap[allIds[j]] = { x: CX + rB * Math.cos(thB), y: CY + rB * Math.sin(thB) };
+          }
+        }
+      }
+      if (!angleMoved) break;
+    }
+
+    // =========================================================================
+    // 🛡️ PASS 2: Bounding Box Relaxation (인물 카드 상호 겹침 방지)
+    // =========================================================================
+    const CARD_W = 135;
+    const CARD_H = 65;
+    const SAFE_MARGIN_X = 25;
+    const SAFE_MARGIN_Y = 18;
+
     for (let iter = 0; iter < 30; iter++) {
       let moved = false;
-      for (let i = 0; i < allKeys.length; i++) {
-        const idA = allKeys[i];
-        if (idA === centerPerson.id) continue;
+      for (let i = 0; i < allIds.length; i++) {
+        const idA = allIds[i];
         const pA = posMap[idA];
 
-        for (let j = i + 1; j < allKeys.length; j++) {
-          const idB = allKeys[j];
-          if (idB === centerPerson.id) continue;
+        for (let j = i + 1; j < allIds.length; j++) {
+          const idB = allIds[j];
           const pB = posMap[idB];
 
-          const centerShiftA = 50;
-          const centerShiftB = 50;
+          const centerShiftA = 55;
+          const centerShiftB = 55;
           const ax = pA.x + centerShiftA;
           const ay = pA.y;
           const bx = pB.x + centerShiftB;
@@ -379,18 +426,18 @@ export const ObsidianGraphView: React.FC<ObsidianGraphViewProps> = ({
             const nx = dx / dist;
             const ny = dy / dist;
 
-            const pushX = nx * (overlapX * 0.45);
-            const pushY = ny * (overlapY * 0.45);
+            const pushX = nx * (overlapX * 0.5);
+            const pushY = ny * (overlapY * 0.5);
 
             pA.x -= pushX;
             pA.y -= pushY;
             pB.x += pushX;
             pB.y += pushY;
 
-            pA.x = Math.max(50, Math.min(WIDTH - 150, pA.x));
-            pA.y = Math.max(50, Math.min(HEIGHT - 80, pA.y));
-            pB.x = Math.max(50, Math.min(WIDTH - 150, pB.x));
-            pB.y = Math.max(50, Math.min(HEIGHT - 80, pB.y));
+            pA.x = Math.max(60, Math.min(WIDTH - 180, pA.x));
+            pA.y = Math.max(60, Math.min(HEIGHT - 90, pA.y));
+            pB.x = Math.max(60, Math.min(WIDTH - 180, pB.x));
+            pB.y = Math.max(60, Math.min(HEIGHT - 90, pB.y));
           }
         }
       }
@@ -1166,29 +1213,20 @@ export const ObsidianGraphView: React.FC<ObsidianGraphViewProps> = ({
                       backgroundColor: nodeCardBg,
                       borderColor: isNewlyLinked ? '#10b981' : isDraggingThis ? '#38bdf8' : nodeCardBorder,
                       borderWidth: isNewlyLinked ? 1.5 : 1,
-                      left: halfSize + 6,
+                      left: nodeSize + 8,
                     },
                     isCenter && styles.centerCardChip,
                   ]}
                 >
-                  <View style={styles.chipHeaderRow}>
-                    <Text
-                      style={[
-                        styles.nodeNameText,
-                        { color: isCenter ? '#10b981' : isDarkMode ? '#f8fafc' : '#1e293b' },
-                      ]}
-                      numberOfLines={1}
-                    >
-                      {member.name}
-                    </Text>
-
-                    {(() => {
-                      if (!isNewlyLinked) return null;
-                      const matchedLink = establishedLinks.find(
-                        (l) => l.personAId === member.id || l.personBId === member.id
-                      );
-                      const isPending = matchedLink?.status === 'pending_elder';
-                      return (
+                  {/* Top: 2차 승인 / 공인 인증 배지 (이름 위 상단 독립 라인으로 분리하여 이름 가림 원천 해결) */}
+                  {(() => {
+                    if (!isNewlyLinked) return null;
+                    const matchedLink = establishedLinks.find(
+                      (l) => l.personAId === member.id || l.personBId === member.id
+                    );
+                    const isPending = matchedLink?.status === 'pending_elder';
+                    return (
+                      <View style={styles.verifiedBadgeRow}>
                         <View
                           style={[
                             styles.newLinkBadge,
@@ -1204,11 +1242,22 @@ export const ObsidianGraphView: React.FC<ObsidianGraphViewProps> = ({
                             {isPending ? '⏳ 윗대 승인대기' : '🛡️ 어르신 공인'}
                           </Text>
                         </View>
-                      );
-                    })()}
+                      </View>
+                    );
+                  })()}
 
-                    {rel.chonText && !isNewlyLinked ? (
-                      <View style={[styles.chonBadge, { backgroundColor: nodeColor }]}>
+                  <View style={styles.chipHeaderRow}>
+                    <Text
+                      style={[
+                        styles.nodeNameText,
+                        { color: isCenter ? '#10b981' : isDarkMode ? '#f8fafc' : '#1e293b' },
+                      ]}
+                    >
+                      {member.name}
+                    </Text>
+
+                    {rel.chonText ? (
+                      <View style={[styles.chonBadge, { backgroundColor: isCenter ? '#10b981' : nodeColor }]}>
                         <Text style={styles.chonBadgeText}>{rel.chonText}</Text>
                       </View>
                     ) : null}
@@ -1507,11 +1556,11 @@ const styles = StyleSheet.create({
   },
   nodeCardChip: {
     position: 'absolute',
-    paddingHorizontal: 7,
+    paddingHorizontal: 8,
     paddingVertical: 5,
     borderRadius: 8,
     borderWidth: 1,
-    minWidth: 95,
+    minWidth: 110,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.25,
@@ -1522,14 +1571,20 @@ const styles = StyleSheet.create({
     borderWidth: 1.5,
     borderColor: '#10b981',
   },
+  verifiedBadgeRow: {
+    marginBottom: 3,
+    alignSelf: 'flex-start',
+  },
   chipHeaderRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
+    gap: 5,
+    marginBottom: 2,
   },
   nodeNameText: {
-    fontSize: 12,
+    fontSize: 12.5,
     fontWeight: '800',
+    flexShrink: 0,
   },
   chonBadge: {
     paddingHorizontal: 4,
