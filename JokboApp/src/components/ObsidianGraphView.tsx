@@ -571,7 +571,87 @@ export const ObsidianGraphView: React.FC<ObsidianGraphViewProps> = ({
     return edges;
   }, [members, centerPerson, isDarkMode, establishedLinks]);
 
-  // 3. Drag Tracking Ref for Smooth 60fps Dragging
+  // 3. Multi-Selection & Collective Dragging States
+  const [selectedNodeIds, setSelectedNodeIds] = useState<string[]>([]);
+  const [selectionBox, setSelectionBox] = useState<{ x1: number; y1: number; x2: number; y2: number } | null>(null);
+
+  const canvasRef = useRef<any>(null);
+  const positionsRef = useRef(positions);
+  positionsRef.current = positions;
+
+  const selectedNodeIdsRef = useRef(selectedNodeIds);
+  selectedNodeIdsRef.current = selectedNodeIds;
+
+  const membersRef = useRef(members);
+  membersRef.current = members;
+
+  const edgeDefinitionsRef = useRef(edgeDefinitions);
+  edgeDefinitionsRef.current = edgeDefinitions;
+
+  // Marquee Selection Tracking Ref
+  const selectionRef = useRef<{
+    isSelecting: boolean;
+    startX: number;
+    startY: number;
+    currentX: number;
+    currentY: number;
+    hasMoved: boolean;
+    isAdditive: boolean;
+  }>({
+    isSelecting: false,
+    startX: 0,
+    startY: 0,
+    currentX: 0,
+    currentY: 0,
+    hasMoved: false,
+    isAdditive: false,
+  });
+
+  // Helper to test if a relation line segment intersects with the selection rectangle
+  const doesLineIntersectBox = (
+    from: { x: number; y: number },
+    to: { x: number; y: number },
+    minX: number,
+    maxX: number,
+    minY: number,
+    maxY: number
+  ) => {
+    if (
+      (from.x >= minX && from.x <= maxX && from.y >= minY && from.y <= maxY) ||
+      (to.x >= minX && to.x <= maxX && to.y >= minY && to.y <= maxY)
+    ) {
+      return true;
+    }
+    const steps = [0.2, 0.35, 0.5, 0.65, 0.8];
+    for (const t of steps) {
+      const px = from.x + (to.x - from.x) * t;
+      const py = from.y + (to.y - from.y) * t;
+      if (px >= minX && px <= maxX && py >= minY && py <= maxY) {
+        return true;
+      }
+    }
+    return false;
+  };
+
+  // Convert viewport client coordinates to unscaled canvas coordinates (0~1200, 0~980)
+  const getCanvasCoords = useCallback((clientX: number, clientY: number) => {
+    if (!canvasRef.current) return { x: 0, y: 0 };
+    const domNode = (canvasRef.current as any).getBoundingClientRect
+      ? canvasRef.current
+      : (canvasRef.current as any)?._nativeTag || (canvasRef.current as any);
+    const rect = domNode?.getBoundingClientRect?.() || {
+      left: 0,
+      top: 0,
+      width: WIDTH * zoomLevel,
+      height: HEIGHT * zoomLevel,
+    };
+    const z = zoomLevel || 1;
+    const x = Math.max(0, Math.min(WIDTH, (clientX - rect.left) / z));
+    const y = Math.max(0, Math.min(HEIGHT, (clientY - rect.top) / z));
+    return { x, y };
+  }, [zoomLevel, WIDTH, HEIGHT]);
+
+  // 4. Drag Tracking Ref for Smooth 60fps Dragging (Individual or Multi-Selection Group)
   const dragRef = useRef<{
     activeId: string | null;
     startX: number;
@@ -592,8 +672,6 @@ export const ObsidianGraphView: React.FC<ObsidianGraphViewProps> = ({
     if (Platform.OS !== 'web' || typeof window === 'undefined') return;
 
     const onPointerMove = (e: MouseEvent | TouchEvent) => {
-      if (!dragRef.current.activeId) return;
-
       let clientX = 0;
       let clientY = 0;
       if ('touches' in e && e.touches.length > 0) {
@@ -604,31 +682,151 @@ export const ObsidianGraphView: React.FC<ObsidianGraphViewProps> = ({
         clientY = (e as MouseEvent).clientY;
       }
 
-      const currentZoom = zoomLevel || 1;
-      const dx = (clientX - dragRef.current.startX) / currentZoom;
-      const dy = (clientY - dragRef.current.startY) / currentZoom;
+      // Case A: Dragging Nodes (Individual or Multi-Selection Group Movement)
+      if (dragRef.current.activeId) {
+        const currentZoom = zoomLevel || 1;
+        const dx = (clientX - dragRef.current.startX) / currentZoom;
+        const dy = (clientY - dragRef.current.startY) / currentZoom;
 
-      if (Math.hypot(dx, dy) > 4) {
-        dragRef.current.hasMoved = true;
+        if (Math.hypot(dx, dy) > 4) {
+          dragRef.current.hasMoved = true;
+        }
+
+        const initPositions = dragRef.current.initialPositions;
+        const clusterIds = dragRef.current.clusterIds;
+
+        // Compute cluster initial bounding box to clamp uniformly (Rigid Body Movement)
+        let minInitX = Infinity, maxInitX = -Infinity;
+        let minInitY = Infinity, maxInitY = -Infinity;
+        clusterIds.forEach((id) => {
+          const p = initPositions[id];
+          if (p) {
+            if (p.x < minInitX) minInitX = p.x;
+            if (p.x > maxInitX) maxInitX = p.x;
+            if (p.y < minInitY) minInitY = p.y;
+            if (p.y > maxInitY) maxInitY = p.y;
+          }
+        });
+
+        const minAllowedDx = 35 - minInitX;
+        const maxAllowedDx = (WIDTH - 35) - maxInitX;
+        const minAllowedDy = 35 - minInitY;
+        const maxAllowedDy = (HEIGHT - 35) - maxInitY;
+
+        const clampedDx = Math.max(minAllowedDx, Math.min(maxAllowedDx, dx));
+        const clampedDy = Math.max(minAllowedDy, Math.min(maxAllowedDy, dy));
+
+        const updated = { ...positionsRef.current };
+        clusterIds.forEach((id) => {
+          const init = initPositions[id];
+          if (init) {
+            updated[id] = {
+              x: init.x + clampedDx,
+              y: init.y + clampedDy,
+            };
+          }
+        });
+        setPositions(updated);
+        return;
       }
 
-      const updated = { ...dragRef.current.initialPositions };
-      dragRef.current.clusterIds.forEach((id) => {
-        const init = dragRef.current.initialPositions[id];
-        if (init) {
-          updated[id] = {
-            x: Math.max(35, Math.min(WIDTH - 35, init.x + dx)),
-            y: Math.max(35, Math.min(HEIGHT - 35, init.y + dy)),
-          };
+      // Case B: Marquee Box Selection on Canvas Background
+      if (selectionRef.current.isSelecting) {
+        const coords = getCanvasCoords(clientX, clientY);
+        selectionRef.current.currentX = coords.x;
+        selectionRef.current.currentY = coords.y;
+
+        const moveDist = Math.hypot(
+          coords.x - selectionRef.current.startX,
+          coords.y - selectionRef.current.startY
+        );
+        if (moveDist > 6) {
+          selectionRef.current.hasMoved = true;
         }
-      });
-      setPositions(updated);
+
+        if (selectionRef.current.hasMoved) {
+          const box = {
+            x1: selectionRef.current.startX,
+            y1: selectionRef.current.startY,
+            x2: coords.x,
+            y2: coords.y,
+          };
+          setSelectionBox(box);
+
+          const boxMinX = Math.min(box.x1, box.x2);
+          const boxMaxX = Math.max(box.x1, box.x2);
+          const boxMinY = Math.min(box.y1, box.y2);
+          const boxMaxY = Math.max(box.y1, box.y2);
+
+          const insideSet = new Set<string>();
+
+          // 1. Check person nodes intersecting or inside selection box
+          membersRef.current.forEach((m) => {
+            const pos = positionsRef.current[m.id] || { x: CX, y: CY };
+            const isCenter = m.id === centerPerson.id;
+            const nodeLeft = pos.x - (isCenter ? 26 : 20);
+            const nodeRight = pos.x + (isCenter ? 140 : 130);
+            const nodeTop = pos.y - (isCenter ? 26 : 20);
+            const nodeBottom = pos.y + 50;
+
+            const overlaps = !(
+              nodeRight < boxMinX ||
+              nodeLeft > boxMaxX ||
+              nodeBottom < boxMinY ||
+              nodeTop > boxMaxY
+            );
+            if (overlaps) {
+              insideSet.add(m.id);
+            }
+          });
+
+          // 2. Check relationship lines passing through or inside selection box
+          edgeDefinitionsRef.current.forEach((edge) => {
+            const fromPos = positionsRef.current[edge.fromId];
+            const toPos = positionsRef.current[edge.toId];
+            if (
+              fromPos &&
+              toPos &&
+              doesLineIntersectBox(fromPos, toPos, boxMinX, boxMaxX, boxMinY, boxMaxY)
+            ) {
+              insideSet.add(edge.fromId);
+              insideSet.add(edge.toId);
+            }
+          });
+
+          const insideIds = Array.from(insideSet);
+          if (selectionRef.current.isAdditive) {
+            setSelectedNodeIds((prev) => Array.from(new Set([...prev, ...insideIds])));
+          } else {
+            setSelectedNodeIds(insideIds);
+          }
+        }
+      }
     };
 
     const onPointerUp = () => {
+      // Release node dragging
       if (dragRef.current.activeId) {
         dragRef.current.activeId = null;
         setActiveDragId(null);
+      }
+
+      // Release marquee selection
+      if (selectionRef.current.isSelecting) {
+        if (!selectionRef.current.hasMoved) {
+          // Simple click on empty canvas deselects all
+          if (!selectionRef.current.isAdditive) {
+            setSelectedNodeIds([]);
+          }
+        } else {
+          if (selectedNodeIdsRef.current.length > 0) {
+            showCanvasTooltip(
+              `✨ ${selectedNodeIdsRef.current.length}명 및 관계선 선택됨: 함께 드래그하여 이동할 수 있습니다.`
+            );
+          }
+        }
+        selectionRef.current.isSelecting = false;
+        setSelectionBox(null);
       }
     };
 
@@ -643,19 +841,92 @@ export const ObsidianGraphView: React.FC<ObsidianGraphViewProps> = ({
       window.removeEventListener('touchmove', onPointerMove);
       window.removeEventListener('touchend', onPointerUp);
     };
-  }, [WIDTH, HEIGHT, zoomLevel]);
+  }, [WIDTH, HEIGHT, zoomLevel, getCanvasCoords, CX, CY, centerPerson.id]);
 
-  const handleDragStart = (memberId: string, pageX: number, pageY: number) => {
-    const cluster = enableClusterDrag ? getClusterDescendants(memberId) : [memberId];
+  // Canvas Mouse Down: Starts Marquee Drag Selection
+  const handleCanvasMouseDown = (e: any) => {
+    if (e.button !== 0) return; // Left click only
+    if (dragRef.current.activeId) return;
+
+    const clientX = e.clientX;
+    const clientY = e.clientY;
+    const coords = getCanvasCoords(clientX, clientY);
+
+    selectionRef.current = {
+      isSelecting: true,
+      startX: coords.x,
+      startY: coords.y,
+      currentX: coords.x,
+      currentY: coords.y,
+      hasMoved: false,
+      isAdditive: !!(e.shiftKey || e.ctrlKey || e.metaKey),
+    };
+  };
+
+  // Node Drag Start: Supports single node or multi-selection group dragging
+  const handleDragStart = (memberId: string, pageX: number, pageY: number, e?: any) => {
+    // Modifier key (Shift, Ctrl, Meta): toggle selection of this individual node
+    if (e && (e.shiftKey || e.ctrlKey || e.metaKey)) {
+      setSelectedNodeIds((prev) => {
+        const next = prev.includes(memberId) ? prev.filter((id) => id !== memberId) : [...prev, memberId];
+        return next;
+      });
+      return;
+    }
+
+    let cluster: string[];
+    const currentSelected = selectedNodeIdsRef.current;
+
+    if (currentSelected.includes(memberId)) {
+      // Dragged node is part of the active multi-selection:
+      // Move ALL selected nodes together!
+      cluster = [...currentSelected];
+      if (enableClusterDrag) {
+        const set = new Set<string>(cluster);
+        currentSelected.forEach((id) => {
+          getClusterDescendants(id).forEach((desc) => set.add(desc));
+        });
+        cluster = Array.from(set);
+      }
+    } else {
+      // Dragged node is NOT currently selected:
+      cluster = enableClusterDrag ? getClusterDescendants(memberId) : [memberId];
+      setSelectedNodeIds([memberId]);
+    }
+
     dragRef.current = {
       activeId: memberId,
       startX: pageX,
       startY: pageY,
-      initialPositions: { ...positions },
+      initialPositions: { ...positionsRef.current },
       clusterIds: cluster,
       hasMoved: false,
     };
     setActiveDragId(memberId);
+  };
+
+  // Selection Action Helpers
+  const handleSelectAll = () => {
+    const allIds = members.map((m) => m.id);
+    setSelectedNodeIds(allIds);
+    showCanvasTooltip(`전체 ${allIds.length}명이 선택되었습니다. 함께 드래그하여 이동할 수 있습니다.`);
+  };
+
+  const handleClearSelection = () => {
+    setSelectedNodeIds([]);
+    showCanvasTooltip('선택이 해제되었습니다.');
+  };
+
+  const handleResetSelectedPositions = () => {
+    const defaultPositions = calculateDefaultPositions();
+    const updated = { ...positions };
+    selectedNodeIds.forEach((id) => {
+      if (defaultPositions[id]) {
+        updated[id] = defaultPositions[id];
+      }
+    });
+    setPositions(updated);
+    showCanvasTooltip('선택된 인물들의 위치가 초기 방사형 배치로 복원되었습니다.');
   };
 
   const bgColor = isDarkMode ? '#0f172a' : '#fafaf9';
@@ -721,7 +992,7 @@ export const ObsidianGraphView: React.FC<ObsidianGraphViewProps> = ({
           </View>
           {!isVeryNarrow && (
             <Text style={[styles.headerSubtitle, { color: subtextColor }]}>
-              💡 노드 간 겹침 방지 궤도가 적용되었습니다. 상단 [🤝 친족 관계 형성 스튜디오]를 통해 미연결 친족과의 결연을 형성할 수 있습니다.
+              💡 빈 캔버스를 마우스 왼쪽 클릭 후 드래그하여 여러 인물 노드와 관계선을 영역 선택하고 함께 이동할 수 있습니다.
             </Text>
           )}
         </View>
@@ -733,8 +1004,41 @@ export const ObsidianGraphView: React.FC<ObsidianGraphViewProps> = ({
           </View>
         )}
 
-        {/* Action Buttons: Studio Launcher, Reset, Cluster Move Toggle, Dark/Light Mode */}
+        {/* Action Buttons: Studio Launcher, Multi-Select, Reset, Cluster Move Toggle, Dark/Light Mode */}
         <View style={styles.actionButtonsRow}>
+          <TouchableOpacity
+            // @ts-ignore
+            title={selectedNodeIds.length > 0 ? "선택 해제" : "마우스 드래그로 여러 인물과 관계선 다중 선택"}
+            // @ts-ignore
+            onMouseEnter={() => setActiveCanvasTooltip(selectedNodeIds.length > 0 ? '선택 해제' : '마우스 드래그 영역 다중 선택')}
+            onMouseLeave={() => setActiveCanvasTooltip(null)}
+            style={[
+              styles.actionBtn,
+              selectedNodeIds.length > 0 && styles.actionBtnActive,
+              isVeryNarrow && styles.actionBtnCompact,
+              { borderColor: selectedNodeIds.length > 0 ? '#38bdf8' : isDarkMode ? '#475569' : inkTheme.ink7 },
+            ]}
+            onPress={() => {
+              if (selectedNodeIds.length > 0) {
+                handleClearSelection();
+              } else {
+                handleSelectAll();
+              }
+            }}
+            activeOpacity={0.8}
+          >
+            <Text
+              style={[
+                styles.actionBtnText,
+                { color: selectedNodeIds.length > 0 ? '#38bdf8' : subtextColor, fontWeight: '800' },
+              ]}
+            >
+              {isVeryNarrow
+                ? (selectedNodeIds.length > 0 ? `🔲${selectedNodeIds.length}` : '🔲')
+                : (selectedNodeIds.length > 0 ? `🔲 ${selectedNodeIds.length}명 선택 (해제)` : '🔲 다중 선택')}
+            </Text>
+          </TouchableOpacity>
+
           {onOpenRelationshipStudio && (
             <TouchableOpacity
               // @ts-ignore
@@ -988,6 +1292,8 @@ export const ObsidianGraphView: React.FC<ObsidianGraphViewProps> = ({
           }}
         >
           <View
+            // @ts-ignore
+            ref={canvasRef}
             style={[
               styles.canvas,
               {
@@ -998,8 +1304,12 @@ export const ObsidianGraphView: React.FC<ObsidianGraphViewProps> = ({
                 backgroundColor: canvasBg,
                 borderRadius: 12,
                 overflow: 'hidden',
+                userSelect: 'none',
+                cursor: selectionBox ? 'crosshair' : 'default',
               },
             ]}
+            // @ts-ignore
+            onMouseDown={handleCanvasMouseDown}
           >
           <View
             style={[
@@ -1059,8 +1369,23 @@ export const ObsidianGraphView: React.FC<ObsidianGraphViewProps> = ({
               const toPos = positions[edge.toId];
               if (!fromPos || !toPos) return null;
 
-              const isHighlighted =
-                activeDragId === edge.fromId || activeDragId === edge.toId;
+              const isFromSelected = selectedNodeIds.includes(edge.fromId);
+              const isToSelected = selectedNodeIds.includes(edge.toId);
+              const isBothSelected = isFromSelected && isToSelected;
+              const isHighlighted = isBothSelected || activeDragId === edge.fromId || activeDragId === edge.toId;
+
+              // When both connected nodes are selected, the relationship line glows in cyan
+              const strokeColor = isBothSelected
+                ? '#38bdf8'
+                : isHighlighted
+                ? '#38bdf8'
+                : edge.color;
+
+              const strokeWidth = isBothSelected
+                ? edge.width + 2
+                : isHighlighted
+                ? edge.width + 1.5
+                : edge.width;
 
               // 부부간 결합선이거나 점선인 경우, 중간 노드나 중심 인물과의 겹침을 방지하기 위해 완만한 외곽 호(Arc Path)로 렌더링
               if (edge.dashed) {
@@ -1074,30 +1399,54 @@ export const ObsidianGraphView: React.FC<ObsidianGraphViewProps> = ({
                 const ctrlY = midY + (dy / distFromCenter) * 35;
 
                 return (
-                  <path
-                    key={`edge-${edge.fromId}-${edge.toId}-${i}`}
-                    d={`M ${fromPos.x} ${fromPos.y} Q ${ctrlX} ${ctrlY} ${toPos.x} ${toPos.y}`}
-                    fill="none"
-                    stroke={isHighlighted ? '#38bdf8' : edge.color}
-                    strokeWidth={isHighlighted ? edge.width + 1.5 : edge.width}
-                    strokeDasharray="6,5"
-                    strokeLinecap="round"
-                  />
+                  <g key={`edge-${edge.fromId}-${edge.toId}-${i}`}>
+                    {isBothSelected && (
+                      <path
+                        d={`M ${fromPos.x} ${fromPos.y} Q ${ctrlX} ${ctrlY} ${toPos.x} ${toPos.y}`}
+                        fill="none"
+                        stroke="#38bdf8"
+                        strokeWidth={strokeWidth + 4}
+                        strokeOpacity={0.35}
+                        strokeLinecap="round"
+                      />
+                    )}
+                    <path
+                      d={`M ${fromPos.x} ${fromPos.y} Q ${ctrlX} ${ctrlY} ${toPos.x} ${toPos.y}`}
+                      fill="none"
+                      stroke={strokeColor}
+                      strokeWidth={strokeWidth}
+                      strokeDasharray="6,5"
+                      strokeLinecap="round"
+                    />
+                  </g>
                 );
               }
 
               return (
-                <line
-                  key={`edge-${edge.fromId}-${edge.toId}-${i}`}
-                  x1={fromPos.x}
-                  y1={fromPos.y}
-                  x2={toPos.x}
-                  y2={toPos.y}
-                  stroke={isHighlighted ? '#38bdf8' : edge.color}
-                  strokeWidth={isHighlighted ? edge.width + 1.5 : edge.width}
-                  strokeDasharray={edge.dashed ? '5,5' : undefined}
-                  strokeLinecap="round"
-                />
+                <g key={`edge-${edge.fromId}-${edge.toId}-${i}`}>
+                  {isBothSelected && (
+                    <line
+                      x1={fromPos.x}
+                      y1={fromPos.y}
+                      x2={toPos.x}
+                      y2={toPos.y}
+                      stroke="#38bdf8"
+                      strokeWidth={strokeWidth + 4}
+                      strokeOpacity={0.35}
+                      strokeLinecap="round"
+                    />
+                  )}
+                  <line
+                    x1={fromPos.x}
+                    y1={fromPos.y}
+                    x2={toPos.x}
+                    y2={toPos.y}
+                    stroke={strokeColor}
+                    strokeWidth={strokeWidth}
+                    strokeDasharray={edge.dashed ? '5,5' : undefined}
+                    strokeLinecap="round"
+                  />
+                </g>
               );
             })}
           </svg>
@@ -1111,6 +1460,7 @@ export const ObsidianGraphView: React.FC<ObsidianGraphViewProps> = ({
             const isNewlyLinked =
               member.id.startsWith('unc-') ||
               establishedLinks.some((l) => l.personAId === member.id || l.personBId === member.id);
+            const isSelected = selectedNodeIds.includes(member.id);
 
             // Node color depending on lineage
             let nodeColor = '#ef4444'; // 친가 붉은색
@@ -1137,7 +1487,7 @@ export const ObsidianGraphView: React.FC<ObsidianGraphViewProps> = ({
                   {
                     left: pos.x - halfSize,
                     top: pos.y - halfSize,
-                    zIndex: isDraggingThis ? 99 : isCenter ? 50 : 20,
+                    zIndex: isDraggingThis ? 99 : isSelected ? 60 : isCenter ? 50 : 20,
                   },
                 ]}
                 onStartShouldSetResponder={() => true}
@@ -1146,7 +1496,12 @@ export const ObsidianGraphView: React.FC<ObsidianGraphViewProps> = ({
                   const ne = evt.nativeEvent;
                   const pageX = ne.pageX || 0;
                   const pageY = ne.pageY || 0;
-                  handleDragStart(member.id, pageX, pageY);
+                  handleDragStart(member.id, pageX, pageY, ne);
+                }}
+                // @ts-ignore: Web specific mouse down to stop bubbling and handle group drag
+                onMouseDown={(e: any) => {
+                  if (e && e.stopPropagation) e.stopPropagation();
+                  handleDragStart(member.id, e.clientX || e.pageX, e.clientY || e.pageY, e);
                 }}
                 onResponderMove={(evt) => {
                   if (Platform.OS !== 'web') {
@@ -1186,17 +1541,20 @@ export const ObsidianGraphView: React.FC<ObsidianGraphViewProps> = ({
                       height: nodeSize,
                       borderRadius: halfSize,
                       backgroundColor: isCenter ? '#10b981' : isNewlyLinked ? '#059669' : nodeColor,
-                      borderColor: isCenter
+                      borderColor: isSelected
+                        ? '#38bdf8'
+                        : isCenter
                         ? '#34d399'
                         : isNewlyLinked
                         ? '#10b981'
                         : isDraggingThis
                         ? '#38bdf8'
                         : '#ffffff',
-                      borderWidth: isCenter ? 3 : isNewlyLinked ? 2.5 : 2,
+                      borderWidth: isSelected ? 3.5 : isCenter ? 3 : isNewlyLinked ? 2.5 : 2,
                     },
                     isCenter && styles.centerPulseRing,
-                    isDraggingThis && styles.draggingNodePulse,
+                    (isDraggingThis || isSelected) && styles.draggingNodePulse,
+                    isSelected && styles.selectedNodeDot,
                     !member.isAlive && styles.deceasedNodeDot,
                   ]}
                 >
@@ -1210,12 +1568,21 @@ export const ObsidianGraphView: React.FC<ObsidianGraphViewProps> = ({
                   style={[
                     styles.nodeCardChip,
                     {
-                      backgroundColor: nodeCardBg,
-                      borderColor: isNewlyLinked ? '#10b981' : isDraggingThis ? '#38bdf8' : nodeCardBorder,
-                      borderWidth: isNewlyLinked ? 1.5 : 1,
+                      backgroundColor: isSelected
+                        ? (isDarkMode ? 'rgba(15, 23, 42, 0.96)' : '#f0f9ff')
+                        : nodeCardBg,
+                      borderColor: isSelected
+                        ? '#38bdf8'
+                        : isNewlyLinked
+                        ? '#10b981'
+                        : isDraggingThis
+                        ? '#38bdf8'
+                        : nodeCardBorder,
+                      borderWidth: isSelected ? 2 : isNewlyLinked ? 1.5 : 1,
                       left: nodeSize + 8,
                     },
                     isCenter && styles.centerCardChip,
+                    isSelected && styles.selectedCardChip,
                   ]}
                 >
                   {/* Top: 2차 승인 / 공인 인증 배지 (이름 위 상단 독립 라인으로 분리하여 이름 가림 원천 해결) */}
@@ -1261,6 +1628,12 @@ export const ObsidianGraphView: React.FC<ObsidianGraphViewProps> = ({
                         <Text style={styles.chonBadgeText}>{rel.chonText}</Text>
                       </View>
                     ) : null}
+
+                    {isSelected && (
+                      <View style={styles.selectedBadgePill}>
+                        <Text style={styles.selectedBadgePillText}>✓ 선택됨</Text>
+                      </View>
+                    )}
                   </View>
 
                   <Text
@@ -1285,9 +1658,73 @@ export const ObsidianGraphView: React.FC<ObsidianGraphViewProps> = ({
               </View>
             );
           })}
+
+          {/* 3. MARQUEE SELECTION RECTANGLE LAYER */}
+          {selectionBox && (
+            <View
+              style={[
+                styles.selectionBox,
+                {
+                  left: Math.min(selectionBox.x1, selectionBox.x2),
+                  top: Math.min(selectionBox.y1, selectionBox.y2),
+                  width: Math.abs(selectionBox.x2 - selectionBox.x1),
+                  height: Math.abs(selectionBox.y2 - selectionBox.y1),
+                },
+              ]}
+            >
+              <View style={styles.selectionBoxBadge}>
+                <Text style={styles.selectionBoxBadgeText}>
+                  {selectedNodeIds.length > 0 ? `선택: ${selectedNodeIds.length}명` : '영역 선택 중...'}
+                </Text>
+              </View>
+            </View>
+          )}
           </View>
         </View>
       </ScrollView>
+
+      {/* Floating Multi-Selection Action Bar */}
+      {selectedNodeIds.length > 0 && (
+        <View
+          style={[
+            styles.floatingSelectionBar,
+            {
+              backgroundColor: isDarkMode ? 'rgba(15, 23, 42, 0.95)' : 'rgba(255, 255, 255, 0.96)',
+              borderColor: '#0284c7',
+            },
+          ]}
+        >
+          <View style={styles.floatingSelectionLeft}>
+            <View style={styles.floatingSelectDot} />
+            <Text style={[styles.floatingSelectionText, { color: textColor }]}>
+              ✨ <Text style={{ fontWeight: '900', color: '#38bdf8' }}>{selectedNodeIds.length}명</Text> 및 관계선 선택됨 (함께 드래그 이동)
+            </Text>
+          </View>
+          <View style={styles.floatingSelectionActions}>
+            <TouchableOpacity
+              style={[styles.floatingActionBtn, { backgroundColor: '#0284c7' }]}
+              onPress={handleSelectAll}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.floatingActionBtnText}>전체 선택</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.floatingActionBtn, { backgroundColor: '#475569' }]}
+              onPress={handleResetSelectedPositions}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.floatingActionBtnText}>선택 위치 복원</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.floatingActionBtn, styles.floatingActionBtnDeselect]}
+              onPress={handleClearSelection}
+              activeOpacity={0.8}
+            >
+              <Text style={[styles.floatingActionBtnText, { color: '#f87171' }]}>선택 해제 ✕</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      )}
     </View>
   );
 };
@@ -1634,5 +2071,119 @@ const styles = StyleSheet.create({
     color: '#ffffff',
     fontSize: 11.5,
     fontWeight: '800',
+  },
+  selectedNodeDot: {
+    borderColor: '#38bdf8',
+    borderWidth: 3.5,
+    shadowColor: '#38bdf8',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.95,
+    shadowRadius: 10,
+    elevation: 10,
+  },
+  selectedCardChip: {
+    borderColor: '#38bdf8',
+    borderWidth: 2,
+    shadowColor: '#38bdf8',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.5,
+    shadowRadius: 8,
+    elevation: 6,
+  },
+  selectedBadgePill: {
+    backgroundColor: '#0284c7',
+    paddingHorizontal: 5,
+    paddingVertical: 1,
+    borderRadius: 4,
+  },
+  selectedBadgePillText: {
+    color: '#ffffff',
+    fontSize: 8.5,
+    fontWeight: '800',
+  },
+  selectionBox: {
+    position: 'absolute',
+    borderColor: '#38bdf8',
+    borderWidth: 1.5,
+    borderStyle: 'dashed',
+    backgroundColor: 'rgba(56, 189, 248, 0.14)',
+    borderRadius: 4,
+    pointerEvents: 'none',
+    zIndex: 90,
+  },
+  selectionBoxBadge: {
+    position: 'absolute',
+    top: -20,
+    left: 0,
+    backgroundColor: '#0284c7',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  selectionBoxBadgeText: {
+    color: '#ffffff',
+    fontSize: 10,
+    fontWeight: '700',
+  },
+  floatingSelectionBar: {
+    position: 'absolute',
+    bottom: 20,
+    alignSelf: 'center',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 30,
+    borderWidth: 1.5,
+    shadowColor: '#0284c7',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.35,
+    shadowRadius: 10,
+    elevation: 8,
+    flexWrap: 'wrap',
+    maxWidth: '92%',
+    zIndex: 100,
+  },
+  floatingSelectionLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  floatingSelectDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: '#38bdf8',
+    shadowColor: '#38bdf8',
+    shadowOpacity: 0.9,
+    shadowRadius: 6,
+  },
+  floatingSelectionText: {
+    fontSize: 12.5,
+    fontWeight: '700',
+  },
+  floatingSelectionActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  floatingActionBtn: {
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  floatingActionBtnText: {
+    color: '#ffffff',
+    fontSize: 11,
+    fontWeight: '800',
+  },
+  floatingActionBtnDeselect: {
+    backgroundColor: 'rgba(239, 68, 68, 0.15)',
+    borderWidth: 1,
+    borderColor: 'rgba(239, 68, 68, 0.4)',
   },
 });
