@@ -452,9 +452,37 @@ export const ObsidianGraphView: React.FC<ObsidianGraphViewProps> = ({
     calculateDefaultPositions
   );
 
+  const prevCenterPersonIdRef = useRef(centerPerson.id);
+  const prevMemberIdsRef = useRef<string>(members.map((m) => m.id).sort().join(','));
+
   useEffect(() => {
-    setPositions(calculateDefaultPositions());
-  }, [calculateDefaultPositions]);
+    const currentMemberIds = members.map((m) => m.id).sort().join(',');
+    const centerChanged = prevCenterPersonIdRef.current !== centerPerson.id;
+    const memberListChanged = prevMemberIdsRef.current !== currentMemberIds;
+
+    if (centerChanged) {
+      // 사용자가 중심 인물을 명시적으로 변경한 경우에만 새 중심 인물 기준으로 궤도 재계산
+      prevCenterPersonIdRef.current = centerPerson.id;
+      prevMemberIdsRef.current = currentMemberIds;
+      setPositions(calculateDefaultPositions());
+    } else if (memberListChanged) {
+      // 가계도 구성원 목록이 실제 추가/삭제/필터링된 경우:
+      // 기존에 사용자가 드래그하여 배치해 둔 노드 좌표는 100% 보존하고,
+      // 새로 추가된 신규 노드에만 기본 궤도 좌표를 안전하게 부여
+      prevMemberIdsRef.current = currentMemberIds;
+      const defaultPositions = calculateDefaultPositions();
+      setPositions((prev) => {
+        const next = { ...prev };
+        members.forEach((m) => {
+          if (!next[m.id]) {
+            next[m.id] = defaultPositions[m.id] || { x: CX, y: CY };
+          }
+        });
+        return next;
+      });
+    }
+    // 브라우저 창 스크롤, 화면 리사이즈, 일반 재렌더링 시에는 사용자가 이동해 둔 노드 좌표를 절대 초기화하지 않음!
+  }, [members, centerPerson.id, calculateDefaultPositions, CX, CY]);
 
   // 2. Compute structured Edge definitions (Lines connecting nodes)
   // 2. Compute structured Edge definitions (Lines connecting nodes)
