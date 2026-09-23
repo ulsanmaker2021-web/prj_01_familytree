@@ -4,6 +4,7 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
 } from 'react-native';
@@ -11,6 +12,7 @@ import { useFamilyStore } from '../hooks/useFamilyStore';
 import { useAuthStore } from '../hooks/useAuthStore';
 import { LINEAGES } from '../utils/mockFamilyData';
 import { LineageType } from '../types/family';
+import { generateSyncPackage } from '../utils/deviceSyncHelper';
 import { inkTheme } from '../theme/inkTheme';
 
 export default function SettingsScreen() {
@@ -22,8 +24,45 @@ export default function SettingsScreen() {
     operationMode,
     resetData,
   } = useFamilyStore();
-  const { currentUser, openLoginModal, logout } = useAuthStore();
+  const { currentUser, openLoginModal, logout, applySyncCode } = useAuthStore();
   const [statusMsg, setStatusMsg] = useState<string | null>(null);
+  const [syncCodeInput, setSyncCodeInput] = useState('');
+  const [showSyncCodeInput, setShowSyncCodeInput] = useState(false);
+
+  const handleCopySyncLink = () => {
+    const res = generateSyncPackage(currentUser?.id);
+    if (!res.success || !res.syncUrl) {
+      setStatusMsg(res.message || '동기화 데이터를 생성하지 못했습니다. 먼저 회원 등록을 진행해주세요.');
+      setTimeout(() => setStatusMsg(null), 4000);
+      return;
+    }
+
+    if (typeof navigator !== 'undefined' && navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(res.syncUrl).then(() => {
+        setStatusMsg('📲 스마트폰 원클릭 연동 링크가 복사되었습니다! 카카오톡(나와의 채팅) 등으로 본인 스마트폰에 보내 클릭하세요.');
+      }).catch(() => {
+        setStatusMsg('동기화 링크 생성 완료! 링크를 복사하여 스마트폰 브라우저에서 열어주세요.');
+      });
+    } else {
+      setStatusMsg('동기화 링크 생성 완료! 스마트폰 브라우저에서 열어주세요.');
+    }
+    setTimeout(() => setStatusMsg(null), 6000);
+  };
+
+  const handleApplySyncCode = () => {
+    if (!syncCodeInput.trim()) {
+      setStatusMsg('복원할 동기화 코드를 입력해주세요.');
+      setTimeout(() => setStatusMsg(null), 3500);
+      return;
+    }
+    const res = applySyncCode(syncCodeInput.trim());
+    setStatusMsg(res.message);
+    if (res.success) {
+      setSyncCodeInput('');
+      setShowSyncCodeInput(false);
+    }
+    setTimeout(() => setStatusMsg(null), 5000);
+  };
 
   const handleReset = () => {
     resetData();
@@ -120,6 +159,99 @@ export default function SettingsScreen() {
               <Text style={styles.securityLogoutBtnText}>🚪 로그아웃</Text>
             </TouchableOpacity>
           </View>
+        </View>
+      </View>
+
+      {/* 📲 Cross-Device Sync (PC ↔ Smartphone) Card */}
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>📲 PC ↔ 스마트폰 족보 원클릭 연동 및 백업</Text>
+        <View style={styles.statsCard}>
+          <Text style={{ fontSize: 13, color: '#334155', lineHeight: 18, marginBottom: 12 }}>
+            디지털 족보는 사용자 개인정보 보호를 위해 기기 브라우저 로컬 저장소에 안전하게 격리 보관됩니다. PC에서 작성하신 본인 계정과 부모님 결연 족보를 스마트폰으로 즉시 전송할 수 있습니다.
+          </Text>
+
+          <View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap', marginBottom: 10 }}>
+            <TouchableOpacity
+              style={{
+                flex: 1,
+                minWidth: 200,
+                backgroundColor: '#16a34a',
+                paddingVertical: 12,
+                paddingHorizontal: 14,
+                borderRadius: 8,
+                alignItems: 'center',
+              }}
+              onPress={handleCopySyncLink}
+              activeOpacity={0.85}
+            >
+              <Text style={{ color: '#ffffff', fontSize: 13, fontWeight: '800' }}>
+                🔗 스마트폰 원클릭 연동 링크 복사
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={{
+                backgroundColor: '#f1f5f9',
+                borderWidth: 1,
+                borderColor: '#cbd5e1',
+                paddingVertical: 12,
+                paddingHorizontal: 14,
+                borderRadius: 8,
+                alignItems: 'center',
+              }}
+              onPress={() => setShowSyncCodeInput(!showSyncCodeInput)}
+              activeOpacity={0.85}
+            >
+              <Text style={{ color: '#0284c7', fontSize: 12.5, fontWeight: '800' }}>
+                {showSyncCodeInput ? '닫기' : '📥 동기화 코드로 복원'}
+              </Text>
+            </TouchableOpacity>
+          </View>
+
+          {showSyncCodeInput && (
+            <View style={{ backgroundColor: '#f8fafc', padding: 12, borderRadius: 8, borderWidth: 1, borderColor: '#e2e8f0', marginTop: 6 }}>
+              <Text style={{ fontSize: 12, fontWeight: '700', color: '#1e293b', marginBottom: 4 }}>
+                전달받은 동기화 코드를 붙여넣으세요:
+              </Text>
+              <TextInput
+                style={{
+                  backgroundColor: '#ffffff',
+                  borderWidth: 1,
+                  borderColor: '#cbd5e1',
+                  borderRadius: 6,
+                  padding: 8,
+                  fontSize: 11,
+                  fontFamily: 'monospace',
+                  height: 60,
+                  textAlignVertical: 'top',
+                }}
+                value={syncCodeInput}
+                onChangeText={setSyncCodeInput}
+                placeholder="동기화 코드(Base64)를 여기에 붙여넣기..."
+                placeholderTextColor="#94a3b8"
+                multiline
+              />
+              <TouchableOpacity
+                style={{
+                  backgroundColor: '#0284c7',
+                  paddingVertical: 10,
+                  borderRadius: 6,
+                  alignItems: 'center',
+                  marginTop: 8,
+                }}
+                onPress={handleApplySyncCode}
+                activeOpacity={0.85}
+              >
+                <Text style={{ color: '#ffffff', fontSize: 12.5, fontWeight: '800' }}>
+                  📥 가계도 및 계정 즉시 복원하기
+                </Text>
+              </TouchableOpacity>
+            </View>
+          )}
+
+          <Text style={{ fontSize: 11, color: '#64748b', marginTop: 8 }}>
+            💡 복사된 링크를 카카오톡(나와의 채팅) 등에 보내고 스마트폰에서 터치하면 로그인과 족보 복원이 원클릭으로 완료됩니다.
+          </Text>
         </View>
       </View>
 

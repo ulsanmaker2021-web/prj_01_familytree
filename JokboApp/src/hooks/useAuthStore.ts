@@ -73,6 +73,10 @@ export function clearStoredAuthSession(): void {
   }
 }
 
+// Check for URL sync parameter (?jokbo_sync=...) when opening on smartphone
+import { checkAndApplyUrlSync, importSyncPackage } from '../utils/deviceSyncHelper';
+checkAndApplyUrlSync();
+
 // Initial session restore from localStorage
 const storedSession = getStoredAuthSession();
 let initialUser: UserProfile = DEMO_SECURITY_ACCOUNTS[0];
@@ -430,6 +434,18 @@ export function useAuthStore() {
     }
   };
 
+  // 8. 동기화 코드로 계정 및 가계도 복원
+  const applySyncCode = (code: string) => {
+    const res = importSyncPackage(code);
+    if (res.success && res.account) {
+      globalCurrentUser = res.account;
+      globalIsAuthenticated = true;
+      globalIsLoginModalOpen = false;
+      notifyAuth();
+    }
+    return res;
+  };
+
   return {
     currentUser,
     isAuthenticated,
@@ -457,5 +473,6 @@ export function useAuthStore() {
     openLoginModal,
     closeLoginModal,
     updateCurrentUserProfile: updateGlobalCurrentUserProfile,
+    applySyncCode,
   };
 }

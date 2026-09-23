@@ -35,6 +35,10 @@ import {
   getHanjaCandidates,
   getRecommendedClans,
 } from '../utils/koreanHanjaHelper';
+import {
+  generateSyncPackage,
+  importSyncPackage,
+} from '../utils/deviceSyncHelper';
 import { inkTheme } from '../theme/inkTheme';
 
 interface SecurityLoginModalProps {
@@ -61,15 +65,18 @@ export const SecurityLoginModal: React.FC<SecurityLoginModalProps> = ({
     registerWithClanCode,
     closeLoginModal,
     logout,
+    applySyncCode,
   } = useAuthStore();
 
-  const [activeTab, setActiveTab] = useState<'demo' | 'credentials' | 'register' | 'clan_code'>('credentials');
+  const [activeTab, setActiveTab] = useState<'demo' | 'credentials' | 'register' | 'clan_code' | 'sync'>('credentials');
   const [phoneInput, setPhoneInput] = useState('');
   const [passwordInput, setPasswordInput] = useState('');
   const [otpInput, setOtpInput] = useState('');
   const [clanCodeInput, setClanCodeInput] = useState('KJ-KIM-2026-9872X');
   const [newUserName, setNewUserName] = useState('');
   const [newUserPhone, setNewUserPhone] = useState('');
+  const [syncCodeInput, setSyncCodeInput] = useState('');
+  const [copiedSyncUrl, setCopiedSyncUrl] = useState('');
 
   // Firebase Phone Auth State
   const [isFirebaseConfiguredState, setIsFirebaseConfiguredState] = useState(isFirebaseConfigured());
@@ -213,6 +220,44 @@ export const SecurityLoginModal: React.FC<SecurityLoginModalProps> = ({
     setIsFirebaseMode(false);
     setIsFirebaseConfigModalOpen(false);
     showToast('Firebase 설정이 초기화되었습니다. 모의 시뮬레이션 모드로 전환되었습니다.');
+  };
+
+  const handleCopySyncLink = () => {
+    const res = generateSyncPackage(currentUser?.id);
+    if (!res.success || !res.syncUrl) {
+      showToast(res.message || '동기화 데이터를 생성하지 못했습니다. 먼저 회원 등록을 진행해주세요.', true);
+      return;
+    }
+    setCopiedSyncUrl(res.syncUrl);
+
+    if (typeof navigator !== 'undefined' && navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(res.syncUrl).then(() => {
+        showToast(
+          `📲 스마트폰 원클릭 연동 링크가 복사되었습니다!\n카카오톡(나와의 채팅) 등에 붙여넣고 스마트폰에서 누르면 자동 로그인됩니다.`,
+          false,
+          true
+        );
+      }).catch(() => {
+        showToast('동기화 링크가 생성되었습니다. 아래 링크를 복사하여 스마트폰 브라우저에서 열어주세요.', false, true);
+      });
+    } else {
+      showToast('동기화 링크가 생성되었습니다. 스마트폰 브라우저에서 열어주세요.', false, true);
+    }
+  };
+
+  const handleApplySyncCode = () => {
+    if (!syncCodeInput.trim()) {
+      showToast('복원할 동기화 코드를 입력해주세요.', true);
+      return;
+    }
+    const res = applySyncCode(syncCodeInput.trim());
+    if (res.success) {
+      showToast(res.message, false, true);
+      setSyncCodeInput('');
+      if (onClose) onClose();
+    } else {
+      showToast(res.message || '동기화 복원에 실패했습니다. 코드를 다시 확인해주세요.', true);
+    }
   };
 
   const handleDemoLogin = (accountId: string) => {
@@ -473,23 +518,40 @@ export const SecurityLoginModal: React.FC<SecurityLoginModalProps> = ({
                 </Text>
               </View>
 
-              <TouchableOpacity
-                onPress={() => {
-                  logout();
-                  showToast('안전하게 로그아웃되었습니다.', false, true);
-                }}
-                style={{
-                  backgroundColor: '#dc2626',
-                  paddingHorizontal: 12,
-                  paddingVertical: 8,
-                  borderRadius: 8,
-                }}
-                activeOpacity={0.8}
-              >
-                <Text style={{ color: '#ffffff', fontSize: 12, fontWeight: '800' }}>
-                  🚪 로그아웃
-                </Text>
-              </TouchableOpacity>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                <TouchableOpacity
+                  onPress={handleCopySyncLink}
+                  style={{
+                    backgroundColor: '#0284c7',
+                    paddingHorizontal: 10,
+                    paddingVertical: 8,
+                    borderRadius: 8,
+                  }}
+                  activeOpacity={0.8}
+                >
+                  <Text style={{ color: '#ffffff', fontSize: 12, fontWeight: '800' }}>
+                    📲 폰 연동 링크 복사
+                  </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  onPress={() => {
+                    logout();
+                    showToast('안전하게 로그아웃되었습니다.', false, true);
+                  }}
+                  style={{
+                    backgroundColor: '#dc2626',
+                    paddingHorizontal: 10,
+                    paddingVertical: 8,
+                    borderRadius: 8,
+                  }}
+                  activeOpacity={0.8}
+                >
+                  <Text style={{ color: '#ffffff', fontSize: 12, fontWeight: '800' }}>
+                    🚪 로그아웃
+                  </Text>
+                </TouchableOpacity>
+              </View>
             </View>
           )}
 
@@ -669,7 +731,25 @@ export const SecurityLoginModal: React.FC<SecurityLoginModalProps> = ({
                   activeTab === 'clan_code' && styles.tabBtnTextActive,
                 ]}
               >
-                🔑 가문 초대 코드
+                🔑 초대 코드
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[
+                styles.tabBtn,
+                activeTab === 'sync' && styles.tabBtnActive,
+              ]}
+              onPress={() => setActiveTab('sync')}
+              activeOpacity={0.8}
+            >
+              <Text
+                style={[
+                  styles.tabBtnText,
+                  activeTab === 'sync' && styles.tabBtnTextActive,
+                ]}
+              >
+                📲 기기 연동 (PC↔폰)
               </Text>
             </TouchableOpacity>
           </View>
@@ -939,11 +1019,41 @@ export const SecurityLoginModal: React.FC<SecurityLoginModalProps> = ({
                     {unregisteredPhoneAlert && (
                       <View style={styles.notRegisteredAlertBox}>
                         <Text style={styles.notRegisteredAlertTitle}>
-                          ⚠️ 가문에 등록되지 않은 휴대전화 번호입니다
+                          ⚠️ 이 기기(브라우저)에 등록되지 않은 번호입니다
                         </Text>
                         <Text style={styles.notRegisteredAlertDesc}>
-                          [{unregisteredPhoneAlert}] 번호는 아직 가문 족보 시스템에 등록되어 있지 않습니다. 신규 가입을 통해 본인 정보를 등록해주세요.
+                          [{unregisteredPhoneAlert}] 번호는 현재 기기의 저장소에서 찾을 수 없습니다.
                         </Text>
+
+                        {/* PC에서 이미 가입한 사용자를 위한 스마트폰 연동 가이드 */}
+                        <View style={{ backgroundColor: '#ffffff', padding: 10, borderRadius: 8, marginVertical: 8, borderWidth: 1, borderColor: '#fca5a5' }}>
+                          <Text style={{ fontSize: 12, fontWeight: '800', color: '#991b1b', marginBottom: 2 }}>
+                            💡 PC에서 이미 회원 가입을 하셨나요?
+                          </Text>
+                          <Text style={{ fontSize: 11, color: '#7f1d1d', lineHeight: 16 }}>
+                            개인정보 보안을 위해 PC 브라우저와 스마트폰은 데이터가 분리되어 있습니다. PC에서 [📲 기기 연동] 링크를 복사하여 스마트폰으로 접속하거나 동기화 코드를 적용하면 즉시 로그인됩니다.
+                          </Text>
+                          <TouchableOpacity
+                            style={{
+                              marginTop: 8,
+                              backgroundColor: '#0284c7',
+                              paddingVertical: 8,
+                              paddingHorizontal: 12,
+                              borderRadius: 6,
+                              alignItems: 'center',
+                            }}
+                            onPress={() => {
+                              setUnregisteredPhoneAlert(null);
+                              setActiveTab('sync');
+                            }}
+                            activeOpacity={0.85}
+                          >
+                            <Text style={{ color: '#ffffff', fontSize: 12, fontWeight: '800' }}>
+                              📲 PC ↔ 스마트폰 데이터 연동하기 ➔
+                            </Text>
+                          </TouchableOpacity>
+                        </View>
+
                         <TouchableOpacity
                           style={styles.notRegisteredAlertBtn}
                           onPress={() => {
@@ -954,7 +1064,7 @@ export const SecurityLoginModal: React.FC<SecurityLoginModalProps> = ({
                           activeOpacity={0.85}
                         >
                           <Text style={styles.notRegisteredAlertBtnText}>
-                            📝 [{unregisteredPhoneAlert}] 번호로 즉시 가입 신청 ➔
+                            📝 [{unregisteredPhoneAlert}] 번호로 새로 가입 신청 ➔
                           </Text>
                         </TouchableOpacity>
                       </View>
@@ -1596,6 +1706,84 @@ export const SecurityLoginModal: React.FC<SecurityLoginModalProps> = ({
               </View>
             )}
 
+            {/* ================= TAB 5: DEVICE SYNC (PC ↔ SMARTPHONE) ================= */}
+            {activeTab === 'sync' && (
+              <View style={styles.tabContent}>
+                <View style={styles.formCard}>
+                  <Text style={styles.formTitle}>📲 PC ↔ 스마트폰 족보 데이터 원클릭 연동</Text>
+                  <Text style={styles.formDesc}>
+                    현재 족보 웹은 개인정보 보안을 위해 각 기기의 브라우저 로컬 저장소에 암호화 보관됩니다. PC에서 등록하신 본인 계정 및 부모님 가계도 정보를 스마트폰으로 손쉽게 보내거나 불러올 수 있습니다.
+                  </Text>
+
+                  {/* 1. PC -> Phone: Copy Sync Link */}
+                  <View style={{ backgroundColor: '#f0fdf4', borderWidth: 1, borderColor: '#bbf7d0', borderRadius: 12, padding: 14, marginBottom: 16 }}>
+                    <Text style={{ fontSize: 13, fontWeight: '800', color: '#166534', marginBottom: 4 }}>
+                      1️⃣ [PC에서 진행] 스마트폰으로 내 계정·족보 보내기
+                    </Text>
+                    <Text style={{ fontSize: 11.5, color: '#15803d', marginBottom: 10, lineHeight: 16 }}>
+                      아래 버튼을 누르면 본인 계정과 부모님 가계도가 포함된 원클릭 동기화 링크가 복사됩니다. 카카오톡 '나와의 채팅'이나 문자로 본인 스마트폰에 보낸 뒤 클릭하세요.
+                    </Text>
+
+                    <TouchableOpacity
+                      style={{
+                        backgroundColor: '#16a34a',
+                        paddingVertical: 12,
+                        paddingHorizontal: 16,
+                        borderRadius: 8,
+                        alignItems: 'center',
+                        flexDirection: 'row',
+                        justifyContent: 'center',
+                      }}
+                      onPress={handleCopySyncLink}
+                      activeOpacity={0.85}
+                    >
+                      <Text style={{ color: '#ffffff', fontSize: 13, fontWeight: '800' }}>
+                        🔗 스마트폰 연동 원클릭 링크 복사하기
+                      </Text>
+                    </TouchableOpacity>
+
+                    {copiedSyncUrl ? (
+                      <View style={{ marginTop: 10, backgroundColor: '#ffffff', padding: 8, borderRadius: 6, borderWidth: 1, borderColor: '#86efac' }}>
+                        <Text style={{ fontSize: 11, color: '#15803d', fontWeight: '700' }}>복사된 링크 미리보기:</Text>
+                        <Text numberOfLines={2} style={{ fontSize: 10.5, color: '#475569', marginTop: 2, fontFamily: 'monospace' }}>
+                          {copiedSyncUrl}
+                        </Text>
+                      </View>
+                    ) : null}
+                  </View>
+
+                  {/* 2. Phone / PC: Paste Code */}
+                  <View style={{ backgroundColor: '#f8fafc', borderWidth: 1, borderColor: '#e2e8f0', borderRadius: 12, padding: 14 }}>
+                    <Text style={{ fontSize: 13, fontWeight: '800', color: '#1e293b', marginBottom: 4 }}>
+                      2️⃣ [스마트폰에서 진행] 동기화 코드로 직접 복원하기
+                    </Text>
+                    <Text style={{ fontSize: 11.5, color: '#64748b', marginBottom: 10, lineHeight: 16 }}>
+                      PC에서 전달받은 동기화 텍스트 코드가 있으신가요? 아래에 붙여넣고 복원 버튼을 누르면 즉시 동기화 및 자동 로그인이 완료됩니다.
+                    </Text>
+
+                    <TextInput
+                      style={[styles.input, { height: 70, textAlignVertical: 'top', fontSize: 11, fontFamily: 'monospace' }]}
+                      value={syncCodeInput}
+                      onChangeText={setSyncCodeInput}
+                      placeholder="전달받은 동기화 코드를 여기에 붙여넣으세요..."
+                      placeholderTextColor="#94a3b8"
+                      multiline
+                    />
+
+                    <TouchableOpacity
+                      style={[styles.submitBtn, { backgroundColor: '#0284c7', marginTop: 8 }]}
+                      onPress={handleApplySyncCode}
+                      activeOpacity={0.85}
+                    >
+                      <Text style={styles.submitBtnText}>
+                        📥 족보 및 계정 즉시 복원하기
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              </View>
+            )}
+
             {/* Privacy Legal Notice */}
             <View style={styles.privacyNoticeBox}>
               <Text style={styles.privacyNoticeTitle}>
@@ -1875,13 +2063,16 @@ const styles = StyleSheet.create({
   },
   tabBar: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     backgroundColor: '#f8fafc',
     borderBottomWidth: 1,
     borderBottomColor: '#e2e8f0',
   },
   tabBtn: {
-    flex: 1,
-    paddingVertical: 12,
+    flexGrow: 1,
+    flexBasis: '18%',
+    paddingVertical: 10,
+    paddingHorizontal: 4,
     alignItems: 'center',
     borderBottomWidth: 2,
     borderBottomColor: 'transparent',
@@ -1891,9 +2082,10 @@ const styles = StyleSheet.create({
     backgroundColor: '#ffffff',
   },
   tabBtnText: {
-    fontSize: 12,
+    fontSize: 11.5,
     fontWeight: '700',
     color: '#64748b',
+    textAlign: 'center',
   },
   tabBtnTextActive: {
     color: '#0284c7',
