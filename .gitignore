@@ -1,0 +1,17 @@
+# Dependencies
+node_modules/
+
+# Local env files - NEVER COMMIT TO GIT
+.env
+.env*
+.env.local
+.env*.local
+
+# Build outputs
+dist/
+web-build/
+.expo/
+
+# OS files
+.DS_Store
+Thumbs.db

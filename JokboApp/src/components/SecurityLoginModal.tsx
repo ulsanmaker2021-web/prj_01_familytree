@@ -377,7 +377,7 @@ export const SecurityLoginModal: React.FC<SecurityLoginModalProps> = ({
     showToast('✅ 휴대전화 본인 확인이 완료되었습니다!', false, true);
   };
 
-  const handleRegisterSubmit = () => {
+  const handleRegisterSubmit = async () => {
     if (!regName.trim()) {
       showToast('성명(실명)을 입력해주세요.', true);
       return;
@@ -404,7 +404,7 @@ export const SecurityLoginModal: React.FC<SecurityLoginModalProps> = ({
       return;
     }
 
-    const res = registerNewMember({
+    const res = await registerNewMember({
       name: regName.trim(),
       hanja: isPureHangulName ? undefined : (regHanja.trim() || undefined),
       clan: regClan.trim(),

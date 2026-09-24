@@ -21,6 +21,12 @@ import {
   clearPhoneAuthSession,
   hasActiveFirebaseSession,
 } from '../services/firebaseAuthService';
+import {
+  fetchUserFromSupabase,
+  syncUserToSupabase,
+} from '../services/supabaseDataService';
+import { hashPassword, verifyPassword } from '../utils/cryptoHelper';
+import { isSupabaseConnected } from '../config/supabaseClient';
 
 export interface RegisterMemberParams {
   name: string;
@@ -196,9 +202,22 @@ export function useAuthStore() {
 
     const cleanPhone = stripPhoneNumber(phone);
     const allAccounts = getAllSecurityAccounts();
-    const account = allAccounts.find(
+    let account = allAccounts.find(
       (acc) => stripPhoneNumber(acc.phone) === cleanPhone
     );
+
+    // [클라우드 DB 실시간 조회] 로컬에 계정이 없고 Supabase가 연결된 경우 클라우드 DB에서 계정 조회 (스마트폰 즉시 연동)
+    if (!account && isSupabaseConnected()) {
+      try {
+        const cloudAcc = await fetchUserFromSupabase(cleanPhone);
+        if (cloudAcc) {
+          account = cloudAcc;
+          saveCustomAccount(cloudAcc);
+        }
+      } catch (err) {
+        console.error('Failed to fetch user from Supabase:', err);
+      }
+    }
 
     if (!account) {
       return {
@@ -209,7 +228,8 @@ export function useAuthStore() {
       };
     }
 
-    if (account.password !== password) {
+    const isPassValid = await verifyPassword(password, account.password);
+    if (!isPassValid) {
       const lockRes = recordFailedLogin();
       notifyAuth();
 
@@ -354,7 +374,7 @@ export function useAuthStore() {
   };
 
   // 5. 가문 신규 등록 (직접 회원가입 및 족보 등재 신청)
-  const registerNewMember = (params: RegisterMemberParams) => {
+  const registerNewMember = async (params: RegisterMemberParams) => {
     const cleanPhone = stripPhoneNumber(params.phone);
     if (cleanPhone.length < 10) {
       return { success: false, message: '올바른 휴대전화 번호(10~11자리)를 입력해주세요.' };
@@ -377,6 +397,9 @@ export function useAuthStore() {
       };
     }
 
+    // 비밀번호 SHA-256 + Salt 보안 해시 암호화
+    const hashedPassword = await hashPassword(params.password);
+
     // 데이터베이스에는 '-' 하이픈 없이 숫자만 저장
     const newAccount: UserProfile & { password: string } = {
       id: `user-custom-${Date.now()}`,
@@ -387,7 +410,7 @@ export function useAuthStore() {
       role: params.role || 'direct_family',
       roleLabel: params.roleLabel || '가문 등록 정회원',
       phone: cleanPhone, // DB에는 하이픈 없이 숫자만 보관
-      password: params.password,
+      password: hashedPassword,
       birthDate: params.birthDate?.trim() || undefined,
       fatherName: params.fatherName?.trim() || undefined,
       motherName: params.motherName?.trim() || undefined,
@@ -401,6 +424,13 @@ export function useAuthStore() {
     const saved = saveCustomAccount(newAccount);
     if (!saved) {
       return { success: false, message: '가문 데이터베이스(LocalStorage) 저장 중 오류가 발생했습니다.' };
+    }
+
+    // [클라우드 DB 실시간 동기화] Supabase 연결 시 즉시 서버 DB에 영구 등록
+    if (isSupabaseConnected()) {
+      syncUserToSupabase(newAccount).catch((err) =>
+        console.error('Failed to sync new user to Supabase:', err)
+      );
     }
 
     notifyAuth();
