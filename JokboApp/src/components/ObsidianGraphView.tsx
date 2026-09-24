@@ -1848,6 +1848,8 @@ const styles = StyleSheet.create({
   actionButtonsRow: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
+    flexGrow: 1,
     paddingHorizontal: 4,
     gap: 6,
     marginBottom: 8,
@@ -1892,6 +1894,8 @@ const styles = StyleSheet.create({
   legendRow: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
+    flexGrow: 1,
     paddingHorizontal: 4,
     gap: 10,
     paddingTop: 4,
@@ -1917,10 +1921,14 @@ const styles = StyleSheet.create({
     width: '100%',
     paddingVertical: 5,
     borderBottomWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   viewportCenterGroup: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
+    flexGrow: 1,
     paddingHorizontal: 6,
     gap: 6,
   },
