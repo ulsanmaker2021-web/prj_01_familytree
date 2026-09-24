@@ -716,14 +716,18 @@ export default function HomeScreen() {
         {viewMode === 'radial' ? (
           <>
             {isCustomUserMode && !isViewingDemo ? (
-              <View style={styles.compactMemberBar}>
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.compactMemberBar}
+              >
                 <View style={styles.compactMemberLeft}>
                   <Text style={styles.compactMemberBadge}>🏛️ {currentUser.clan || '가문'} 족보</Text>
                   <Text style={styles.compactMemberTitle} numberOfLines={1}>
-                    {currentUser.name} 님의 가문 가계도 (실제 등재 족보)
+                    {currentUser.name} 님의 실제 등재 족보
                   </Text>
                   <Text style={styles.compactMemberSub}>
-                    🛡️ 2단계 본인확인 완료 ({formatPhoneNumber(currentUser.phone)})
+                    🛡️ 본인확인 ({formatPhoneNumber(currentUser.phone)})
                   </Text>
                 </View>
                 <TouchableOpacity
@@ -731,9 +735,9 @@ export default function HomeScreen() {
                   onPress={() => toggleDemoView(true)}
                   activeOpacity={0.8}
                 >
-                  <Text style={styles.compactDemoBtnText}>🧪 30인 모의체험 둘러보기 ➔</Text>
+                  <Text style={styles.compactDemoBtnText}>🧪 30인 모의체험 ➔</Text>
                 </TouchableOpacity>
-              </View>
+              </ScrollView>
             ) : isViewingDemo ? (
               <View style={styles.compactDemoActiveBar}>
                 <Text style={styles.compactDemoActiveText}>
@@ -1300,21 +1304,19 @@ const styles = StyleSheet.create({
     backgroundColor: inkTheme.paperDark,
     borderBottomWidth: 1,
     borderBottomColor: inkTheme.ink8,
-    paddingVertical: 6,
-    paddingHorizontal: 8,
-    alignItems: 'center',
+    paddingVertical: 5,
+    paddingHorizontal: 6,
   },
   dockedModeScroll: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    minWidth: '100%',
+    paddingHorizontal: 4,
     gap: 6,
   },
   modeTabBtn: {
-    paddingHorizontal: 12,
-    paddingVertical: 7,
-    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 7,
     backgroundColor: inkTheme.paper,
     borderWidth: 1,
     borderColor: inkTheme.ink7,
@@ -1324,7 +1326,7 @@ const styles = StyleSheet.create({
     borderColor: inkTheme.ink0,
   },
   modeTabBtnText: {
-    fontSize: 12,
+    fontSize: 11.5,
     fontWeight: '700',
     color: inkTheme.ink3,
   },
@@ -1333,9 +1335,9 @@ const styles = StyleSheet.create({
     fontWeight: '900',
   },
   modeTabBtnIconOnly: {
-    paddingHorizontal: 9,
-    paddingVertical: 6,
-    minWidth: 36,
+    paddingHorizontal: 8,
+    paddingVertical: 5.5,
+    minWidth: 34,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -1364,46 +1366,44 @@ const styles = StyleSheet.create({
   },
   dockedDividerVertical: {
     width: 1,
-    height: 20,
+    height: 18,
     backgroundColor: inkTheme.ink7,
-    marginHorizontal: 4,
+    marginHorizontal: 3,
   },
   dockedActionBtnAdd: {
     backgroundColor: '#059669',
-    paddingHorizontal: 11,
-    paddingVertical: 6.5,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
     borderRadius: 7,
   },
   dockedActionBtnAddText: {
     color: '#ffffff',
-    fontSize: 12,
+    fontSize: 11.5,
     fontWeight: '800',
   },
   dockedActionBtnStudio: {
     backgroundColor: '#0284c7',
-    paddingHorizontal: 11,
-    paddingVertical: 6.5,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
     borderRadius: 7,
   },
   dockedActionBtnStudioText: {
     color: '#ffffff',
-    fontSize: 12,
+    fontSize: 11.5,
     fontWeight: '800',
   },
   dockedRow2: {
     width: '100%',
     backgroundColor: '#f8fafc',
-    paddingVertical: 6,
-    paddingHorizontal: 8,
+    paddingVertical: 5,
+    paddingHorizontal: 6,
     borderBottomWidth: 1,
     borderBottomColor: '#e2e8f0',
-    alignItems: 'center',
   },
   dockedFilterScroll: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    minWidth: '100%',
+    paddingHorizontal: 4,
     gap: 6,
   },
   filterChipGroup: {
@@ -1506,23 +1506,16 @@ const styles = StyleSheet.create({
     backgroundColor: '#f0fdf4',
     borderBottomWidth: 1,
     borderBottomColor: '#bbf7d0',
-    paddingHorizontal: 10,
-    paddingVertical: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 5,
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    width: '100%',
-    maxWidth: 1200,
-    alignSelf: 'center',
     gap: 8,
-    flexWrap: 'wrap',
   },
   compactMemberLeft: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    flexWrap: 'wrap',
+    gap: 6,
   },
   compactMemberBadge: {
     backgroundColor: '#15803d',

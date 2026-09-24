@@ -1033,7 +1033,11 @@ export const ObsidianGraphView: React.FC<ObsidianGraphViewProps> = ({
         )}
 
         {/* Action Buttons: Studio Launcher, Multi-Select, Reset, Cluster Move Toggle, Dark/Light Mode */}
-        <View style={styles.actionButtonsRow}>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.actionButtonsRow}
+        >
           <TouchableOpacity
             // @ts-ignore
             title={selectedNodeIds.length > 0 ? "선택 해제" : "마우스 드래그로 여러 인물과 관계선 다중 선택"}
@@ -1163,10 +1167,14 @@ export const ObsidianGraphView: React.FC<ObsidianGraphViewProps> = ({
               {isVeryNarrow ? (isDarkMode ? '🌙' : '☀️') : isNarrow ? (isDarkMode ? '🌙 다크' : '☀️ 한지') : (isDarkMode ? '🌙 옵시디언 다크' : '☀️ 라이트 한지')}
             </Text>
           </TouchableOpacity>
-        </View>
+        </ScrollView>
 
         {/* Legend color keys */}
-        <View style={styles.legendRow}>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.legendRow}
+        >
           <View style={styles.legendItem}>
             <View style={[styles.legendDot, { backgroundColor: '#ef4444' }]} />
             <Text style={[styles.legendLabel, { color: '#ef4444' }]}>{isVeryNarrow ? '친가' : '친가 (부친 계통 · 붉은선)'}</Text>
@@ -1187,12 +1195,16 @@ export const ObsidianGraphView: React.FC<ObsidianGraphViewProps> = ({
             <View style={[styles.legendDot, { backgroundColor: '#f59e0b', borderRadius: 2 }]} />
             <Text style={[styles.legendLabel, { color: '#f59e0b' }]}>{isVeryNarrow ? '대기' : '⏳ 윗대 승인 대기 (점선)'}</Text>
           </View>
-        </View>
+        </ScrollView>
       </View>
 
       {/* 🌟 Viewport Zoom & Pan Navigation Controller (스마트폰 전체 화면 맞춤 및 확대/축소) */}
       <View style={[styles.viewportControlBar, { backgroundColor: isDarkMode ? '#1e293b' : '#f1f5f9', borderColor: bannerBorder }]}>
-        <View style={styles.viewportCenterGroup}>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.viewportCenterGroup}
+        >
           <TouchableOpacity
             // @ts-ignore
             title="전체 화면 맞춤: 가계도 캔버스 전체가 한눈에 들어오도록 배율 자동 조정"
@@ -1280,7 +1292,7 @@ export const ObsidianGraphView: React.FC<ObsidianGraphViewProps> = ({
               {isVeryNarrow ? '100%' : '100% 원본'}
             </Text>
           </TouchableOpacity>
-        </View>
+        </ScrollView>
       </View>
 
       {/* Mobile Guide Notice */}
@@ -1822,12 +1834,10 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   actionButtonsRow: {
-    width: '100%',
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
+    paddingHorizontal: 4,
     gap: 6,
-    flexWrap: 'wrap',
     marginBottom: 8,
   },
   studioLauncherBtn: {
@@ -1868,12 +1878,10 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   legendRow: {
-    width: '100%',
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
+    paddingHorizontal: 4,
     gap: 10,
-    flexWrap: 'wrap',
     paddingTop: 4,
     borderTopWidth: 1,
     borderTopColor: 'rgba(255, 255, 255, 0.07)',
@@ -1895,19 +1903,14 @@ const styles = StyleSheet.create({
   // Viewport Zoom & Pan Navigation Bar
   viewportControlBar: {
     width: '100%',
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 8,
-    paddingVertical: 6,
+    paddingVertical: 5,
     borderBottomWidth: 1,
   },
   viewportCenterGroup: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
+    paddingHorizontal: 6,
     gap: 6,
-    flexWrap: 'wrap',
   },
   viewportBtn: {
     paddingHorizontal: 9,

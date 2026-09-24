@@ -59,35 +59,36 @@ export default function App() {
             headerTitleStyle: {
               color: inkTheme.ink0,
               fontWeight: '800',
-              fontSize: 17,
-              letterSpacing: 0.5,
+              fontSize: 15,
+              letterSpacing: 0.3,
             },
-            headerTitleAlign: 'center',
+            headerTitleAlign: 'left',
             headerRight: () => (
-              <View style={{ flexDirection: 'row', alignItems: 'center', marginRight: 12 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', marginRight: 8, gap: 4 }}>
                 <TouchableOpacity
                   onPress={openLoginModal}
                   style={{
                     backgroundColor: isAuthenticated ? '#0f172a' : '#991b1b',
-                    paddingHorizontal: 9,
-                    paddingVertical: 5,
+                    paddingHorizontal: 7,
+                    paddingVertical: 4.5,
                     borderRadius: 6,
                     borderWidth: 1,
                     borderColor: isAuthenticated ? '#38bdf8' : '#fca5a5',
-                    marginRight: isAuthenticated ? 6 : 0,
+                    maxWidth: 130,
                   }}
                   activeOpacity={0.8}
                 >
                   <Text
                     style={{
                       color: isAuthenticated ? '#38bdf8' : '#ffffff',
-                      fontSize: 11,
+                      fontSize: 10.5,
                       fontWeight: '800',
                     }}
+                    numberOfLines={1}
                   >
                     {isAuthenticated
-                      ? `🛡️ ${currentUser.name} [${currentUser.roleLabel.split(' ')[0]}]`
-                      : '🔒 가문 로그인 필요'}
+                      ? `🛡️ ${currentUser.name}`
+                      : '🔒 로그인'}
                   </Text>
                 </TouchableOpacity>
 
@@ -96,15 +97,15 @@ export default function App() {
                     onPress={logout}
                     style={{
                       backgroundColor: '#dc2626',
-                      paddingHorizontal: 8,
-                      paddingVertical: 5,
+                      paddingHorizontal: 7,
+                      paddingVertical: 4.5,
                       borderRadius: 6,
                       borderWidth: 1,
                       borderColor: '#ef4444',
                     }}
                     activeOpacity={0.8}
                   >
-                    <Text style={{ color: '#ffffff', fontSize: 11, fontWeight: '800' }}>
+                    <Text style={{ color: '#ffffff', fontSize: 10.5, fontWeight: '800' }}>
                       🚪 로그아웃
                     </Text>
                   </TouchableOpacity>
