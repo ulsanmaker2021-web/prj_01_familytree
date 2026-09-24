@@ -50,11 +50,14 @@ export function ensureRecaptchaContainer(containerId: string = 'recaptcha-contai
   return container;
 }
 
+// Counter to generate fresh unique container IDs for reCAPTCHA instances
+let recaptchaSequence = 0;
+
 /**
  * reCAPTCHA Verifier 준비 및 생성
  */
-export function getOrCreateRecaptcha(containerId: string = 'recaptcha-container'): RecaptchaVerifier | null {
-  if (typeof window === 'undefined') return null;
+export function getOrCreateRecaptcha(): RecaptchaVerifier | null {
+  if (typeof window === 'undefined' || typeof document === 'undefined') return null;
 
   const auth = getFirebaseAuthInstance();
   if (!auth) return null;
@@ -69,15 +72,29 @@ export function getOrCreateRecaptcha(containerId: string = 'recaptcha-container'
       activeRecaptchaVerifier = null;
     }
 
-    // Clean up DOM container to prevent "reCAPTCHA has already been rendered in this element"
-    const existing = document.getElementById(containerId);
-    if (existing) {
-      existing.innerHTML = '';
-    } else {
-      ensureRecaptchaContainer(containerId);
-    }
+    // 완전히 새로운 고유 ID의 DOM 요소를 생성하여 기존 reCAPTCHA 인스턴스와의 충돌을 100% 방지
+    recaptchaSequence += 1;
+    const dynamicContainerId = `recaptcha-container-${Date.now()}-${recaptchaSequence}`;
+    
+    // 이전 생성된 recaptcha 컨테이너들 모두 DOM에서 안전하게 제거
+    const oldContainers = document.querySelectorAll('[id^="recaptcha-container"]');
+    oldContainers.forEach((el) => {
+      try {
+        el.remove();
+      } catch (e) {
+        // ignore
+      }
+    });
 
-    activeRecaptchaVerifier = new RecaptchaVerifier(auth, containerId, {
+    const newContainer = document.createElement('div');
+    newContainer.id = dynamicContainerId;
+    newContainer.style.position = 'fixed';
+    newContainer.style.bottom = '10px';
+    newContainer.style.right = '10px';
+    newContainer.style.zIndex = '999999';
+    document.body.appendChild(newContainer);
+
+    activeRecaptchaVerifier = new RecaptchaVerifier(auth, dynamicContainerId, {
       size: 'invisible',
       callback: () => {
         // reCAPTCHA solved
@@ -133,7 +150,7 @@ export async function sendFirebasePhoneOtp(
   }
 
   try {
-    const recaptcha = getOrCreateRecaptcha(containerId);
+    const recaptcha = getOrCreateRecaptcha();
     if (!recaptcha) {
       return {
         success: false,
