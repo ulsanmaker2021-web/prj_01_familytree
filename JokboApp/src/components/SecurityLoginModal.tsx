@@ -82,6 +82,8 @@ export const SecurityLoginModal: React.FC<SecurityLoginModalProps> = ({
   const [syncCodeInput, setSyncCodeInput] = useState('');
   const [copiedSyncUrl, setCopiedSyncUrl] = useState('');
   const [syncQrCodeUrl, setSyncQrCodeUrl] = useState('');
+  const [syncQrCodeFallbackUrl, setSyncQrCodeFallbackUrl] = useState('');
+  const [syncQrImageError, setSyncQrImageError] = useState(false);
 
   // Firebase Phone Auth State
   const [isFirebaseConfiguredState, setIsFirebaseConfiguredState] = useState(isFirebaseConfigured());
@@ -233,6 +235,8 @@ export const SecurityLoginModal: React.FC<SecurityLoginModalProps> = ({
       if (res.success && res.syncUrl) {
         setCopiedSyncUrl(res.syncUrl);
         setSyncQrCodeUrl(res.qrCodeUrl || '');
+        setSyncQrCodeFallbackUrl(res.qrCodeFallbackUrl || '');
+        setSyncQrImageError(false);
       }
     }
   }, [activeTab, currentUser]);
@@ -245,6 +249,8 @@ export const SecurityLoginModal: React.FC<SecurityLoginModalProps> = ({
     }
     setCopiedSyncUrl(res.syncUrl);
     setSyncQrCodeUrl(res.qrCodeUrl || '');
+    setSyncQrCodeFallbackUrl(res.qrCodeFallbackUrl || '');
+    setSyncQrImageError(false);
 
     if (typeof navigator !== 'undefined' && navigator.clipboard && navigator.clipboard.writeText) {
       navigator.clipboard.writeText(res.syncUrl).then(() => {
@@ -1935,7 +1941,12 @@ export const SecurityLoginModal: React.FC<SecurityLoginModalProps> = ({
                     {syncQrCodeUrl ? (
                       <View style={{ alignItems: 'center', marginTop: 12, backgroundColor: '#ffffff', padding: 12, borderRadius: 10, borderWidth: 1, borderColor: '#86efac' }}>
                         <Image
-                          source={{ uri: syncQrCodeUrl }}
+                          source={{ uri: syncQrImageError && syncQrCodeFallbackUrl ? syncQrCodeFallbackUrl : syncQrCodeUrl }}
+                          onError={() => {
+                            if (!syncQrImageError && syncQrCodeFallbackUrl) {
+                              setSyncQrImageError(true);
+                            }
+                          }}
                           style={{ width: 170, height: 170 }}
                           resizeMode="contain"
                         />

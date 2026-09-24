@@ -57,6 +57,7 @@ export async function saveAllToCloudDatabase(
   const status = getCloudSyncStatus();
   let syncSuccess = false;
   let finalMessage = '';
+  let fbError = '';
 
   // 1-1. Firebase Firestore 동기화
   if (isFirebaseConfigured()) {
@@ -65,18 +66,23 @@ export async function saveAllToCloudDatabase(
       if (fbRes.success) {
         syncSuccess = true;
         finalMessage = fbRes.message;
+      } else {
+        fbError = fbRes.message;
       }
     } catch (e: any) {
       console.warn('Firebase sync warning:', e);
+      fbError = e?.message || 'Firebase 연결 응답 시간 초과';
     }
   }
 
   // 1-2. Supabase 동기화
   if (isSupabaseConnected()) {
     try {
-      await syncUserToSupabase(user);
-      await syncFamilyTreeToSupabase(user.id, tree);
-      await syncEstablishedLinksToSupabase(user.id, links);
+      await Promise.all([
+        syncUserToSupabase(user),
+        syncFamilyTreeToSupabase(user.id, tree),
+        syncEstablishedLinksToSupabase(user.id, links),
+      ]);
       syncSuccess = true;
       finalMessage = `☁️ Supabase 클라우드 DB에 최신 족보(${tree.length}명)가 저장되었습니다.`;
     } catch (e: any) {
@@ -92,10 +98,18 @@ export async function saveAllToCloudDatabase(
     };
   }
 
+  if (fbError) {
+    return {
+      success: false,
+      provider: status.provider,
+      message: `⚠️ 클라우드 DB 안내: ${fbError}\n(Firebase 콘솔에서 [Firestore Database]를 생성하시면 클라우드 저장이 즉시 활성화됩니다. 생성 전이라도 아래 [스마트폰 연동 링크] 및 [QR 코드]로 스마트폰과 1초 만에 동일하게 동기화됩니다!)`,
+    };
+  }
+
   return {
     success: false,
     provider: status.provider,
-    message: '클라우드 DB(Firebase/Supabase) 설정이 활성화되지 않아 기기 로컬에만 보관 중입니다.',
+    message: '클라우드 DB(Firebase/Supabase) 설정이 활성화되지 않았습니다. 상단 QR 코드나 동기화 링크를 통해 스마트폰으로 즉시 전송할 수 있습니다.',
   };
 }
 

@@ -34,6 +34,8 @@ export const CloudSyncModal: React.FC<CloudSyncModalProps> = ({ visible, onClose
 
   const [syncUrl, setSyncUrl] = useState('');
   const [qrCodeUrl, setQrCodeUrl] = useState('');
+  const [qrFallbackUrl, setQrFallbackUrl] = useState('');
+  const [qrImageError, setQrImageError] = useState(false);
   const [statusMsg, setStatusMsg] = useState<{ text: string; isError?: boolean; isSuccess?: boolean } | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -44,6 +46,8 @@ export const CloudSyncModal: React.FC<CloudSyncModalProps> = ({ visible, onClose
       if (res.success && res.syncUrl) {
         setSyncUrl(res.syncUrl);
         setQrCodeUrl(res.qrCodeUrl || '');
+        setQrFallbackUrl(res.qrCodeFallbackUrl || '');
+        setQrImageError(false);
       }
     }
   }, [visible, currentUser, members, establishedLinks]);
@@ -52,7 +56,7 @@ export const CloudSyncModal: React.FC<CloudSyncModalProps> = ({ visible, onClose
     setStatusMsg({ text, isError, isSuccess });
     setTimeout(() => {
       setStatusMsg(null);
-    }, 4500);
+    }, 6000);
   };
 
   const handleCopyLink = () => {
@@ -71,15 +75,20 @@ export const CloudSyncModal: React.FC<CloudSyncModalProps> = ({ visible, onClose
     }
   };
 
-  // 강제 클라우드 DB 업로드
+  // 강제 클라우드 DB 업로드 (무한대기 원천 차단: 최대 4.5초 긴급 해제 보장)
   const handleForceUpload = async () => {
     if (!currentUser) {
       showToast('로그인된 계정 정보가 없습니다.', true);
       return;
     }
     setIsLoading(true);
+    const emergencyTimer = setTimeout(() => {
+      setIsLoading(false);
+    }, 4500);
+
     try {
       const res = await saveAllToCloudDatabase(currentUser, members, establishedLinks);
+      clearTimeout(emergencyTimer);
       if (res.success) {
         showToast(`☁️ [업로드 성공] ${currentUser.name} 님의 가계도(${members.length}명)가 클라우드 DB에 동기화되었습니다!`, false, true);
         // 패키지 및 QR 코드 갱신
@@ -87,26 +96,35 @@ export const CloudSyncModal: React.FC<CloudSyncModalProps> = ({ visible, onClose
         if (pkg.success && pkg.syncUrl) {
           setSyncUrl(pkg.syncUrl);
           setQrCodeUrl(pkg.qrCodeUrl || '');
+          setQrFallbackUrl(pkg.qrCodeFallbackUrl || '');
+          setQrImageError(false);
         }
       } else {
         showToast(res.message, true);
       }
     } catch (e: any) {
-      showToast('클라우드 DB 업로드 중 오류가 발생했습니다.', true);
+      clearTimeout(emergencyTimer);
+      showToast('클라우드 DB 저장 지연: ' + (e?.message || '네트워크 응답 없음'), true);
     } finally {
+      clearTimeout(emergencyTimer);
       setIsLoading(false);
     }
   };
 
-  // 클라우드 DB에서 최신 데이터 내려받기
+  // 클라우드 DB에서 최신 데이터 내려받기 (무한대기 원천 차단: 최대 4.5초 긴급 해제 보장)
   const handleForceDownload = async () => {
     if (!currentUser || !currentUser.phone) {
       showToast('로그인된 전화번호가 없습니다.', true);
       return;
     }
     setIsLoading(true);
+    const emergencyTimer = setTimeout(() => {
+      setIsLoading(false);
+    }, 4500);
+
     try {
       const res = await fetchAllFromCloudDatabase(currentUser.phone);
+      clearTimeout(emergencyTimer);
       if (res.success && res.familyTree) {
         showToast(`☁️ [다운로드 성공] 클라우드 DB에서 최신 가계도(${res.familyTree.length}명)를 수신하여 동기화했습니다!`, false, true);
         setTimeout(() => {
@@ -117,9 +135,11 @@ export const CloudSyncModal: React.FC<CloudSyncModalProps> = ({ visible, onClose
       } else {
         showToast(res.message || '클라우드 DB에 저장된 데이터가 없습니다.', true);
       }
-    } catch (e) {
-      showToast('클라우드 DB 다운로드 중 오류가 발생했습니다.', true);
+    } catch (e: any) {
+      clearTimeout(emergencyTimer);
+      showToast('클라우드 DB 다운로드 오류: ' + (e?.message || '연결 실패'), true);
     } finally {
+      clearTimeout(emergencyTimer);
       setIsLoading(false);
     }
   };
@@ -210,11 +230,16 @@ export const CloudSyncModal: React.FC<CloudSyncModalProps> = ({ visible, onClose
               {qrCodeUrl ? (
                 <View style={styles.qrImageWrapper}>
                   <Image
-                    source={{ uri: qrCodeUrl }}
+                    source={{ uri: qrImageError && qrFallbackUrl ? qrFallbackUrl : qrCodeUrl }}
+                    onError={() => {
+                      if (!qrImageError && qrFallbackUrl) {
+                        setQrImageError(true);
+                      }
+                    }}
                     style={styles.qrImage}
                     resizeMode="contain"
                   />
-                  <Text style={styles.qrScanHint}>📷 스마트폰 카메라로 비춰주세요</Text>
+                  <Text style={styles.qrScanHint}>📷 스마트폰 기본 카메라로 비춰주세요 (1초 즉시 동기화)</Text>
                 </View>
               ) : (
                 <View style={styles.qrPlaceholder}>
@@ -244,7 +269,10 @@ export const CloudSyncModal: React.FC<CloudSyncModalProps> = ({ visible, onClose
                 activeOpacity={0.8}
               >
                 {isLoading ? (
-                  <ActivityIndicator size="small" color="#ffffff" />
+                  <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                    <ActivityIndicator size="small" color="#ffffff" />
+                    <Text style={[styles.actionBtnText, { marginLeft: 8 }]}>클라우드 DB 동기화 확인 중...</Text>
+                  </View>
                 ) : (
                   <>
                     <Text style={styles.actionBtnIcon}>☁️</Text>
@@ -259,8 +287,14 @@ export const CloudSyncModal: React.FC<CloudSyncModalProps> = ({ visible, onClose
                 disabled={isLoading}
                 activeOpacity={0.8}
               >
-                <Text style={styles.actionBtnIcon}>🔄</Text>
-                <Text style={[styles.actionBtnText, { color: '#0f172a' }]}>클라우드 DB에서 최신 데이터 내려받기</Text>
+                {isLoading ? (
+                  <ActivityIndicator size="small" color="#0284c7" />
+                ) : (
+                  <>
+                    <Text style={styles.actionBtnIcon}>🔄</Text>
+                    <Text style={[styles.actionBtnText, { color: '#0f172a' }]}>클라우드 DB에서 최신 데이터 내려받기</Text>
+                  </>
+                )}
               </TouchableOpacity>
             </View>
 
@@ -268,10 +302,20 @@ export const CloudSyncModal: React.FC<CloudSyncModalProps> = ({ visible, onClose
             <View style={styles.guideBox}>
               <Text style={styles.guideTitle}>💡 왜 PC와 스마트폰 화면이 다른가요?</Text>
               <Text style={styles.guideText}>
-                기존에는 웹 브라우저 자체 로컬 파일(LocalStorage)에만 저장되어 PC와 스마트폰이 독립된 상태였습니다.{'\n'}
-                위 <Text style={{ fontWeight: '800' }}>[클라우드 DB 저장]</Text> 또는 <Text style={{ fontWeight: '800' }}>[스마트폰 QR 스캔]</Text>을 1회 진행하시면,
-                양쪽 기기가 하나의 중앙 데이터베이스에 묶여 앞으로 어느 기기에서 수정해도 실시간으로 동일하게 보입니다.
+                기존에는 웹 브라우저 자체 로컬 저장소(LocalStorage)에만 저장되어 PC와 스마트폰이 독립된 상태였습니다.{'\n'}
+                위 <Text style={{ fontWeight: '800', color: '#0284c7' }}>[스마트폰 QR 스캔]</Text>이나 <Text style={{ fontWeight: '800', color: '#0284c7' }}>[동기화 링크 복사]</Text>를 이용하시면 스마트폰에 부모님과 가계도가 즉시 복제됩니다!
               </Text>
+
+              <View style={{ marginTop: 12, paddingTop: 10, borderTopWidth: 1, borderTopColor: '#e2e8f0' }}>
+                <Text style={{ fontSize: 12, fontWeight: '800', color: '#334155', marginBottom: 4 }}>
+                  🔧 클라우드 DB(Firebase Firestore) 영구 연동 방법:
+                </Text>
+                <Text style={{ fontSize: 11.5, color: '#64748b', lineHeight: 18 }}>
+                  1. Firebase 콘솔(console.firebase.google.com)에서 <Text style={{ fontWeight: '700' }}>jokbo360</Text> 프로젝트 접속{'\n'}
+                  2. 좌측 메뉴 [빌드] → [Firestore Database] 클릭 후 [데이터베이스 만들기] 완료{'\n'}
+                  3. 생성 후 위 [지금 즉시 클라우드 DB에 최신 가계도 저장]을 누르면 영구 보관됩니다.
+                </Text>
+              </View>
             </View>
           </ScrollView>
 

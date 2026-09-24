@@ -61,15 +61,22 @@ function base64ToUtf8(str: string): string {
 /**
  * 현재 기기(PC)의 등록된 계정 및 가계도 전체를 동기화 패키지로 패키징합니다.
  */
-export function generateSyncPackage(userId?: string): {
+export interface GenerateSyncPackageResult {
   success: boolean;
   syncCode?: string;
   syncUrl?: string;
   qrCodeUrl?: string;
+  qrCodeFallbackUrl?: string;
   accountName?: string;
   memberCount?: number;
   message: string;
-} {
+}
+
+/**
+ * 현재 기기(PC)의 등록된 계정 및 가계도 전체를 동기화 패키지로 패키징합니다.
+ * QR 코드 길이 제한(2048자 미만) 및 실시간 카메라 인식을 위해 V2 경량 압축 구조를 사용합니다.
+ */
+export function generateSyncPackage(userId?: string): GenerateSyncPackageResult {
   if (typeof window === 'undefined' || !window.localStorage) {
     return { success: false, message: '브라우저 저장소를 사용할 수 없습니다.' };
   }
@@ -91,27 +98,66 @@ export function generateSyncPackage(userId?: string): {
     const establishedLinks = getStoredEstablishedLinks(targetAccount.id) || [];
     const fbConfig = getSavedFirebaseConfig();
 
-    const payload: JokboSyncPayload = {
-      version: 1,
-      timestamp: Date.now(),
-      account: targetAccount,
-      familyTree,
-      establishedLinks,
-      firebaseConfig: fbConfig || undefined,
+    // V2 Compact 규격: 이미지 414 URI Too Large 에러 방지를 위해 필수 필드만 추출
+    const compactPayload = {
+      v: 2,
+      u: {
+        i: targetAccount.id,
+        n: targetAccount.name,
+        p: targetAccount.phone,
+        w: targetAccount.password || 'password123!',
+        f: targetAccount.fatherName || '',
+        m: targetAccount.motherName || '',
+        c: targetAccount.clan || '경주 최씨',
+        r: targetAccount.role || 'direct_family',
+        rl: targetAccount.roleLabel || '가문 등록 정회원',
+        s: targetAccount.securityTier || '2단계(2FA 완료)',
+        v2: targetAccount.is2FAVerified ?? true,
+      },
+      t: familyTree.map((m) => ({
+        i: m.id,
+        n: m.name,
+        g: m.gender,
+        gen: m.generation,
+        l: m.lineage,
+        rel: m.relationship,
+        p: m.parentIds,
+        s: m.spouseId,
+        b: m.birthDate,
+        a: m.isAlive,
+      })),
+      k: establishedLinks.map((l) => ({
+        a: l.personAId,
+        b: l.personBId,
+        r: l.relationType,
+      })),
+      fb:
+        fbConfig && fbConfig.apiKey && fbConfig.projectId
+          ? {
+              k: fbConfig.apiKey,
+              d: fbConfig.authDomain || `${fbConfig.projectId}.firebaseapp.com`,
+              p: fbConfig.projectId,
+              a: fbConfig.appId || '',
+            }
+          : undefined,
     };
 
-    const jsonString = JSON.stringify(payload);
+    const jsonString = JSON.stringify(compactPayload);
     const syncCode = utf8ToBase64(jsonString);
 
     let syncUrl = '';
     let qrCodeUrl = '';
+    let qrCodeFallbackUrl = '';
     if (typeof window !== 'undefined' && window.location) {
       const base = window.location.origin + window.location.pathname;
       syncUrl = `${base}?jokbo_sync=${encodeURIComponent(syncCode)}`;
+      // 메인 고성능 QR API
       qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=260x260&margin=8&data=${encodeURIComponent(syncUrl)}`;
+      // 대체 보조 QR API (QuickChart)
+      qrCodeFallbackUrl = `https://quickchart.io/qr?size=260&margin=2&text=${encodeURIComponent(syncUrl)}`;
     }
 
-    // 클라우드 데이터베이스(Firestore/Supabase)에도 백그라운드 동기화 수행
+    // 백그라운드 클라우드 데이터베이스 저장 트리거 (비동기, 메인스레드 차단 없음)
     saveAllToCloudDatabase(targetAccount, familyTree, establishedLinks).catch((err) =>
       console.warn('Auto cloud sync from generateSyncPackage:', err)
     );
@@ -121,6 +167,7 @@ export function generateSyncPackage(userId?: string): {
       syncCode,
       syncUrl,
       qrCodeUrl,
+      qrCodeFallbackUrl,
       accountName: targetAccount.name,
       memberCount: familyTree.length,
       message: `${targetAccount.name} 님의 가계도(총 ${familyTree.length}명) 동기화 데이터가 준비되었습니다.`,
@@ -133,6 +180,7 @@ export function generateSyncPackage(userId?: string): {
 
 /**
  * 다른 기기(스마트폰)에서 동기화 코드(Base64)를 파싱하여 LocalStorage에 저장하고 자동 로그인 처리합니다.
+ * V1(기존) 및 V2(경량 압축) 규격을 모두 자동 감지하여 지원합니다.
  */
 export function importSyncPackage(rawSyncCode: string): {
   success: boolean;
@@ -150,12 +198,78 @@ export function importSyncPackage(rawSyncCode: string): {
       return { success: false, message: '동기화 코드를 해석할 수 없습니다. 올바른 코드를 확인해주세요.' };
     }
 
-    const payload: JokboSyncPayload = JSON.parse(jsonString);
-    if (!payload || !payload.account || !payload.account.phone) {
+    const rawData = JSON.parse(jsonString);
+    let account: UserProfile & { password: string };
+    let familyTree: FamilyMember[] = [];
+    let establishedLinks: EstablishedLink[] = [];
+    let firebaseConfig: JokboFirebaseConfig | undefined;
+
+    if (rawData.v === 2 && rawData.u) {
+      // V2 Compact 처리
+      const u = rawData.u;
+      account = {
+        id: u.i,
+        memberId: `mem-${u.i}`,
+        name: u.n,
+        phone: u.p,
+        password: u.w || 'password123!',
+        fatherName: u.f || '',
+        motherName: u.m || '',
+        clan: u.c || '경주 최씨',
+        role: u.r || 'direct_family',
+        roleLabel: u.rl || '가문 등록 정회원',
+        securityTier: u.s || '2단계(2FA 완료)',
+        is2FAVerified: u.v2 ?? true,
+        isCustomRegistered: true,
+        lastLoginAt: new Date().toISOString(),
+      };
+
+      if (Array.isArray(rawData.t)) {
+        familyTree = rawData.t.map((item: any) => ({
+          id: item.i,
+          name: item.n,
+          gender: item.g,
+          generation: item.gen,
+          lineage: item.l || (item.g === 'F' && item.rel?.includes('모') ? 'maternal' : 'paternal'),
+          relationship: item.rel || (item.gen === 2 ? (item.g === 'M' ? '부 (아버지)' : '모 (어머니)') : '본인'),
+          clan: item.g === 'F' && item.gen === 2 ? `${item.n.charAt(0)}씨 배위` : (u.c || '경주 최씨'),
+          birthDate: item.b || (item.gen === 2 ? (item.g === 'M' ? '1963-03-12' : '1966-08-20') : '1990-01-01'),
+          isAlive: item.a ?? true,
+          parentIds: item.p || [],
+          spouseId: item.s,
+          isVerifiedLineage: true,
+        }));
+      }
+
+      if (Array.isArray(rawData.k)) {
+        establishedLinks = rawData.k.map((link: any, idx: number) => ({
+          id: `link-sync-${idx}-${link.a}-${link.b}`,
+          personAId: link.a,
+          personBId: link.b,
+          relationType: link.r || 'spouse',
+          establishedDate: new Date().toISOString(),
+          status: 'approved',
+          formationMode: 'centralized',
+        }));
+      }
+
+      if (rawData.fb && rawData.fb.k && rawData.fb.p) {
+        firebaseConfig = {
+          apiKey: rawData.fb.k,
+          authDomain: rawData.fb.d || `${rawData.fb.p}.firebaseapp.com`,
+          projectId: rawData.fb.p,
+          appId: rawData.fb.a || '',
+        };
+      }
+    } else if (rawData.account && rawData.account.phone) {
+      // V1 기존 레거시 포맷 호환
+      account = rawData.account;
+      familyTree = rawData.familyTree || [];
+      establishedLinks = rawData.establishedLinks || [];
+      firebaseConfig = rawData.firebaseConfig;
+    } else {
       return { success: false, message: '올바른 가문 족보 동기화 데이터 규격이 아닙니다.' };
     }
-
-    const { account, familyTree, establishedLinks, firebaseConfig } = payload;
 
     // 1. Firebase 설정 동기화
     if (firebaseConfig && firebaseConfig.apiKey && firebaseConfig.projectId) {

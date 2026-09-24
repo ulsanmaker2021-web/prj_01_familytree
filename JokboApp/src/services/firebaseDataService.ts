@@ -23,6 +23,37 @@ import { stripPhoneNumber } from '../utils/securityAuth';
 // Firestore 인스턴스 캐시
 let _cachedFirestore: Firestore | null = null;
 
+/**
+ * [타임아웃 래퍼]
+ * Firestore 데이터베이스가 Firebase 콘솔에서 아직 생성되지 않았거나 네트워크 연결이
+ * 지연될 때 무한 대기(Hang) 현상이 발생하는 것을 100% 원천 차단합니다 (3.5초 타임아웃).
+ */
+export async function withFirestoreTimeout<T>(
+  promise: Promise<T>,
+  ms = 3500,
+  errorMsg = '클라우드 DB 응답 시간 초과 (Firebase 콘솔에서 Cloud Firestore 생성을 확인해주세요)'
+): Promise<T> {
+  let timer: any;
+  const timeoutPromise = new Promise<T>((_, reject) => {
+    timer = setTimeout(() => {
+      reject(new Error(errorMsg));
+    }, ms);
+  });
+
+  return Promise.race([
+    promise
+      .then((res) => {
+        if (timer) clearTimeout(timer);
+        return res;
+      })
+      .catch((err) => {
+        if (timer) clearTimeout(timer);
+        throw err;
+      }),
+    timeoutPromise,
+  ]);
+}
+
 export function getFirestoreInstance(): Firestore | null {
   if (!isFirebaseConfigured()) return null;
   const app = getFirebaseAppInstance();
@@ -74,7 +105,11 @@ export async function syncUserToFirestore(
       updatedAt: new Date().toISOString(),
     };
 
-    await setDoc(userDocRef, userData, { merge: true });
+    await withFirestoreTimeout(
+      setDoc(userDocRef, userData, { merge: true }),
+      3500,
+      'Firebase 콘솔에 Cloud Firestore DB가 아직 생성되지 않았거나 응답이 없습니다.'
+    );
     return { success: true };
   } catch (e: any) {
     console.error('Error syncing user to Firestore:', e);
@@ -94,7 +129,11 @@ export async function fetchUserFromFirestore(
     if (!cleanPhone) return null;
 
     const userDocRef = doc(db, 'jokbo_users', cleanPhone);
-    const snap = await getDoc(userDocRef);
+    const snap = await withFirestoreTimeout(
+      getDoc(userDocRef),
+      3500,
+      'Firestore 회원 조회 시간 초과'
+    );
 
     if (!snap.exists()) {
       return null;
@@ -149,7 +188,11 @@ export async function syncFamilyTreeToFirestore(
       members: JSON.stringify(tree), // 객체 배열 직렬화 보존
     };
 
-    await setDoc(treeDocRef, payload, { merge: true });
+    await withFirestoreTimeout(
+      setDoc(treeDocRef, payload, { merge: true }),
+      3500,
+      'Firestore 가계도 저장 시간 초과'
+    );
     return { success: true };
   } catch (e: any) {
     console.error('Error syncing family tree to Firestore:', e);
@@ -167,7 +210,11 @@ export async function fetchFamilyTreeFromFirestore(
   try {
     const cleanKey = stripPhoneNumber(phoneOrUserId) || phoneOrUserId;
     const treeDocRef = doc(db, 'jokbo_trees', cleanKey);
-    const snap = await getDoc(treeDocRef);
+    const snap = await withFirestoreTimeout(
+      getDoc(treeDocRef),
+      3500,
+      'Firestore 가계도 조회 시간 초과'
+    );
 
     if (!snap.exists()) {
       return null;
@@ -205,7 +252,11 @@ export async function syncEstablishedLinksToFirestore(
       links: JSON.stringify(links),
     };
 
-    await setDoc(linksDocRef, payload, { merge: true });
+    await withFirestoreTimeout(
+      setDoc(linksDocRef, payload, { merge: true }),
+      3500,
+      'Firestore 결연 관계 저장 시간 초과'
+    );
     return { success: true };
   } catch (e: any) {
     console.error('Error syncing links to Firestore:', e);
@@ -223,7 +274,11 @@ export async function fetchEstablishedLinksFromFirestore(
   try {
     const cleanKey = stripPhoneNumber(phoneOrUserId) || phoneOrUserId;
     const linksDocRef = doc(db, 'jokbo_links', cleanKey);
-    const snap = await getDoc(linksDocRef);
+    const snap = await withFirestoreTimeout(
+      getDoc(linksDocRef),
+      3500,
+      'Firestore 결연 이력 조회 시간 초과'
+    );
 
     if (!snap.exists()) {
       return null;
