@@ -27,6 +27,13 @@ import {
   formatPhoneNumber,
   getAllSecurityAccounts,
 } from '../utils/securityAuth';
+import {
+  fetchFamilyTreeFromSupabase,
+  syncFamilyTreeToSupabase,
+  fetchEstablishedLinksFromSupabase,
+  syncEstablishedLinksToSupabase,
+} from '../services/supabaseDataService';
+import { isSupabaseConnected } from '../config/supabaseClient';
 
 // ==========================================
 // 🔗 [공인 결연 및 어르신 승인 저장소 (LocalStorage)]
@@ -55,6 +62,13 @@ export function saveStoredEstablishedLinks(links: EstablishedLink[], userId?: st
     const key = ESTABLISHED_LINKS_KEY_PREFIX + (userId || 'global');
     localStorage.setItem(key, JSON.stringify(links));
     localStorage.setItem(ESTABLISHED_LINKS_KEY_PREFIX + 'global', JSON.stringify(links));
+
+    // [클라우드 DB 실시간 저장] Supabase 연결 시 실시간 반영
+    if (isSupabaseConnected() && userId && userId !== 'global') {
+      syncEstablishedLinksToSupabase(userId, links).catch((err) =>
+        console.error('Failed to sync established links to Supabase:', err)
+      );
+    }
     return true;
   } catch (e) {
     return false;
@@ -136,6 +150,13 @@ export function saveStoredCustomFamily(userId: string, tree: FamilyMember[]): bo
   if (typeof window === 'undefined' || !window.localStorage) return false;
   try {
     localStorage.setItem(CUSTOM_TREE_KEY_PREFIX + userId, JSON.stringify(tree));
+
+    // [클라우드 DB 실시간 저장] Supabase 연결 시 가계도 전체 실시간 동기화
+    if (isSupabaseConnected() && userId) {
+      syncFamilyTreeToSupabase(userId, tree).catch((err) =>
+        console.error('Failed to sync family tree to Supabase:', err)
+      );
+    }
     return true;
   } catch (e) {
     return false;
@@ -304,6 +325,32 @@ function syncWithAuth() {
     }
     globalMembers = customTree;
     globalCenterPersonId = currentUser.memberId || customTree[0].id;
+
+    // [클라우드 DB 실시간 패치] Supabase 연결 시 최신 원격 가계도 및 결연 정보 비동기 로드
+    if (isSupabaseConnected()) {
+      Promise.all([
+        fetchFamilyTreeFromSupabase(currentUser.id),
+        fetchEstablishedLinksFromSupabase(currentUser.id),
+      ])
+        .then(([cloudTree, cloudLinks]) => {
+          let hasChange = false;
+          if (cloudTree && cloudTree.length > 0) {
+            localStorage.setItem(CUSTOM_TREE_KEY_PREFIX + currentUser.id, JSON.stringify(cloudTree));
+            globalMembers = cloudTree;
+            hasChange = true;
+          }
+          if (cloudLinks && cloudLinks.length > 0) {
+            localStorage.setItem(ESTABLISHED_LINKS_KEY_PREFIX + currentUser.id, JSON.stringify(cloudLinks));
+            localStorage.setItem(ESTABLISHED_LINKS_KEY_PREFIX + 'global', JSON.stringify(cloudLinks));
+            globalEstablishedLinks = cloudLinks;
+            hasChange = true;
+          }
+          if (hasChange) {
+            notify();
+          }
+        })
+        .catch((err) => console.error('Cloud data sync error:', err));
+    }
   } else {
     // Demo simulation mode (Kim clan)
     globalMembers = [...INITIAL_FAMILY_DATA];
