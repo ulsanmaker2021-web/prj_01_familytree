@@ -25,6 +25,10 @@ import {
   fetchUserFromSupabase,
   syncUserToSupabase,
 } from '../services/supabaseDataService';
+import {
+  saveAllToCloudDatabase,
+  fetchAllFromCloudDatabase,
+} from '../services/unifiedCloudSyncService';
 import { hashPassword, verifyPassword } from '../utils/cryptoHelper';
 import { isSupabaseConnected } from '../config/supabaseClient';
 
@@ -206,16 +210,29 @@ export function useAuthStore() {
       (acc) => stripPhoneNumber(acc.phone) === cleanPhone
     );
 
-    // [클라우드 DB 실시간 조회] 로컬에 계정이 없고 Supabase가 연결된 경우 클라우드 DB에서 계정 조회 (스마트폰 즉시 연동)
-    if (!account && isSupabaseConnected()) {
+    // [통합 클라우드 DB 실시간 조회] 로컬에 계정이 없는 경우 Firestore / Supabase 클라우드 DB에서 계정 및 가계도 조회
+    if (!account) {
       try {
-        const cloudAcc = await fetchUserFromSupabase(cleanPhone);
-        if (cloudAcc) {
-          account = cloudAcc;
-          saveCustomAccount(cloudAcc);
+        const cloudRes = await fetchAllFromCloudDatabase(cleanPhone);
+        if (cloudRes.success && cloudRes.user) {
+          account = cloudRes.user;
+          saveCustomAccount(cloudRes.user);
+
+          // 가계도 및 결연 정보 로컬 저장소 동기화
+          if (cloudRes.familyTree && cloudRes.familyTree.length > 0) {
+            try {
+              localStorage.setItem('jokbo_custom_tree_v1_' + account.id, JSON.stringify(cloudRes.familyTree));
+            } catch (e) {}
+          }
+          if (cloudRes.establishedLinks && cloudRes.establishedLinks.length > 0) {
+            try {
+              localStorage.setItem('jokbo_custom_links_v1_' + account.id, JSON.stringify(cloudRes.establishedLinks));
+              localStorage.setItem('jokbo_custom_links_v1_global', JSON.stringify(cloudRes.establishedLinks));
+            } catch (e) {}
+          }
         }
       } catch (err) {
-        console.error('Failed to fetch user from Supabase:', err);
+        console.error('Failed to fetch user from Cloud Database:', err);
       }
     }
 
@@ -426,12 +443,10 @@ export function useAuthStore() {
       return { success: false, message: '가문 데이터베이스(LocalStorage) 저장 중 오류가 발생했습니다.' };
     }
 
-    // [클라우드 DB 실시간 동기화] Supabase 연결 시 즉시 서버 DB에 영구 등록
-    if (isSupabaseConnected()) {
-      syncUserToSupabase(newAccount).catch((err) =>
-        console.error('Failed to sync new user to Supabase:', err)
-      );
-    }
+    // [통합 클라우드 DB 실시간 동기화] Firebase Firestore 및 Supabase에 실시간 등록
+    saveAllToCloudDatabase(newAccount, [], []).catch((err) =>
+      console.warn('Failed to sync new user to Cloud DB:', err)
+    );
 
     notifyAuth();
     return {

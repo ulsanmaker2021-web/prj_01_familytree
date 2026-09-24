@@ -19,6 +19,7 @@ import { ObsidianGraphView } from '../components/ObsidianGraphView';
 import { RelationshipStudioModal } from '../components/RelationshipStudioModal';
 import { FramedMasterpieceView } from '../components/FramedMasterpieceView';
 import { HorizontalMindmapView } from '../components/HorizontalMindmapView';
+import { CloudSyncModal } from '../components/CloudSyncModal';
 import { formatPhoneNumber } from '../utils/securityAuth';
 import { inkTheme } from '../theme/inkTheme';
 
@@ -32,6 +33,7 @@ type ViewMode = 'radial' | 'generation' | 'framed' | 'mindmap';
 export default function HomeScreen() {
   const { currentUser } = useAuthStore();
   const [isAddMemberModalOpen, setIsAddMemberModalOpen] = useState(false);
+  const [isCloudSyncModalOpen, setIsCloudSyncModalOpen] = useState(false);
 
   const {
     members,
@@ -348,7 +350,10 @@ export default function HomeScreen() {
           <ScrollView
             horizontal
             showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.dockedModeScroll}
+            contentContainerStyle={[
+              styles.dockedModeScroll,
+              (isNarrow || isVeryNarrow) && { justifyContent: 'flex-start', paddingHorizontal: 12 },
+            ]}
           >
             <TouchableOpacity
               // @ts-ignore
@@ -496,6 +501,21 @@ export default function HomeScreen() {
                   : `🤝 관계 스튜디오 ${pendingElderLinks.length > 0 ? `(🔔${pendingElderLinks.length})` : ''}`}
               </Text>
             </TouchableOpacity>
+
+            <TouchableOpacity
+              // @ts-ignore
+              title="클라우드 동기화: PC와 스마트폰 간 가계도 실시간 DB 저장 및 QR 즉시 연동"
+              // @ts-ignore
+              onMouseEnter={() => setActiveTooltip('클라우드 DB 동기화: PC ↔ 스마트폰 실시간 연동')}
+              onMouseLeave={() => setActiveTooltip(null)}
+              style={[styles.dockedActionBtnCloud, isVeryNarrow && styles.modeTabBtnIconOnly]}
+              onPress={() => setIsCloudSyncModalOpen(true)}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.dockedActionBtnCloudText}>
+                {isVeryNarrow ? '☁️' : isNarrow ? '☁️ 동기화' : '☁️ 클라우드 동기화'}
+              </Text>
+            </TouchableOpacity>
           </ScrollView>
         </View>
 
@@ -504,7 +524,10 @@ export default function HomeScreen() {
           <ScrollView
             horizontal
             showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.dockedFilterScroll}
+            contentContainerStyle={[
+              styles.dockedFilterScroll,
+              (isNarrow || isVeryNarrow) && { justifyContent: 'flex-start', paddingHorizontal: 12 },
+            ]}
           >
             {/* 1. 친족 범위 필터 (직계 / 4촌 / 5·6촌) */}
             <View style={styles.filterChipGroup}>
@@ -1261,6 +1284,12 @@ export default function HomeScreen() {
         selfParents={centerPerson?.parentIds}
         selfSpouseId={centerPerson?.spouseId}
       />
+
+      {/* Modal for Cloud Database Synchronization & QR code */}
+      <CloudSyncModal
+        visible={isCloudSyncModalOpen}
+        onClose={() => setIsCloudSyncModalOpen(false)}
+      />
     </View>
   );
 }
@@ -1393,6 +1422,19 @@ const styles = StyleSheet.create({
   },
   dockedActionBtnStudioText: {
     color: '#ffffff',
+    fontSize: 11.5,
+    fontWeight: '800',
+  },
+  dockedActionBtnCloud: {
+    backgroundColor: '#475569',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 7,
+    borderWidth: 1,
+    borderColor: '#64748b',
+  },
+  dockedActionBtnCloudText: {
+    color: '#f8fafc',
     fontSize: 11.5,
     fontWeight: '800',
   },

@@ -33,6 +33,10 @@ import {
   fetchEstablishedLinksFromSupabase,
   syncEstablishedLinksToSupabase,
 } from '../services/supabaseDataService';
+import {
+  saveAllToCloudDatabase,
+  fetchAllFromCloudDatabase,
+} from '../services/unifiedCloudSyncService';
 import { isSupabaseConnected } from '../config/supabaseClient';
 
 // ==========================================
@@ -63,8 +67,14 @@ export function saveStoredEstablishedLinks(links: EstablishedLink[], userId?: st
     localStorage.setItem(key, JSON.stringify(links));
     localStorage.setItem(ESTABLISHED_LINKS_KEY_PREFIX + 'global', JSON.stringify(links));
 
-    // [클라우드 DB 실시간 저장] Supabase 연결 시 실시간 반영
-    if (isSupabaseConnected() && userId && userId !== 'global') {
+    // [통합 클라우드 DB 실시간 저장]
+    const currentUser = getGlobalCurrentUser();
+    if (currentUser && userId && currentUser.id === userId) {
+      const tree = getStoredCustomFamily(userId) || [];
+      saveAllToCloudDatabase(currentUser, tree, links).catch((err) =>
+        console.warn('Auto cloud sync from saveStoredEstablishedLinks:', err)
+      );
+    } else if (isSupabaseConnected() && userId && userId !== 'global') {
       syncEstablishedLinksToSupabase(userId, links).catch((err) =>
         console.error('Failed to sync established links to Supabase:', err)
       );
@@ -151,8 +161,14 @@ export function saveStoredCustomFamily(userId: string, tree: FamilyMember[]): bo
   try {
     localStorage.setItem(CUSTOM_TREE_KEY_PREFIX + userId, JSON.stringify(tree));
 
-    // [클라우드 DB 실시간 저장] Supabase 연결 시 가계도 전체 실시간 동기화
-    if (isSupabaseConnected() && userId) {
+    // [통합 클라우드 DB 실시간 저장] Firebase Firestore 및 Supabase 실시간 동기화
+    const currentUser = getGlobalCurrentUser();
+    const links = getStoredEstablishedLinks(userId);
+    if (currentUser && currentUser.id === userId) {
+      saveAllToCloudDatabase(currentUser, tree, links).catch((err) =>
+        console.warn('Auto cloud sync from saveStoredCustomFamily:', err)
+      );
+    } else if (isSupabaseConnected() && userId) {
       syncFamilyTreeToSupabase(userId, tree).catch((err) =>
         console.error('Failed to sync family tree to Supabase:', err)
       );
@@ -253,17 +269,51 @@ function syncWithAuth() {
   globalEstablishedLinks = getStoredEstablishedLinks(currentUser?.id);
   if (currentUser && currentUser.isCustomRegistered && !globalIsViewingDemo) {
     let customTree = getStoredCustomFamily(currentUser.id);
-    // 가상의 미등록 선조(gfather, gmother) 및 미입력 부모가 저장소에 남아있다면 자동 정리
+    // 부모 노드가 트리에 존재하지만 currentUser 프로필에 이름이 빠져있는 경우 상호 자동 복원
     if (customTree && customTree.length > 0) {
+      customTree.forEach((m) => {
+        if ((m.id.startsWith('father-') || m.relationship.includes('아버지') || m.relationship === '부') && m.name) {
+          if (!currentUser.fatherName) {
+            currentUser.fatherName = m.name;
+          }
+        }
+        if ((m.id.startsWith('mother-') || m.relationship.includes('어머니') || m.relationship === '모') && m.name) {
+          if (!currentUser.motherName) {
+            currentUser.motherName = m.name;
+          }
+        }
+      });
+
       customTree = customTree.filter((m) => {
         if (m.id.startsWith('gfather-') || m.id.startsWith('gmother-')) return false;
-        if (!currentUser.fatherName && m.id.startsWith('father-')) return false;
-        if (!currentUser.motherName && m.id.startsWith('mother-')) return false;
         return true;
       });
+
+      // 어머니 성함이 프로필에 있으나 트리에 어머니 노드가 없다면 자동 생성/복원
+      const hasMotherNode = customTree.some(
+        (m) => m.id.startsWith('mother-') || m.relationship.includes('어머니') || m.relationship === '모'
+      );
+      if (currentUser.motherName && !hasMotherNode) {
+        const motherSurname = extractSurname(currentUser.motherName) || '김';
+        const motherMember: FamilyMember = {
+          id: `mother-${currentUser.id}`,
+          name: currentUser.motherName.trim(),
+          gender: 'F',
+          generation: 2,
+          lineage: 'maternal',
+          relationship: '모 (어머니)',
+          clan: `${motherSurname}씨 배위`,
+          birthDate: '1966-08-20',
+          isAlive: true,
+          spouseId: `father-${currentUser.id}`,
+          isVerifiedLineage: true,
+        };
+        customTree.push(motherMember);
+      }
+
       // 모친이 있는 경우 lineage를 maternal로 보정
       customTree = customTree.map((m) => {
-        if (m.id.startsWith('mother-')) {
+        if (m.id.startsWith('mother-') || m.relationship.includes('어머니') || m.relationship === '모') {
           return { ...m, lineage: 'maternal' as LineageType };
         }
         return m;
@@ -326,31 +376,40 @@ function syncWithAuth() {
     globalMembers = customTree;
     globalCenterPersonId = currentUser.memberId || customTree[0].id;
 
-    // [클라우드 DB 실시간 패치] Supabase 연결 시 최신 원격 가계도 및 결연 정보 비동기 로드
-    if (isSupabaseConnected()) {
-      Promise.all([
-        fetchFamilyTreeFromSupabase(currentUser.id),
-        fetchEstablishedLinksFromSupabase(currentUser.id),
-      ])
-        .then(([cloudTree, cloudLinks]) => {
+    // [통합 클라우드 DB 실시간 패치] Firestore / Supabase에서 최신 원격 가계도 및 결연 정보 비동기 로드
+    fetchAllFromCloudDatabase(currentUser.phone || currentUser.id)
+      .then((cloudRes) => {
+        if (cloudRes.success) {
           let hasChange = false;
-          if (cloudTree && cloudTree.length > 0) {
-            localStorage.setItem(CUSTOM_TREE_KEY_PREFIX + currentUser.id, JSON.stringify(cloudTree));
-            globalMembers = cloudTree;
-            hasChange = true;
+          if (cloudRes.user) {
+            if (cloudRes.user.motherName && !currentUser.motherName) {
+              currentUser.motherName = cloudRes.user.motherName;
+              hasChange = true;
+            }
+            if (cloudRes.user.fatherName && !currentUser.fatherName) {
+              currentUser.fatherName = cloudRes.user.fatherName;
+              hasChange = true;
+            }
           }
-          if (cloudLinks && cloudLinks.length > 0) {
-            localStorage.setItem(ESTABLISHED_LINKS_KEY_PREFIX + currentUser.id, JSON.stringify(cloudLinks));
-            localStorage.setItem(ESTABLISHED_LINKS_KEY_PREFIX + 'global', JSON.stringify(cloudLinks));
-            globalEstablishedLinks = cloudLinks;
+          if (cloudRes.familyTree && cloudRes.familyTree.length > 0) {
+            if (cloudRes.familyTree.length >= (globalMembers?.length || 0)) {
+              localStorage.setItem(CUSTOM_TREE_KEY_PREFIX + currentUser.id, JSON.stringify(cloudRes.familyTree));
+              globalMembers = cloudRes.familyTree;
+              hasChange = true;
+            }
+          }
+          if (cloudRes.establishedLinks && cloudRes.establishedLinks.length > 0) {
+            localStorage.setItem(ESTABLISHED_LINKS_KEY_PREFIX + currentUser.id, JSON.stringify(cloudRes.establishedLinks));
+            localStorage.setItem(ESTABLISHED_LINKS_KEY_PREFIX + 'global', JSON.stringify(cloudRes.establishedLinks));
+            globalEstablishedLinks = cloudRes.establishedLinks;
             hasChange = true;
           }
           if (hasChange) {
             notify();
           }
-        })
-        .catch((err) => console.error('Cloud data sync error:', err));
-    }
+        }
+      })
+      .catch((err) => console.error('Cloud data sync error:', err));
   } else {
     // Demo simulation mode (Kim clan)
     globalMembers = [...INITIAL_FAMILY_DATA];

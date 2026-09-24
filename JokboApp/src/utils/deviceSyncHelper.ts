@@ -12,6 +12,12 @@ import {
   saveStoredEstablishedLinks,
 } from '../hooks/useFamilyStore';
 import { saveStoredAuthSession } from '../hooks/useAuthStore';
+import {
+  getSavedFirebaseConfig,
+  saveFirebaseConfig,
+  JokboFirebaseConfig,
+} from '../config/firebaseConfig';
+import { saveAllToCloudDatabase } from '../services/unifiedCloudSyncService';
 
 export interface JokboSyncPayload {
   version: 1;
@@ -19,6 +25,7 @@ export interface JokboSyncPayload {
   account: UserProfile & { password: string };
   familyTree: FamilyMember[];
   establishedLinks: EstablishedLink[];
+  firebaseConfig?: JokboFirebaseConfig;
 }
 
 /**
@@ -58,6 +65,7 @@ export function generateSyncPackage(userId?: string): {
   success: boolean;
   syncCode?: string;
   syncUrl?: string;
+  qrCodeUrl?: string;
   accountName?: string;
   memberCount?: number;
   message: string;
@@ -81,6 +89,7 @@ export function generateSyncPackage(userId?: string): {
 
     const familyTree = getStoredCustomFamily(targetAccount.id) || [];
     const establishedLinks = getStoredEstablishedLinks(targetAccount.id) || [];
+    const fbConfig = getSavedFirebaseConfig();
 
     const payload: JokboSyncPayload = {
       version: 1,
@@ -88,24 +97,33 @@ export function generateSyncPackage(userId?: string): {
       account: targetAccount,
       familyTree,
       establishedLinks,
+      firebaseConfig: fbConfig || undefined,
     };
 
     const jsonString = JSON.stringify(payload);
     const syncCode = utf8ToBase64(jsonString);
 
     let syncUrl = '';
+    let qrCodeUrl = '';
     if (typeof window !== 'undefined' && window.location) {
       const base = window.location.origin + window.location.pathname;
       syncUrl = `${base}?jokbo_sync=${encodeURIComponent(syncCode)}`;
+      qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=260x260&margin=8&data=${encodeURIComponent(syncUrl)}`;
     }
+
+    // 클라우드 데이터베이스(Firestore/Supabase)에도 백그라운드 동기화 수행
+    saveAllToCloudDatabase(targetAccount, familyTree, establishedLinks).catch((err) =>
+      console.warn('Auto cloud sync from generateSyncPackage:', err)
+    );
 
     return {
       success: true,
       syncCode,
       syncUrl,
+      qrCodeUrl,
       accountName: targetAccount.name,
       memberCount: familyTree.length,
-      message: `${targetAccount.name} 님의 가계도 동기화 데이터가 준비되었습니다.`,
+      message: `${targetAccount.name} 님의 가계도(총 ${familyTree.length}명) 동기화 데이터가 준비되었습니다.`,
     };
   } catch (e) {
     console.error('Failed to generate sync package:', e);
@@ -137,28 +155,38 @@ export function importSyncPackage(rawSyncCode: string): {
       return { success: false, message: '올바른 가문 족보 동기화 데이터 규격이 아닙니다.' };
     }
 
-    const { account, familyTree, establishedLinks } = payload;
+    const { account, familyTree, establishedLinks, firebaseConfig } = payload;
 
-    // 1. 계정 정보 저장
+    // 1. Firebase 설정 동기화
+    if (firebaseConfig && firebaseConfig.apiKey && firebaseConfig.projectId) {
+      saveFirebaseConfig(firebaseConfig);
+    }
+
+    // 2. 계정 정보 저장
     saveCustomAccount(account);
 
-    // 2. 가계도 트리 저장
+    // 3. 가계도 트리 저장
     if (familyTree && Array.isArray(familyTree) && familyTree.length > 0) {
       saveStoredCustomFamily(account.id, familyTree);
     }
 
-    // 3. 결연 이력 저장
+    // 4. 결연 이력 저장
     if (establishedLinks && Array.isArray(establishedLinks)) {
       saveStoredEstablishedLinks(establishedLinks, account.id);
     }
 
-    // 4. 즉시 로그인 세션 발급
+    // 5. 즉시 로그인 세션 발급
     saveStoredAuthSession(account.id);
+
+    // 6. 클라우드 DB에도 실시간 동기화 갱신
+    saveAllToCloudDatabase(account, familyTree || [], establishedLinks || []).catch((err) =>
+      console.warn('Post-import cloud DB sync:', err)
+    );
 
     return {
       success: true,
       account,
-      message: `🎉 [동기화 성공] ${account.name} 님의 족보와 부모님 결연 정보가 성공적으로 동기화되었습니다!`,
+      message: `🎉 [동기화 성공] ${account.name} 님의 가문 족보와 부모님(최헌호·김경순 어르신) 결연 정보가 완벽하게 동기화되었습니다!`,
     };
   } catch (e) {
     console.error('Failed to import sync package:', e);

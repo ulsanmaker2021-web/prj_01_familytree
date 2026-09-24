@@ -81,6 +81,7 @@ export const SecurityLoginModal: React.FC<SecurityLoginModalProps> = ({
   const [newUserPhone, setNewUserPhone] = useState('');
   const [syncCodeInput, setSyncCodeInput] = useState('');
   const [copiedSyncUrl, setCopiedSyncUrl] = useState('');
+  const [syncQrCodeUrl, setSyncQrCodeUrl] = useState('');
 
   // Firebase Phone Auth State
   const [isFirebaseConfiguredState, setIsFirebaseConfiguredState] = useState(isFirebaseConfigured());
@@ -226,6 +227,16 @@ export const SecurityLoginModal: React.FC<SecurityLoginModalProps> = ({
     showToast('Firebase 설정이 초기화되었습니다. 모의 시뮬레이션 모드로 전환되었습니다.');
   };
 
+  useEffect(() => {
+    if (activeTab === 'sync') {
+      const res = generateSyncPackage(currentUser?.id);
+      if (res.success && res.syncUrl) {
+        setCopiedSyncUrl(res.syncUrl);
+        setSyncQrCodeUrl(res.qrCodeUrl || '');
+      }
+    }
+  }, [activeTab, currentUser]);
+
   const handleCopySyncLink = () => {
     const res = generateSyncPackage(currentUser?.id);
     if (!res.success || !res.syncUrl) {
@@ -233,6 +244,7 @@ export const SecurityLoginModal: React.FC<SecurityLoginModalProps> = ({
       return;
     }
     setCopiedSyncUrl(res.syncUrl);
+    setSyncQrCodeUrl(res.qrCodeUrl || '');
 
     if (typeof navigator !== 'undefined' && navigator.clipboard && navigator.clipboard.writeText) {
       navigator.clipboard.writeText(res.syncUrl).then(() => {
@@ -1919,6 +1931,19 @@ export const SecurityLoginModal: React.FC<SecurityLoginModalProps> = ({
                         🔗 스마트폰 연동 원클릭 링크 복사하기
                       </Text>
                     </TouchableOpacity>
+
+                    {syncQrCodeUrl ? (
+                      <View style={{ alignItems: 'center', marginTop: 12, backgroundColor: '#ffffff', padding: 12, borderRadius: 10, borderWidth: 1, borderColor: '#86efac' }}>
+                        <Image
+                          source={{ uri: syncQrCodeUrl }}
+                          style={{ width: 170, height: 170 }}
+                          resizeMode="contain"
+                        />
+                        <Text style={{ fontSize: 11, color: '#166534', fontWeight: '800', marginTop: 6, textAlign: 'center' }}>
+                          📷 스마트폰 기본 카메라로 비추면 1초 만에 스마트폰 화면에 부모님과 가계도가 동일하게 나타납니다!
+                        </Text>
+                      </View>
+                    ) : null}
 
                     {copiedSyncUrl ? (
                       <View style={{ marginTop: 10, backgroundColor: '#ffffff', padding: 8, borderRadius: 6, borderWidth: 1, borderColor: '#86efac' }}>

@@ -1047,7 +1047,10 @@ export const ObsidianGraphView: React.FC<ObsidianGraphViewProps> = ({
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.actionButtonsRow}
+          contentContainerStyle={[
+            styles.actionButtonsRow,
+            (isNarrow || isVeryNarrow) && { justifyContent: 'flex-start', paddingHorizontal: 12 },
+          ]}
         >
           <TouchableOpacity
             // @ts-ignore
@@ -1184,7 +1187,10 @@ export const ObsidianGraphView: React.FC<ObsidianGraphViewProps> = ({
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.legendRow}
+          contentContainerStyle={[
+            styles.legendRow,
+            (isNarrow || isVeryNarrow) && { justifyContent: 'flex-start', paddingHorizontal: 12 },
+          ]}
         >
           <View style={styles.legendItem}>
             <View style={[styles.legendDot, { backgroundColor: '#ef4444' }]} />
@@ -1214,7 +1220,10 @@ export const ObsidianGraphView: React.FC<ObsidianGraphViewProps> = ({
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.viewportCenterGroup}
+          contentContainerStyle={[
+            styles.viewportCenterGroup,
+            (isNarrow || isVeryNarrow) && { justifyContent: 'flex-start', paddingHorizontal: 12 },
+          ]}
         >
           <TouchableOpacity
             // @ts-ignore
