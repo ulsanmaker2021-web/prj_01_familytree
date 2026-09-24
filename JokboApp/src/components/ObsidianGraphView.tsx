@@ -148,13 +148,24 @@ export const ObsidianGraphView: React.FC<ObsidianGraphViewProps> = ({
     centerOnNode(CX, CY);
   };
 
-  // Center on initial mount
+  // Auto-detect mobile screen and enforce optimal fit scale & center positioning
   useEffect(() => {
-    const timer = setTimeout(() => {
-      centerOnNode(CX, CY);
-    }, 120);
-    return () => clearTimeout(timer);
-  }, []);
+    if (isMobile) {
+      setZoomLevel(fitScale);
+    }
+  }, [isMobile, fitScale]);
+
+  // Center on initial mount and orientation changes
+  useEffect(() => {
+    const t1 = setTimeout(() => centerOnNode(CX, CY), 80);
+    const t2 = setTimeout(() => centerOnNode(CX, CY), 300);
+    const t3 = setTimeout(() => centerOnNode(CX, CY), 800);
+    return () => {
+      clearTimeout(t1);
+      clearTimeout(t2);
+      clearTimeout(t3);
+    };
+  }, [windowWidth, windowHeight, isMobile, fitScale]);
 
   // Obsidian theme toggle: dark graphite (classic Obsidian) vs light ink
   const [isDarkMode, setIsDarkMode] = useState(true);
@@ -1620,7 +1631,8 @@ export const ObsidianGraphView: React.FC<ObsidianGraphViewProps> = ({
                         ? '#38bdf8'
                         : nodeCardBorder,
                       borderWidth: isSelected ? 2 : isNewlyLinked ? 1.5 : 1,
-                      left: nodeSize + 8,
+                      // 왼쪽 노드(친가/아버지)는 카드 칩을 오른쪽으로, 오른쪽 노드(외가/어머니)는 카드 칩을 왼쪽으로 배치하거나 중앙 정렬하여 양쪽 끝 잘림 원천 차단
+                      left: pos.x > CX + 40 ? -(115 + 8) : nodeSize + 8,
                     },
                     isCenter && styles.centerCardChip,
                     isSelected && styles.selectedCardChip,
