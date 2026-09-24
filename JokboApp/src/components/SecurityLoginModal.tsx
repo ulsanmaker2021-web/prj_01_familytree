@@ -8,6 +8,7 @@ import {
   View,
   ScrollView,
   Platform,
+  useWindowDimensions,
 } from 'react-native';
 import { useAuthStore } from '../hooks/useAuthStore';
 import {
@@ -67,6 +68,9 @@ export const SecurityLoginModal: React.FC<SecurityLoginModalProps> = ({
     logout,
     applySyncCode,
   } = useAuthStore();
+
+  const { width: windowWidth, height: windowHeight } = useWindowDimensions();
+  const isMobile = windowWidth < 640;
 
   const [activeTab, setActiveTab] = useState<'demo' | 'credentials' | 'register' | 'clan_code' | 'sync'>('credentials');
   const [phoneInput, setPhoneInput] = useState('');
@@ -452,85 +456,106 @@ export const SecurityLoginModal: React.FC<SecurityLoginModalProps> = ({
       animationType="fade"
       onRequestClose={handleClose}
     >
-      <View style={styles.overlay}>
-        <View style={styles.card}>
-          {/* Header */}
-          <View style={styles.header}>
-            <View style={styles.headerLeft}>
-              <View style={styles.shieldBadge}>
-                <Text style={styles.shieldBadgeText}>🛡️ 4중 보안 인증</Text>
+      <View style={[styles.overlay, isMobile && styles.overlayMobile]}>
+        <View style={[styles.card, isMobile && styles.cardMobile]}>
+          {/* Header - Dynamic for Smartphone vs PC */}
+          {isMobile ? (
+            <View style={styles.headerMobile}>
+              <View style={styles.headerLeftMobile}>
+                <Text style={styles.headerTitleMobile} numberOfLines={1}>🛡️ 가문 보안 로그인</Text>
+                <View style={styles.shieldBadgeMobile}>
+                  <Text style={styles.shieldBadgeTextMobile}>4중보안</Text>
+                </View>
               </View>
-              <Text style={styles.headerTitle}>가문 디지털 족보 보안 로그인</Text>
-              <Text style={styles.headerSubtitle}>
-                친족의 실명·연락처·생년월일 보호를 위한 혈족 전용 게이트웨이
-              </Text>
+              {isAuthenticated && (
+                <TouchableOpacity
+                  style={styles.closeBtnMobile}
+                  onPress={handleClose}
+                  activeOpacity={0.7}
+                >
+                  <Text style={styles.closeBtnText}>✕</Text>
+                </TouchableOpacity>
+              )}
             </View>
-            {isAuthenticated && (
-              <TouchableOpacity
-                style={styles.closeBtn}
-                onPress={handleClose}
-                activeOpacity={0.7}
-              >
-                <Text style={styles.closeBtnText}>✕</Text>
-              </TouchableOpacity>
-            )}
-          </View>
+          ) : (
+            <View style={styles.header}>
+              <View style={styles.headerLeft}>
+                <View style={styles.shieldBadge}>
+                  <Text style={styles.shieldBadgeText}>🛡️ 4중 보안 인증</Text>
+                </View>
+                <Text style={styles.headerTitle}>가문 디지털 족보 보안 로그인</Text>
+                <Text style={styles.headerSubtitle}>
+                  친족의 실명·연락처·생년월일 보호를 위한 혈족 전용 게이트웨이
+                </Text>
+              </View>
+              {isAuthenticated && (
+                <TouchableOpacity
+                  style={styles.closeBtn}
+                  onPress={handleClose}
+                  activeOpacity={0.7}
+                >
+                  <Text style={styles.closeBtnText}>✕</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+          )}
 
           {/* Current Logged-in Account Banner */}
           {isAuthenticated && (
             <View
               style={{
-                marginHorizontal: 16,
-                marginTop: 10,
-                marginBottom: 8,
-                padding: 12,
+                marginHorizontal: isMobile ? 8 : 16,
+                marginTop: isMobile ? 6 : 10,
+                marginBottom: isMobile ? 4 : 8,
+                padding: isMobile ? 8 : 12,
                 backgroundColor: '#f0fdf4',
                 borderRadius: 10,
                 borderWidth: 1.5,
                 borderColor: '#86efac',
-                flexDirection: 'row',
-                alignItems: 'center',
+                flexDirection: isMobile ? 'column' : 'row',
+                alignItems: isMobile ? 'flex-start' : 'center',
                 justifyContent: 'space-between',
+                gap: isMobile ? 6 : 0,
               }}
             >
-              <View style={{ flex: 1, marginRight: 10 }}>
+              <View style={{ flex: isMobile ? undefined : 1, marginRight: isMobile ? 0 : 10 }}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 2 }}>
-                  <Text style={{ fontSize: 13, fontWeight: '800', color: '#166534' }}>
+                  <Text style={{ fontSize: isMobile ? 12 : 13, fontWeight: '800', color: '#166534' }}>
                     🛡️ 현재 로그인 계정
                   </Text>
                   <View
                     style={{
                       marginLeft: 6,
                       backgroundColor: '#22c55e',
-                      paddingHorizontal: 6,
+                      paddingHorizontal: 5,
                       paddingVertical: 1,
                       borderRadius: 4,
                     }}
                   >
-                    <Text style={{ fontSize: 10, fontWeight: '800', color: '#ffffff' }}>인증됨</Text>
+                    <Text style={{ fontSize: 9, fontWeight: '800', color: '#ffffff' }}>인증됨</Text>
                   </View>
                 </View>
-                <Text style={{ fontSize: 13, fontWeight: '700', color: '#1e293b' }}>
+                <Text style={{ fontSize: isMobile ? 12 : 13, fontWeight: '700', color: '#1e293b' }}>
                   {currentUser.name} ({currentUser.clan || '가문 정회원'})
                 </Text>
-                <Text style={{ fontSize: 11, color: '#64748b' }}>
+                <Text style={{ fontSize: 10.5, color: '#64748b' }}>
                   {currentUser.roleLabel || '직계 자손'} · {currentUser.phone || '연락처 등록됨'}
                 </Text>
               </View>
 
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: isMobile ? 'flex-end' : 'auto' }}>
                 <TouchableOpacity
                   onPress={handleCopySyncLink}
                   style={{
                     backgroundColor: '#0284c7',
-                    paddingHorizontal: 10,
-                    paddingVertical: 8,
-                    borderRadius: 8,
+                    paddingHorizontal: isMobile ? 8 : 10,
+                    paddingVertical: isMobile ? 5 : 8,
+                    borderRadius: 6,
                   }}
                   activeOpacity={0.8}
                 >
-                  <Text style={{ color: '#ffffff', fontSize: 12, fontWeight: '800' }}>
-                    📲 폰 연동 링크 복사
+                  <Text style={{ color: '#ffffff', fontSize: isMobile ? 11 : 12, fontWeight: '800' }}>
+                    📲 폰 연동 복사
                   </Text>
                 </TouchableOpacity>
 
@@ -541,13 +566,13 @@ export const SecurityLoginModal: React.FC<SecurityLoginModalProps> = ({
                   }}
                   style={{
                     backgroundColor: '#dc2626',
-                    paddingHorizontal: 10,
-                    paddingVertical: 8,
-                    borderRadius: 8,
+                    paddingHorizontal: isMobile ? 8 : 10,
+                    paddingVertical: isMobile ? 5 : 8,
+                    borderRadius: 6,
                   }}
                   activeOpacity={0.8}
                 >
-                  <Text style={{ color: '#ffffff', fontSize: 12, fontWeight: '800' }}>
+                  <Text style={{ color: '#ffffff', fontSize: isMobile ? 11 : 12, fontWeight: '800' }}>
                     🚪 로그아웃
                   </Text>
                 </TouchableOpacity>
@@ -594,170 +619,312 @@ export const SecurityLoginModal: React.FC<SecurityLoginModalProps> = ({
             </View>
           )}
 
-          {/* Firebase Phone Auth Engine Bar */}
-          <View style={styles.firebaseBar}>
-            <View style={styles.firebaseBarLeft}>
-              <View style={[
-                styles.firebaseBadge,
-                isFirebaseConfiguredState ? styles.firebaseBadgeActive : styles.firebaseBadgeReady
-              ]}>
-                <Text style={styles.firebaseBadgeText}>
-                  {isFirebaseConfiguredState ? '🔥 Firebase Auth 연동됨' : '🔥 Firebase Auth 준비됨'}
+          {/* Firebase Phone Auth Engine Bar - Dynamic for Mobile vs PC */}
+          {isMobile ? (
+            <View style={styles.firebaseBarMobile}>
+              <View style={styles.firebaseBarLeftMobile}>
+                <View style={[
+                  styles.firebaseBadgeMobile,
+                  isFirebaseConfiguredState ? styles.firebaseBadgeActive : styles.firebaseBadgeReady
+                ]}>
+                  <Text style={styles.firebaseBadgeTextMobile}>
+                    {isFirebaseConfiguredState ? '🔥 SMS 연동' : '🔥 SMS 준비'}
+                  </Text>
+                </View>
+                <Text style={styles.firebaseBarTitleMobile} numberOfLines={1}>
+                  {isFirebaseMode && isFirebaseConfiguredState
+                    ? '실제 6자리 SMS 발송'
+                    : '모의 테스트 모드'}
                 </Text>
               </View>
-              <Text style={styles.firebaseBarTitle}>
-                {isFirebaseMode && isFirebaseConfiguredState
-                  ? '실제 6자리 SMS OTP 발송 모드 (Firebase)'
-                  : '모의 6자리 OTP 시뮬레이션 모드 (테스트용)'}
-              </Text>
-              <Text style={styles.firebaseBarDesc}>
-                {isFirebaseConfiguredState
-                  ? `프로젝트: ${fbConfigInput.projectId || '등록됨'} · 월 10,000건 무료 티어 적용`
-                  : '구글 Firebase 키를 등록하면 실제 스마트폰으로 6자리 인증 문자가 전송됩니다.'}
-              </Text>
-            </View>
 
-            <View style={styles.firebaseBarActions}>
+              <View style={styles.firebaseBarActionsMobile}>
+                <TouchableOpacity
+                  style={[
+                    styles.firebaseModeSwitchBtnMobile,
+                    isFirebaseMode && isFirebaseConfiguredState
+                      ? styles.firebaseModeSwitchActive
+                      : styles.firebaseModeSwitchSim,
+                  ]}
+                  onPress={() => {
+                    if (!isFirebaseConfiguredState) {
+                      setIsFirebaseConfigModalOpen(true);
+                    } else {
+                      const nextMode = !isFirebaseMode;
+                      setIsFirebaseMode(nextMode);
+                      showToast(
+                        nextMode
+                          ? '🔥 실제 Firebase SMS 발송 모드로 전환되었습니다.'
+                          : '🧪 모의 시뮬레이션 모드로 전환되었습니다.'
+                      );
+                    }
+                  }}
+                  activeOpacity={0.8}
+                >
+                  <Text
+                    style={[
+                      styles.firebaseModeSwitchTextMobile,
+                      isFirebaseMode && isFirebaseConfiguredState && styles.firebaseModeSwitchTextActive,
+                    ]}
+                  >
+                    {isFirebaseMode && isFirebaseConfiguredState
+                      ? '🔥실제ON'
+                      : isFirebaseConfiguredState
+                      ? '🧪모의'
+                      : '⚡SMS설정'}
+                  </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={styles.firebaseSettingBtnMobile}
+                  onPress={() => setIsFirebaseConfigModalOpen(true)}
+                  activeOpacity={0.8}
+                >
+                  <Text style={{ fontSize: 13 }}>⚙️</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          ) : (
+            <View style={styles.firebaseBar}>
+              <View style={styles.firebaseBarLeft}>
+                <View style={[
+                  styles.firebaseBadge,
+                  isFirebaseConfiguredState ? styles.firebaseBadgeActive : styles.firebaseBadgeReady
+                ]}>
+                  <Text style={styles.firebaseBadgeText}>
+                    {isFirebaseConfiguredState ? '🔥 Firebase Auth 연동됨' : '🔥 Firebase Auth 준비됨'}
+                  </Text>
+                </View>
+                <Text style={styles.firebaseBarTitle}>
+                  {isFirebaseMode && isFirebaseConfiguredState
+                    ? '실제 6자리 SMS OTP 발송 모드 (Firebase)'
+                    : '모의 6자리 OTP 시뮬레이션 모드 (테스트용)'}
+                </Text>
+                <Text style={styles.firebaseBarDesc}>
+                  {isFirebaseConfiguredState
+                    ? `프로젝트: ${fbConfigInput.projectId || '등록됨'} · 월 10,000건 무료 티어 적용`
+                    : '구글 Firebase 키를 등록하면 실제 스마트폰으로 6자리 인증 문자가 전송됩니다.'}
+                </Text>
+              </View>
+
+              <View style={styles.firebaseBarActions}>
+                <TouchableOpacity
+                  style={[
+                    styles.firebaseModeSwitchBtn,
+                    isFirebaseMode && isFirebaseConfiguredState
+                      ? styles.firebaseModeSwitchActive
+                      : styles.firebaseModeSwitchSim,
+                  ]}
+                  onPress={() => {
+                    if (!isFirebaseConfiguredState) {
+                      setIsFirebaseConfigModalOpen(true);
+                    } else {
+                      const nextMode = !isFirebaseMode;
+                      setIsFirebaseMode(nextMode);
+                      showToast(
+                        nextMode
+                          ? '🔥 실제 Firebase SMS 발송 모드로 전환되었습니다.'
+                          : '🧪 모의 시뮬레이션 모드로 전환되었습니다.'
+                      );
+                    }
+                  }}
+                  activeOpacity={0.8}
+                >
+                  <Text
+                    style={[
+                      styles.firebaseModeSwitchText,
+                      isFirebaseMode && isFirebaseConfiguredState && styles.firebaseModeSwitchTextActive,
+                    ]}
+                  >
+                    {isFirebaseMode && isFirebaseConfiguredState
+                      ? '🔥 실제 SMS 발송 (ON)'
+                      : isFirebaseConfiguredState
+                      ? '🧪 모의 테스트 (OFF)'
+                      : '⚡ 실제 SMS 켜기'}
+                  </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={styles.firebaseSettingBtn}
+                  onPress={() => setIsFirebaseConfigModalOpen(true)}
+                  activeOpacity={0.8}
+                >
+                  <Text style={styles.firebaseSettingBtnText}>⚙️ Firebase 설정</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          )}
+
+          {/* Nav Tabs - Horizontal Scroll on Mobile, Full Grid on PC */}
+          {isMobile ? (
+            <View style={styles.tabBarScrollWrapperMobile}>
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                style={styles.tabBarScrollMobile}
+                contentContainerStyle={styles.tabBarMobile}
+              >
+                <TouchableOpacity
+                  style={[styles.tabBtnMobile, activeTab === 'credentials' && styles.tabBtnActiveMobile]}
+                  onPress={() => setActiveTab('credentials')}
+                  activeOpacity={0.8}
+                >
+                  <Text
+                    numberOfLines={1}
+                    style={[styles.tabBtnTextMobile, activeTab === 'credentials' && styles.tabBtnTextActiveMobile]}
+                  >
+                    📱 휴대폰 로그인
+                  </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[styles.tabBtnMobile, activeTab === 'register' && styles.tabBtnActiveMobile]}
+                  onPress={() => setActiveTab('register')}
+                  activeOpacity={0.8}
+                >
+                  <Text
+                    numberOfLines={1}
+                    style={[styles.tabBtnTextMobile, activeTab === 'register' && styles.tabBtnTextActiveMobile]}
+                  >
+                    📝 신규가입
+                  </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[styles.tabBtnMobile, activeTab === 'clan_code' && styles.tabBtnActiveMobile]}
+                  onPress={() => setActiveTab('clan_code')}
+                  activeOpacity={0.8}
+                >
+                  <Text
+                    numberOfLines={1}
+                    style={[styles.tabBtnTextMobile, activeTab === 'clan_code' && styles.tabBtnTextActiveMobile]}
+                  >
+                    🔑 초대코드
+                  </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[styles.tabBtnMobile, activeTab === 'demo' && styles.tabBtnActiveMobile]}
+                  onPress={() => setActiveTab('demo')}
+                  activeOpacity={0.8}
+                >
+                  <Text
+                    numberOfLines={1}
+                    style={[styles.tabBtnTextMobile, activeTab === 'demo' && styles.tabBtnTextActiveMobile]}
+                  >
+                    🧪 빠른전환
+                  </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[styles.tabBtnMobile, activeTab === 'sync' && styles.tabBtnActiveMobile]}
+                  onPress={() => setActiveTab('sync')}
+                  activeOpacity={0.8}
+                >
+                  <Text
+                    numberOfLines={1}
+                    style={[styles.tabBtnTextMobile, activeTab === 'sync' && styles.tabBtnTextActiveMobile]}
+                  >
+                    📲 기기연동
+                  </Text>
+                </TouchableOpacity>
+              </ScrollView>
+            </View>
+          ) : (
+            <View style={styles.tabBar}>
               <TouchableOpacity
-                style={[
-                  styles.firebaseModeSwitchBtn,
-                  isFirebaseMode && isFirebaseConfiguredState
-                    ? styles.firebaseModeSwitchActive
-                    : styles.firebaseModeSwitchSim,
-                ]}
-                onPress={() => {
-                  if (!isFirebaseConfiguredState) {
-                    setIsFirebaseConfigModalOpen(true);
-                  } else {
-                    const nextMode = !isFirebaseMode;
-                    setIsFirebaseMode(nextMode);
-                    showToast(
-                      nextMode
-                        ? '🔥 실제 Firebase SMS 발송 모드로 전환되었습니다.'
-                        : '🧪 모의 시뮬레이션 모드로 전환되었습니다.'
-                    );
-                  }
-                }}
+                style={[styles.tabBtn, activeTab === 'demo' && styles.tabBtnActive]}
+                onPress={() => setActiveTab('demo')}
                 activeOpacity={0.8}
               >
                 <Text
                   style={[
-                    styles.firebaseModeSwitchText,
-                    isFirebaseMode && isFirebaseConfiguredState && styles.firebaseModeSwitchTextActive,
+                    styles.tabBtnText,
+                    activeTab === 'demo' && styles.tabBtnTextActive,
                   ]}
                 >
-                  {isFirebaseMode && isFirebaseConfiguredState
-                    ? '🔥 실제 SMS 발송 (ON)'
-                    : isFirebaseConfiguredState
-                    ? '🧪 모의 테스트 (OFF)'
-                    : '⚡ 실제 SMS 켜기'}
+                  🧪 [테스트] 빠른 전환
                 </Text>
               </TouchableOpacity>
 
               <TouchableOpacity
-                style={styles.firebaseSettingBtn}
-                onPress={() => setIsFirebaseConfigModalOpen(true)}
+                style={[
+                  styles.tabBtn,
+                  activeTab === 'credentials' && styles.tabBtnActive,
+                ]}
+                onPress={() => setActiveTab('credentials')}
                 activeOpacity={0.8}
               >
-                <Text style={styles.firebaseSettingBtnText}>⚙️ Firebase 설정</Text>
+                <Text
+                  style={[
+                    styles.tabBtnText,
+                    activeTab === 'credentials' && styles.tabBtnTextActive,
+                  ]}
+                >
+                  📱 휴대폰 로그인
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[
+                  styles.tabBtn,
+                  activeTab === 'register' && styles.tabBtnActive,
+                ]}
+                onPress={() => setActiveTab('register')}
+                activeOpacity={0.8}
+              >
+                <Text
+                  style={[
+                    styles.tabBtnText,
+                    activeTab === 'register' && styles.tabBtnTextActive,
+                  ]}
+                >
+                  📝 신규 가입 (등재)
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[
+                  styles.tabBtn,
+                  activeTab === 'clan_code' && styles.tabBtnActive,
+                ]}
+                onPress={() => setActiveTab('clan_code')}
+                activeOpacity={0.8}
+              >
+                <Text
+                  style={[
+                    styles.tabBtnText,
+                    activeTab === 'clan_code' && styles.tabBtnTextActive,
+                  ]}
+                >
+                  🔑 초대 코드
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[
+                  styles.tabBtn,
+                  activeTab === 'sync' && styles.tabBtnActive,
+                ]}
+                onPress={() => setActiveTab('sync')}
+                activeOpacity={0.8}
+              >
+                <Text
+                  style={[
+                    styles.tabBtnText,
+                    activeTab === 'sync' && styles.tabBtnTextActive,
+                  ]}
+                >
+                  📲 기기 연동 (PC↔폰)
+                </Text>
               </TouchableOpacity>
             </View>
-          </View>
-
-          {/* 4 Nav Tabs */}
-          <View style={styles.tabBar}>
-            <TouchableOpacity
-              style={[styles.tabBtn, activeTab === 'demo' && styles.tabBtnActive]}
-              onPress={() => setActiveTab('demo')}
-              activeOpacity={0.8}
-            >
-              <Text
-                style={[
-                  styles.tabBtnText,
-                  activeTab === 'demo' && styles.tabBtnTextActive,
-                ]}
-              >
-                🧪 [테스트] 빠른 전환
-              </Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[
-                styles.tabBtn,
-                activeTab === 'credentials' && styles.tabBtnActive,
-              ]}
-              onPress={() => setActiveTab('credentials')}
-              activeOpacity={0.8}
-            >
-              <Text
-                style={[
-                  styles.tabBtnText,
-                  activeTab === 'credentials' && styles.tabBtnTextActive,
-                ]}
-              >
-                📱 휴대폰 로그인
-              </Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[
-                styles.tabBtn,
-                activeTab === 'register' && styles.tabBtnActive,
-              ]}
-              onPress={() => setActiveTab('register')}
-              activeOpacity={0.8}
-            >
-              <Text
-                style={[
-                  styles.tabBtnText,
-                  activeTab === 'register' && styles.tabBtnTextActive,
-                ]}
-              >
-                📝 신규 가입 (등재)
-              </Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[
-                styles.tabBtn,
-                activeTab === 'clan_code' && styles.tabBtnActive,
-              ]}
-              onPress={() => setActiveTab('clan_code')}
-              activeOpacity={0.8}
-            >
-              <Text
-                style={[
-                  styles.tabBtnText,
-                  activeTab === 'clan_code' && styles.tabBtnTextActive,
-                ]}
-              >
-                🔑 초대 코드
-              </Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[
-                styles.tabBtn,
-                activeTab === 'sync' && styles.tabBtnActive,
-              ]}
-              onPress={() => setActiveTab('sync')}
-              activeOpacity={0.8}
-            >
-              <Text
-                style={[
-                  styles.tabBtnText,
-                  activeTab === 'sync' && styles.tabBtnTextActive,
-                ]}
-              >
-                📲 기기 연동 (PC↔폰)
-              </Text>
-            </TouchableOpacity>
-          </View>
+          )}
 
           {/* Body Content */}
           <ScrollView
             style={styles.bodyScroll}
-            contentContainerStyle={styles.bodyContent}
+            contentContainerStyle={[styles.bodyContent, isMobile && styles.bodyContentMobile]}
             showsVerticalScrollIndicator={false}
           >
             {/* ================= TAB 1: DEMO QUICK ACCOUNTS ================= */}
@@ -933,13 +1100,15 @@ export const SecurityLoginModal: React.FC<SecurityLoginModalProps> = ({
             {activeTab === 'credentials' && (
               <View style={styles.tabContent}>
                 {!pending2FA ? (
-                  <View style={styles.formCard}>
-                    <Text style={styles.formTitle}>📱 1차 계정 확인</Text>
-                    <Text style={styles.formDesc}>
-                      등록된 휴대전화 번호와 비밀번호를 입력해주세요.
-                    </Text>
+                  <View style={[styles.formCard, isMobile && { padding: 12 }]}>
+                    <Text style={[styles.formTitle, isMobile && { fontSize: 14, marginBottom: 2 }]}>📱 1차 계정 확인</Text>
+                    {!isMobile && (
+                      <Text style={styles.formDesc}>
+                        등록된 휴대전화 번호와 비밀번호를 입력해주세요.
+                      </Text>
+                    )}
 
-                    <View style={styles.fieldGroup}>
+                    <View style={[styles.fieldGroup, isMobile && { marginBottom: 10 }]}>
                       <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
                         <Text style={styles.fieldLabel}>휴대전화 번호</Text>
                         {phoneInput.length > 0 && (
@@ -957,34 +1126,40 @@ export const SecurityLoginModal: React.FC<SecurityLoginModalProps> = ({
                         keyboardType="phone-pad"
                         autoComplete="tel"
                       />
-                      <Text style={styles.phoneInputNotice}>
-                        💡 하이픈(-) 없이 숫자만 입력하세요. (입력 시 자동으로 - 이 정렬됩니다)
+                      <Text style={[styles.phoneInputNotice, isMobile && { fontSize: 10.5, marginTop: 2 }]}>
+                        {isMobile ? '💡 숫자만 입력 시 자동 정렬됩니다' : '💡 하이픈(-) 없이 숫자만 입력하세요. (입력 시 자동으로 - 이 정렬됩니다)'}
                       </Text>
                       {/* 빠른 테스트용 번호 입력 */}
-                      <View style={styles.quickFillRow}>
-                        <Text style={styles.quickFillLabel}>예시 번호 자동입력:</Text>
+                      <View style={[styles.quickFillRow, isMobile && { marginTop: 4, gap: 4 }]}>
+                        <Text style={[styles.quickFillLabel, isMobile && { fontSize: 10 }]}>
+                          {isMobile ? '예시:' : '예시 번호 자동입력:'}
+                        </Text>
                         <TouchableOpacity
-                          style={styles.quickFillChip}
+                          style={[styles.quickFillChip, isMobile && { paddingVertical: 2, paddingHorizontal: 6 }]}
                           onPress={() => {
                             setPhoneInput('010-1234-5678');
                             setPasswordInput('password123!');
                           }}
                         >
-                          <Text style={styles.quickFillChipText}>홍길동 (010-1234-5678)</Text>
+                          <Text style={[styles.quickFillChipText, isMobile && { fontSize: 10.5 }]}>
+                            {isMobile ? '홍길동' : '홍길동 (010-1234-5678)'}
+                          </Text>
                         </TouchableOpacity>
                         <TouchableOpacity
-                          style={styles.quickFillChip}
+                          style={[styles.quickFillChip, isMobile && { paddingVertical: 2, paddingHorizontal: 6 }]}
                           onPress={() => {
                             setPhoneInput('010-9182-4411');
                             setPasswordInput('password123!');
                           }}
                         >
-                          <Text style={styles.quickFillChipText}>전우치 (010-9182-4411)</Text>
+                          <Text style={[styles.quickFillChipText, isMobile && { fontSize: 10.5 }]}>
+                            {isMobile ? '전우치' : '전우치 (010-9182-4411)'}
+                          </Text>
                         </TouchableOpacity>
                       </View>
                     </View>
 
-                    <View style={styles.fieldGroup}>
+                    <View style={[styles.fieldGroup, isMobile && { marginBottom: 10 }]}>
                       <Text style={styles.fieldLabel}>비밀번호</Text>
                       <TextInput
                         style={styles.input}
@@ -994,7 +1169,7 @@ export const SecurityLoginModal: React.FC<SecurityLoginModalProps> = ({
                         placeholderTextColor="#94a3b8"
                         secureTextEntry
                       />
-                      <Text style={styles.fieldHint}>
+                      <Text style={[styles.fieldHint, isMobile && { fontSize: 10.5, marginTop: 2 }]}>
                         기본 비밀번호: password123!
                       </Text>
                     </View>
@@ -1002,15 +1177,18 @@ export const SecurityLoginModal: React.FC<SecurityLoginModalProps> = ({
                     <TouchableOpacity
                       style={[
                         styles.submitBtn,
+                        isMobile && { paddingVertical: 11 },
                         bruteForce.isLocked && styles.submitBtnDisabled,
                       ]}
                       onPress={handleCredentialsSubmit}
                       disabled={bruteForce.isLocked}
                       activeOpacity={0.85}
                     >
-                      <Text style={styles.submitBtnText}>
+                      <Text style={[styles.submitBtnText, isMobile && { fontSize: 13.5 }]}>
                         {bruteForce.isLocked
                           ? '⛔ 5분 잠금 해제 대기 중'
+                          : isMobile
+                          ? '📱 6자리 2FA 보안 OTP 발송'
                           : '📱 1차 확인 및 6자리 2FA 보안 OTP 발송'}
                       </Text>
                     </TouchableOpacity>
@@ -2001,6 +2179,152 @@ const styles = StyleSheet.create({
     color: '#cbd5e1',
     fontSize: 15,
     fontWeight: '700',
+  },
+  // Mobile responsive styles
+  overlayMobile: {
+    padding: 6,
+  },
+  cardMobile: {
+    maxWidth: '100%',
+    maxHeight: '97%',
+    borderRadius: 12,
+  },
+  headerMobile: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f1f5f9',
+    backgroundColor: '#0f172a',
+  },
+  headerLeftMobile: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    flex: 1,
+  },
+  headerTitleMobile: {
+    fontSize: 14.5,
+    fontWeight: '900',
+    color: '#f8fafc',
+  },
+  shieldBadgeMobile: {
+    backgroundColor: '#1e293b',
+    borderWidth: 1,
+    borderColor: '#38bdf8',
+    paddingHorizontal: 5,
+    paddingVertical: 1,
+    borderRadius: 3,
+  },
+  shieldBadgeTextMobile: {
+    color: '#38bdf8',
+    fontSize: 9.5,
+    fontWeight: '800',
+  },
+  closeBtnMobile: {
+    padding: 6,
+    borderRadius: 6,
+    backgroundColor: '#1e293b',
+  },
+  firebaseBarMobile: {
+    backgroundColor: '#fff7ed',
+    borderBottomWidth: 1,
+    borderBottomColor: '#fed7aa',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    gap: 6,
+  },
+  firebaseBarLeftMobile: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    flex: 1,
+  },
+  firebaseBadgeMobile: {
+    paddingHorizontal: 5,
+    paddingVertical: 1.5,
+    borderRadius: 3,
+  },
+  firebaseBadgeTextMobile: {
+    color: '#ffffff',
+    fontSize: 9.5,
+    fontWeight: '800',
+  },
+  firebaseBarTitleMobile: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#9a3412',
+    flexShrink: 1,
+  },
+  firebaseBarActionsMobile: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+  },
+  firebaseModeSwitchBtnMobile: {
+    paddingVertical: 3.5,
+    paddingHorizontal: 7,
+    borderRadius: 4,
+    borderWidth: 1,
+  },
+  firebaseModeSwitchTextMobile: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: '#475569',
+  },
+  firebaseSettingBtnMobile: {
+    backgroundColor: '#ffffff',
+    borderWidth: 1,
+    borderColor: '#fdba74',
+    paddingVertical: 3,
+    paddingHorizontal: 6,
+    borderRadius: 4,
+  },
+  tabBarScrollWrapperMobile: {
+    height: 40,
+    backgroundColor: '#f8fafc',
+    borderBottomWidth: 1,
+    borderBottomColor: '#e2e8f0',
+  },
+  tabBarScrollMobile: {
+    flex: 1,
+  },
+  tabBarMobile: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 6,
+    height: 40,
+  },
+  tabBtnMobile: {
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderBottomWidth: 2,
+    borderBottomColor: 'transparent',
+    height: 40,
+  },
+  tabBtnActiveMobile: {
+    borderBottomColor: '#0284c7',
+    backgroundColor: '#ffffff',
+  },
+  tabBtnTextMobile: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#64748b',
+  },
+  tabBtnTextActiveMobile: {
+    color: '#0284c7',
+    fontWeight: '800',
+  },
+  bodyContentMobile: {
+    padding: 12,
+    paddingBottom: 24,
   },
   toastBox: {
     marginHorizontal: 16,
