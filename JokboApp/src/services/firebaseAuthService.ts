@@ -60,8 +60,6 @@ export function getOrCreateRecaptcha(containerId: string = 'recaptcha-container'
   if (!auth) return null;
 
   try {
-    ensureRecaptchaContainer(containerId);
-
     if (activeRecaptchaVerifier) {
       try {
         activeRecaptchaVerifier.clear();
@@ -69,6 +67,14 @@ export function getOrCreateRecaptcha(containerId: string = 'recaptcha-container'
         // ignore
       }
       activeRecaptchaVerifier = null;
+    }
+
+    // Clean up DOM container to prevent "reCAPTCHA has already been rendered in this element"
+    const existing = document.getElementById(containerId);
+    if (existing) {
+      existing.innerHTML = '';
+    } else {
+      ensureRecaptchaContainer(containerId);
     }
 
     activeRecaptchaVerifier = new RecaptchaVerifier(auth, containerId, {
