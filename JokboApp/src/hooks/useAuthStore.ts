@@ -270,35 +270,6 @@ export function useAuthStore() {
       };
     }
 
-    // 1차 인증 성공 ➔ 2단계 인증(2FA) 발송 (Firebase 활성화 시 실제 SMS 발송, 미설정 시 모의 발송)
-    const useFirebase = options?.useFirebase ?? isFirebaseConfigured();
-
-    if (useFirebase) {
-      const fbRes = await sendFirebasePhoneOtp(account.phone);
-      if (fbRes.success) {
-        globalPending2FA = {
-          phone: account.phone,
-          expectedOtp: '', // Firebase가 내부적으로 관리
-          user: account,
-          isFirebase: true,
-        };
-        notifyAuth();
-        return {
-          success: true,
-          require2FA: true,
-          isFirebase: true,
-          message: fbRes.message,
-        };
-      } else {
-        return {
-          success: false,
-          require2FA: false,
-          isFirebase: true,
-          message: `${fbRes.message} (※ 아래 설정에서 [모의 시뮬레이션 모드]로 전환할 수 있습니다)`,
-        };
-      }
-    }
-
     // 2단계 인증: 스마트폰 생체인증 (지문/Face ID) 및 6자리 PIN 하이브리드 세션 준비
     let bioSupported = false;
     let bioType: 'fingerprint' | 'face' | 'platform' = 'fingerprint';
@@ -307,6 +278,32 @@ export function useAuthStore() {
       bioSupported = bioCheck.supported;
       bioType = bioCheck.type || 'fingerprint';
     } catch (e) {}
+
+    // 1차 인증 성공 ➔ 2단계 인증(2FA) 발송 (Firebase 활성화 시 SMS 병행 시도, PIN/생체인증도 상시 활성)
+    const useFirebase = options?.useFirebase ?? isFirebaseConfigured();
+
+    if (useFirebase) {
+      const fbRes = await sendFirebasePhoneOtp(account.phone);
+      globalPending2FA = {
+        phone: account.phone,
+        expectedOtp: '',
+        user: account,
+        isFirebase: fbRes.success,
+        biometricSupported: bioSupported,
+        biometricType: bioType,
+      };
+      notifyAuth();
+      return {
+        success: true,
+        require2FA: true,
+        isFirebase: fbRes.success,
+        biometricSupported: bioSupported,
+        biometricType: bioType,
+        message: fbRes.success
+          ? `${fbRes.message} (또는 6자리 보안 PIN / 지문인식으로 즉시 승인 가능)`
+          : `SMS 발송 대기: 6자리 보안 PIN 번호 또는 생체인증으로 즉시 로그인하실 수 있습니다.`,
+      };
+    }
 
     globalPending2FA = {
       phone: account.phone,
@@ -455,9 +452,19 @@ export function useAuthStore() {
     }
 
     if (globalPending2FA.isFirebase) {
+      // 1) 입력한 번호가 6자리 보안 PIN 번호와 일치하는 경우 즉시 승인 (Firebase SMS 장애/미수신 시에도 100% 로그인 보장)
+      const pinResult = await verifyPin2FA(inputOtp);
+      if (pinResult.success) {
+        return pinResult;
+      }
+
+      // 2) PIN 불일치 시 Firebase SMS 코드 검증 시도
       const fbVerify = await verifyFirebasePhoneOtp(inputOtp);
       if (!fbVerify.success) {
-        return { success: false, message: fbVerify.message };
+        return {
+          success: false,
+          message: '보안 PIN 번호 또는 Firebase SMS 인증번호가 일치하지 않습니다.',
+        };
       }
 
       resetBruteForceLock();

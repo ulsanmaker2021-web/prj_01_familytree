@@ -264,11 +264,68 @@ export function createInitialFamilyForUser(user: UserProfile): FamilyMember[] {
 
 let globalIsViewingDemo: boolean = false;
 
+/**
+ * [가문 가계도 본인 중복 노드 완벽 방지 및 단일화]
+ * 로그인한 사용자(본인)와 성명/전화번호가 동일한 중복 노드(예: 결연 시 잘못 추가된 남동생 노드)를
+ * 1개의 '본인' 중심 노드로 자동 정리하여 1인 다중 노드 생성을 원천 차단합니다.
+ */
+export function deduplicateFamilyMembers(members: FamilyMember[], user?: UserProfile): FamilyMember[] {
+  if (!members || members.length === 0) return [];
+  const selfName = user?.name?.trim();
+  const selfPhone = user?.phone ? stripPhoneNumber(user.phone) : undefined;
+  const selfMemberId = user?.memberId;
+
+  let primarySelf = members.find((m) => m.id === selfMemberId);
+  if (!primarySelf) {
+    primarySelf = members.find((m) => m.relationship === '본인');
+  }
+  if (!primarySelf && selfName) {
+    primarySelf = members.find((m) => m.name && m.name.trim() === selfName);
+  }
+
+  const primarySelfId = primarySelf?.id;
+  const seenIds = new Set<string>();
+  let hasSelfIncluded = false;
+  const cleaned: FamilyMember[] = [];
+
+  for (const m of members) {
+    if (!m || !m.id) continue;
+    if (seenIds.has(m.id)) continue;
+
+    const isNameMatch = Boolean(selfName && m.name && m.name.trim() === selfName);
+    const isPhoneMatch = Boolean(selfPhone && m.phone && stripPhoneNumber(m.phone) === selfPhone);
+
+    // 본인과 일치하는 노드인 경우
+    if (isNameMatch || isPhoneMatch || (primarySelfId && m.id === primarySelfId)) {
+      if (!hasSelfIncluded) {
+        hasSelfIncluded = true;
+        seenIds.add(m.id);
+        cleaned.push({
+          ...m,
+          relationship: '본인',
+        });
+      } else {
+        // 중복 복제본 노드 제거
+        console.warn('Deduplicating duplicate self node:', m.id, m.name, m.relationship);
+      }
+      continue;
+    }
+
+    seenIds.add(m.id);
+    cleaned.push(m);
+  }
+
+  return cleaned;
+}
+
 function syncWithAuth() {
   const currentUser = getGlobalCurrentUser();
   globalEstablishedLinks = getStoredEstablishedLinks(currentUser?.id);
   if (currentUser && currentUser.isCustomRegistered && !globalIsViewingDemo) {
     let customTree = getStoredCustomFamily(currentUser.id);
+    if (customTree && customTree.length > 0) {
+      customTree = deduplicateFamilyMembers(customTree, currentUser);
+    }
     // 부모 노드가 트리에 존재하지만 currentUser 프로필에 이름이 빠져있는 경우 상호 자동 복원
     if (customTree && customTree.length > 0) {
       customTree.forEach((m) => {
@@ -396,10 +453,13 @@ function syncWithAuth() {
             }
           }
           if (cloudRes.familyTree && cloudRes.familyTree.length > 0) {
-            if (cloudRes.familyTree.length >= (globalMembers?.length || 0)) {
-              localStorage.setItem(CUSTOM_TREE_KEY_PREFIX + currentUser.id, JSON.stringify(cloudRes.familyTree));
-              globalMembers = cloudRes.familyTree;
-              hasChange = true;
+            const cleanedCloudTree = deduplicateFamilyMembers(cloudRes.familyTree, currentUser);
+            localStorage.setItem(CUSTOM_TREE_KEY_PREFIX + currentUser.id, JSON.stringify(cleanedCloudTree));
+            globalMembers = cleanedCloudTree;
+            hasChange = true;
+            if (cleanedCloudTree.length < cloudRes.familyTree.length) {
+              // 중복 노드가 제거된 깨끗한 트리를 클라우드 DB에 즉시 영구 반영
+              saveAllToCloudDatabase(currentUser, cleanedCloudTree, globalEstablishedLinks).catch(() => {});
             }
           }
           if (cloudRes.establishedLinks && cloudRes.establishedLinks.length > 0) {
@@ -1239,6 +1299,29 @@ export function useFamilyStore() {
       globalMembers[0];
 
     const certificateNo = `족보공인 제 2026-B${Math.floor(10000 + Math.random() * 90000)}호`;
+
+    // 1. 본인 자신에 대한 결연 요청인 경우 중복 노드 생성 방지
+    const isSelfSender =
+      Boolean(req.senderName && selfMember.name && req.senderName.trim() === selfMember.name.trim()) ||
+      Boolean(req.senderPhone && selfMember.phone && stripPhoneNumber(req.senderPhone) === stripPhoneNumber(selfMember.phone)) ||
+      Boolean(currentUser?.id && req.senderUserId === currentUser.id);
+
+    if (isSelfSender) {
+      const updatedReq: SmartKinshipRequest = {
+        ...req,
+        status: 'approved',
+        certificateNo,
+      };
+      globalSmartRequests = globalSmartRequests.map((r) => (r.id === requestId ? updatedReq : r));
+      saveStoredSmartRequests(globalSmartRequests);
+      globalMembers = deduplicateFamilyMembers(globalMembers, currentUser);
+      notify();
+      return {
+        success: true,
+        message: '본인 계정의 정보가 확인되어 중복 노드 생성 없이 승인 완료되었습니다.',
+        certificateNo,
+      };
+    }
 
     // 1. 요청 상태 업데이트
     const updatedReq: SmartKinshipRequest = {

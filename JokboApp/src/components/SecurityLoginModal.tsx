@@ -81,6 +81,13 @@ export const SecurityLoginModal: React.FC<SecurityLoginModalProps> = ({
   const [passwordInput, setPasswordInput] = useState('');
   const [otpInput, setOtpInput] = useState('');
   const [pinInput, setPinInput] = useState('');
+  const [showLoginPassword, setShowLoginPassword] = useState(false);
+  const [show2FAPin, setShow2FAPin] = useState(false);
+  const [show2FAOtp, setShow2FAOtp] = useState(false);
+  const [showRegPassword, setShowRegPassword] = useState(false);
+  const [showRegPasswordConfirm, setShowRegPasswordConfirm] = useState(false);
+  const [showRegPin, setShowRegPin] = useState(false);
+  const [showRegPinConfirm, setShowRegPinConfirm] = useState(false);
   const [isBiometricLoading, setIsBiometricLoading] = useState(false);
   const [biometricStatus, setBiometricStatus] = useState<{
     supported: boolean;
@@ -1232,14 +1239,24 @@ export const SecurityLoginModal: React.FC<SecurityLoginModalProps> = ({
 
                     <View style={[styles.fieldGroup, isMobile && { marginBottom: 10 }]}>
                       <Text style={styles.fieldLabel}>비밀번호</Text>
-                      <TextInput
-                        style={styles.input}
-                        value={passwordInput}
-                        onChangeText={setPasswordInput}
-                        placeholder="비밀번호 입력"
-                        placeholderTextColor="#94a3b8"
-                        secureTextEntry
-                      />
+                      <View style={styles.passwordInputWrap}>
+                        <TextInput
+                          style={styles.passwordInputInner}
+                          value={passwordInput}
+                          onChangeText={setPasswordInput}
+                          placeholder="비밀번호 입력"
+                          placeholderTextColor="#94a3b8"
+                          secureTextEntry={!showLoginPassword}
+                        />
+                        <TouchableOpacity
+                          style={styles.eyeBtn}
+                          onPress={() => setShowLoginPassword(!showLoginPassword)}
+                          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                          accessibilityLabel={showLoginPassword ? '비밀번호 숨기기' : '비밀번호 보기'}
+                        >
+                          <Text style={styles.eyeIcon}>{showLoginPassword ? '👁️' : '🙈'}</Text>
+                        </TouchableOpacity>
+                      </View>
                       <Text style={[styles.fieldHint, isMobile && { fontSize: 10.5, marginTop: 2 }]}>
                         기본 비밀번호: password123!
                       </Text>
@@ -1347,157 +1364,164 @@ export const SecurityLoginModal: React.FC<SecurityLoginModalProps> = ({
                       </View>
                     </View>
 
-                    {/* Firebase SMS Mode (Only if explicitly enabled by user) */}
-                    {pending2FA.isFirebase ? (
-                      <View style={[styles.smsSimBox, { backgroundColor: '#fef2f2', borderColor: '#f87171' }]}>
-                        <Text style={[styles.smsSimTitle, { color: '#991b1b' }]}>
-                          🔥 [Firebase 실제 SMS 발송 완료]
-                        </Text>
-                        <Text style={[styles.smsSimContent, { color: '#7f1d1d' }]}>
-                          스마트폰으로 전송된 6자리 인증 문자를 확인하고 아래에 입력해주세요. (국제발신 규격: {toE164Format(pending2FA.phone)})
-                        </Text>
-                        <Text style={{ fontSize: 11, color: '#b91c1c', marginTop: 4 }}>
-                          ※ Firebase 콘솔의 무료 테스트 번호인 경우 지정한 테스트 인증번호(예: 123456)를 입력하시면 됩니다.
-                        </Text>
-
-                        <View style={[styles.fieldGroup, { marginTop: 10 }]}>
-                          <Text style={styles.fieldLabel}>6자리 SMS 인증번호</Text>
-                          <TextInput
-                            style={[styles.input, styles.otpInput]}
-                            value={otpInput}
-                            onChangeText={setOtpInput}
-                            placeholder="6자리 숫자"
-                            placeholderTextColor="#94a3b8"
-                            keyboardType="number-pad"
-                            maxLength={6}
-                          />
-                        </View>
-
-                        <View style={styles.otpActionRow}>
-                          <TouchableOpacity
-                            style={styles.verifyOtpBtn}
-                            onPress={handle2FASubmit}
-                            activeOpacity={0.85}
-                          >
-                            <Text style={styles.verifyOtpBtnText}>
-                              🔐 SMS 인증 확인 및 로그인 완료
-                            </Text>
-                          </TouchableOpacity>
-                        </View>
-                      </View>
-                    ) : (
-                      /* Zero-cost Native Biometric + 6-digit PIN Hybrid Mode */
-                      <View style={{ gap: 14 }}>
-                        {/* 1. 스마트폰 지문인식 / Face ID (원터치 생체인증) */}
-                        <View style={styles.hybridBioBox}>
-                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 8 }}>
-                            <Text style={{ fontSize: 28 }}>
-                              {pending2FA.biometricType === 'face' || biometricStatus.type === 'face' ? '👤' : '👆'}
-                            </Text>
-                            <View style={{ flex: 1 }}>
-                              <Text style={styles.hybridBioTitle}>
-                                {pending2FA.biometricType === 'face' || biometricStatus.type === 'face'
-                                  ? '스마트폰 Face ID / Touch ID 원터치 인증'
-                                  : '스마트폰 지문인식 (삼성패스) 원터치 인증'}
-                              </Text>
-                              <Text style={styles.hybridBioDesc}>
-                                스마트폰 내장 하드웨어 보안칩(WebAuthn) 직통 연결 · 0.2초 즉시 승인 (통신비 0원)
-                              </Text>
-                            </View>
-                          </View>
-
-                          <TouchableOpacity
-                            style={[
-                              styles.hybridBioBtn,
-                              isBiometricLoading && { backgroundColor: '#64748b' },
-                            ]}
-                            onPress={handleBiometricAuth}
-                            disabled={isBiometricLoading}
-                            activeOpacity={0.85}
-                          >
-                            <Text style={styles.hybridBioBtnText}>
-                              {isBiometricLoading
-                                ? '⏳ 지문 / 센서 인식 대기 중...'
-                                : pending2FA.biometricType === 'face' || biometricStatus.type === 'face'
-                                ? '👤 Face ID / Touch ID로 즉시 승인'
-                                : '👆 지문인식 센서 터치하여 즉시 승인'}
-                            </Text>
-                          </TouchableOpacity>
-                        </View>
-
-                        {/* 구분선 */}
-                        <View style={{ flexDirection: 'row', alignItems: 'center', marginVertical: 2 }}>
-                          <View style={{ flex: 1, height: 1, backgroundColor: '#e2e8f0' }} />
-                          <Text style={{ marginHorizontal: 10, fontSize: 11.5, fontWeight: '700', color: '#64748b' }}>
-                            또는 (PC 및 센서 미지원 환경)
+                    <View style={{ gap: 14 }}>
+                      {/* 1. 스마트폰 지문인식 / Face ID (원터치 생체인증) */}
+                      <View style={styles.hybridBioBox}>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 8 }}>
+                          <Text style={{ fontSize: 28 }}>
+                            {pending2FA.biometricType === 'face' || biometricStatus.type === 'face' ? '👤' : '👆'}
                           </Text>
-                          <View style={{ flex: 1, height: 1, backgroundColor: '#e2e8f0' }} />
+                          <View style={{ flex: 1 }}>
+                            <Text style={styles.hybridBioTitle}>
+                              {pending2FA.biometricType === 'face' || biometricStatus.type === 'face'
+                                ? '스마트폰 Face ID / Touch ID 원터치 인증'
+                                : '스마트폰 지문인식 (삼성패스) 원터치 인증'}
+                            </Text>
+                            <Text style={styles.hybridBioDesc}>
+                              스마트폰 내장 하드웨어 보안칩(WebAuthn) 직통 연결 · 0.2초 즉시 승인 (통신비 0원)
+                            </Text>
+                          </View>
                         </View>
 
-                        {/* 2. 6자리 가문 보안 PIN 번호 */}
-                        <View style={styles.hybridPinBox}>
-                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+                        <TouchableOpacity
+                          style={[
+                            styles.hybridBioBtn,
+                            isBiometricLoading && { backgroundColor: '#64748b' },
+                          ]}
+                          onPress={handleBiometricAuth}
+                          disabled={isBiometricLoading}
+                          activeOpacity={0.85}
+                        >
+                          <Text style={styles.hybridBioBtnText}>
+                            {isBiometricLoading
+                              ? '⏳ 지문 / 센서 인식 대기 중...'
+                              : pending2FA.biometricType === 'face' || biometricStatus.type === 'face'
+                              ? '👤 Face ID / Touch ID로 즉시 승인'
+                              : '👆 지문인식 센서 터치하여 즉시 승인'}
+                          </Text>
+                        </TouchableOpacity>
+                      </View>
+
+                      {/* 구분선 */}
+                      <View style={{ flexDirection: 'row', alignItems: 'center', marginVertical: 2 }}>
+                        <View style={{ flex: 1, height: 1, backgroundColor: '#e2e8f0' }} />
+                        <Text style={{ marginHorizontal: 10, fontSize: 11.5, fontWeight: '700', color: '#64748b' }}>
+                          또는 6자리 보안 PIN 번호로 인증 (PC 및 전 기기)
+                        </Text>
+                        <View style={{ flex: 1, height: 1, backgroundColor: '#e2e8f0' }} />
+                      </View>
+
+                      {/* 2. 6자리 가문 보안 PIN 번호 (마스킹 + 눈 아이콘 토글) */}
+                      <View style={styles.hybridPinBox}>
+                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                             <Text style={{ fontSize: 18 }}>🔢</Text>
                             <Text style={styles.hybridPinTitle}>6자리 가문 보안 PIN 번호</Text>
                           </View>
-                          <Text style={styles.hybridPinDesc}>
-                            가입 시 설정하신 6자리 PIN 번호를 입력하세요. (초기 기본값: 휴대폰 번호 끝 6자리)
+                          <Text style={{ fontSize: 11, color: '#0284c7', fontWeight: '700' }}>
+                            기본값: 휴대폰 끝 6자리
                           </Text>
+                        </View>
+                        <Text style={styles.hybridPinDesc}>
+                          보안을 위해 입력 시 마스킹(*) 처리됩니다. 번호를 확인하려면 오른쪽 눈(👁️) 아이콘을 터치하세요.
+                        </Text>
 
+                        <View style={[styles.passwordInputWrap, { marginTop: 8, borderColor: '#0284c7', borderWidth: 1.5 }]}>
                           <TextInput
-                            style={[
-                              styles.input,
-                              {
-                                textAlign: 'center',
-                                fontSize: 22,
-                                letterSpacing: 8,
-                                fontWeight: '900',
-                                backgroundColor: '#ffffff',
-                                borderColor: '#0284c7',
-                                borderWidth: 1.5,
-                                paddingVertical: 10,
-                                marginTop: 8,
-                              },
-                            ]}
+                            style={[styles.passwordInputInner, styles.otpInputCenter]}
                             value={pinInput}
                             onChangeText={(txt) => setPinInput(txt.replace(/[^0-9]/g, '').slice(0, 6))}
                             placeholder="● ● ● ● ● ●"
                             placeholderTextColor="#cbd5e1"
                             keyboardType="number-pad"
                             maxLength={6}
-                            secureTextEntry
+                            secureTextEntry={!show2FAPin}
                           />
-
                           <TouchableOpacity
-                            style={[
-                              styles.verifyOtpBtn,
-                              {
-                                marginTop: 10,
-                                backgroundColor: pinInput.length === 6 ? '#0284c7' : '#94a3b8',
-                              },
-                            ]}
-                            onPress={handlePinSubmit}
-                            disabled={pinInput.length !== 6 || isFirebaseLoading}
-                            activeOpacity={0.85}
+                            style={styles.eyeBtn}
+                            onPress={() => setShow2FAPin(!show2FAPin)}
+                            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                            accessibilityLabel={show2FAPin ? 'PIN 숨기기' : 'PIN 보기'}
                           >
-                            <Text style={styles.verifyOtpBtnText}>
-                              {isFirebaseLoading ? '확인 중...' : '🔐 6자리 보안 PIN 번호로 승인 및 로그인'}
-                            </Text>
+                            <Text style={styles.eyeIcon}>{show2FAPin ? '👁️' : '🙈'}</Text>
                           </TouchableOpacity>
                         </View>
 
-                        {/* 취소 / 번호 다시 입력 */}
                         <TouchableOpacity
-                          style={{ alignItems: 'center', paddingVertical: 8 }}
-                          onPress={cancelPending2FA}
-                          activeOpacity={0.7}
+                          style={[
+                            styles.verifyOtpBtn,
+                            {
+                              marginTop: 10,
+                              backgroundColor: pinInput.length === 6 ? '#0284c7' : '#94a3b8',
+                            },
+                          ]}
+                          onPress={handlePinSubmit}
+                          disabled={pinInput.length !== 6 || isFirebaseLoading}
+                          activeOpacity={0.85}
                         >
-                          <Text style={{ fontSize: 12, color: '#64748b', fontWeight: '700' }}>
-                            ✕ 다른 번호로 로그인하기
+                          <Text style={styles.verifyOtpBtnText}>
+                            {isFirebaseLoading ? '확인 중...' : '🔐 6자리 보안 PIN 번호로 승인 및 로그인'}
                           </Text>
                         </TouchableOpacity>
                       </View>
-                    )}
+
+                      {/* 3. Firebase 실제 SMS 인증 (Firebase 활성화 시 사용 가능) */}
+                      {(isFirebaseConfiguredState || pending2FA.isFirebase) && (
+                        <View style={[styles.smsSimBox, { backgroundColor: '#fef2f2', borderColor: '#f87171' }]}>
+                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+                            <Text style={{ fontSize: 16 }}>🔥</Text>
+                            <Text style={[styles.smsSimTitle, { color: '#991b1b', marginBottom: 0 }]}>
+                              Firebase 실제 SMS 문자로 인증 (선택)
+                            </Text>
+                          </View>
+                          <Text style={[styles.smsSimContent, { color: '#7f1d1d', marginTop: 2 }]}>
+                            스마트폰으로 전송된 6자리 인증 문자를 확인하고 입력해주세요. (국제발신 규격: {toE164Format(pending2FA.phone)})
+                          </Text>
+
+                          <View style={[styles.passwordInputWrap, { marginTop: 8, borderColor: '#ef4444' }]}>
+                            <TextInput
+                              style={[styles.passwordInputInner, styles.otpInputCenter]}
+                              value={otpInput}
+                              onChangeText={setOtpInput}
+                              placeholder="● ● ● ● ● ●"
+                              placeholderTextColor="#cbd5e1"
+                              keyboardType="number-pad"
+                              maxLength={6}
+                              secureTextEntry={!show2FAOtp}
+                            />
+                            <TouchableOpacity
+                              style={styles.eyeBtn}
+                              onPress={() => setShow2FAOtp(!show2FAOtp)}
+                              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                              accessibilityLabel={show2FAOtp ? '인증번호 숨기기' : '인증번호 보기'}
+                            >
+                              <Text style={styles.eyeIcon}>{show2FAOtp ? '👁️' : '🙈'}</Text>
+                            </TouchableOpacity>
+                          </View>
+
+                          <TouchableOpacity
+                            style={[styles.verifyOtpBtn, { marginTop: 8, backgroundColor: '#dc2626' }]}
+                            onPress={handle2FASubmit}
+                            activeOpacity={0.85}
+                          >
+                            <Text style={styles.verifyOtpBtnText}>
+                              🔥 SMS 인증번호 확인 및 로그인
+                            </Text>
+                          </TouchableOpacity>
+                        </View>
+                      )}
+
+                      {/* 취소 / 번호 다시 입력 */}
+                      <TouchableOpacity
+                        style={{ alignItems: 'center', paddingVertical: 8 }}
+                        onPress={cancelPending2FA}
+                        activeOpacity={0.7}
+                      >
+                        <Text style={{ fontSize: 12, color: '#64748b', fontWeight: '700' }}>
+                          ✕ 다른 번호로 로그인하기
+                        </Text>
+                      </TouchableOpacity>
+                    </View>
                   </View>
                 )}
               </View>
@@ -1892,27 +1916,47 @@ export const SecurityLoginModal: React.FC<SecurityLoginModalProps> = ({
                       <Text style={styles.fieldLabel}>
                         접속 비밀번호 <Text style={{ color: '#ef4444' }}>*</Text>
                       </Text>
-                      <TextInput
-                        style={styles.input}
-                        value={regPassword}
-                        onChangeText={setRegPassword}
-                        placeholder="4자리 이상"
-                        placeholderTextColor="#94a3b8"
-                        secureTextEntry
-                      />
+                      <View style={styles.passwordInputWrap}>
+                        <TextInput
+                          style={styles.passwordInputInner}
+                          value={regPassword}
+                          onChangeText={setRegPassword}
+                          placeholder="4자리 이상"
+                          placeholderTextColor="#94a3b8"
+                          secureTextEntry={!showRegPassword}
+                        />
+                        <TouchableOpacity
+                          style={styles.eyeBtn}
+                          onPress={() => setShowRegPassword(!showRegPassword)}
+                          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                          accessibilityLabel={showRegPassword ? '비밀번호 숨기기' : '비밀번호 보기'}
+                        >
+                          <Text style={styles.eyeIcon}>{showRegPassword ? '👁️' : '🙈'}</Text>
+                        </TouchableOpacity>
+                      </View>
                     </View>
                     <View style={[styles.fieldGroup, { flex: 1 }]}>
                       <Text style={styles.fieldLabel}>
                         비밀번호 확인 <Text style={{ color: '#ef4444' }}>*</Text>
                       </Text>
-                      <TextInput
-                        style={styles.input}
-                        value={regPasswordConfirm}
-                        onChangeText={setRegPasswordConfirm}
-                        placeholder="동일 비밀번호 재입력"
-                        placeholderTextColor="#94a3b8"
-                        secureTextEntry
-                      />
+                      <View style={styles.passwordInputWrap}>
+                        <TextInput
+                          style={styles.passwordInputInner}
+                          value={regPasswordConfirm}
+                          onChangeText={setRegPasswordConfirm}
+                          placeholder="동일 비밀번호 재입력"
+                          placeholderTextColor="#94a3b8"
+                          secureTextEntry={!showRegPasswordConfirm}
+                        />
+                        <TouchableOpacity
+                          style={styles.eyeBtn}
+                          onPress={() => setShowRegPasswordConfirm(!showRegPasswordConfirm)}
+                          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                          accessibilityLabel={showRegPasswordConfirm ? '비밀번호 숨기기' : '비밀번호 보기'}
+                        >
+                          <Text style={styles.eyeIcon}>{showRegPasswordConfirm ? '👁️' : '🙈'}</Text>
+                        </TouchableOpacity>
+                      </View>
                     </View>
                   </View>
 
@@ -1927,31 +1971,51 @@ export const SecurityLoginModal: React.FC<SecurityLoginModalProps> = ({
                           스마트폰 생체인증 호환
                         </Text>
                       </View>
-                      <TextInput
-                        style={[styles.input, { letterSpacing: 4, textAlign: 'center', fontWeight: '700' }]}
-                        value={regPin}
-                        onChangeText={(txt) => setRegPin(txt.replace(/[^0-9]/g, '').slice(0, 6))}
-                        placeholder="숫자 6자리 입력"
-                        placeholderTextColor="#94a3b8"
-                        keyboardType="number-pad"
-                        maxLength={6}
-                        secureTextEntry
-                      />
+                      <View style={styles.passwordInputWrap}>
+                        <TextInput
+                          style={[styles.passwordInputInner, { letterSpacing: 4, textAlign: 'center', fontWeight: '700' }]}
+                          value={regPin}
+                          onChangeText={(txt) => setRegPin(txt.replace(/[^0-9]/g, '').slice(0, 6))}
+                          placeholder="숫자 6자리 입력"
+                          placeholderTextColor="#94a3b8"
+                          keyboardType="number-pad"
+                          maxLength={6}
+                          secureTextEntry={!showRegPin}
+                        />
+                        <TouchableOpacity
+                          style={styles.eyeBtn}
+                          onPress={() => setShowRegPin(!showRegPin)}
+                          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                          accessibilityLabel={showRegPin ? 'PIN 숨기기' : 'PIN 보기'}
+                        >
+                          <Text style={styles.eyeIcon}>{showRegPin ? '👁️' : '🙈'}</Text>
+                        </TouchableOpacity>
+                      </View>
                     </View>
                     <View style={[styles.fieldGroup, { flex: 1 }]}>
                       <Text style={styles.fieldLabel}>
                         보안 PIN 재확인 <Text style={{ color: '#ef4444' }}>*</Text>
                       </Text>
-                      <TextInput
-                        style={[styles.input, { letterSpacing: 4, textAlign: 'center', fontWeight: '700' }]}
-                        value={regPinConfirm}
-                        onChangeText={(txt) => setRegPinConfirm(txt.replace(/[^0-9]/g, '').slice(0, 6))}
-                        placeholder="동일 PIN 6자리 재입력"
-                        placeholderTextColor="#94a3b8"
-                        keyboardType="number-pad"
-                        maxLength={6}
-                        secureTextEntry
-                      />
+                      <View style={styles.passwordInputWrap}>
+                        <TextInput
+                          style={[styles.passwordInputInner, { letterSpacing: 4, textAlign: 'center', fontWeight: '700' }]}
+                          value={regPinConfirm}
+                          onChangeText={(txt) => setRegPinConfirm(txt.replace(/[^0-9]/g, '').slice(0, 6))}
+                          placeholder="동일 PIN 6자리 재입력"
+                          placeholderTextColor="#94a3b8"
+                          keyboardType="number-pad"
+                          maxLength={6}
+                          secureTextEntry={!showRegPinConfirm}
+                        />
+                        <TouchableOpacity
+                          style={styles.eyeBtn}
+                          onPress={() => setShowRegPinConfirm(!showRegPinConfirm)}
+                          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                          accessibilityLabel={showRegPinConfirm ? 'PIN 숨기기' : 'PIN 보기'}
+                        >
+                          <Text style={styles.eyeIcon}>{showRegPinConfirm ? '👁️' : '🙈'}</Text>
+                        </TouchableOpacity>
+                      </View>
                     </View>
                   </View>
                   <Text style={[styles.fieldHint, { marginTop: -6, marginBottom: 10, color: '#0369a1' }]}>
@@ -3577,5 +3641,35 @@ const styles = StyleSheet.create({
     fontSize: 11.5,
     color: '#64748b',
     lineHeight: 16,
+  },
+  passwordInputWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#cbd5e1',
+    borderRadius: 8,
+    backgroundColor: '#ffffff',
+  },
+  passwordInputInner: {
+    flex: 1,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontSize: 14,
+    color: '#1e293b',
+  },
+  eyeBtn: {
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  eyeIcon: {
+    fontSize: 18,
+  },
+  otpInputCenter: {
+    textAlign: 'center',
+    fontSize: 18,
+    letterSpacing: 4,
+    fontWeight: '700',
   },
 });
