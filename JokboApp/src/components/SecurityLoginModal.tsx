@@ -1400,6 +1400,13 @@ export const SecurityLoginModal: React.FC<SecurityLoginModalProps> = ({
                               : '👆 지문인식 센서 터치하여 즉시 승인'}
                           </Text>
                         </TouchableOpacity>
+
+                        {/* 갤럭시/스마트폰 삼성패스 세션값(-10002) 안내 */}
+                        <View style={{ marginTop: 8, padding: 8, backgroundColor: '#fff7ed', borderRadius: 6, borderWidth: 1, borderColor: '#fed7aa' }}>
+                          <Text style={{ fontSize: 11, color: '#9a3412', lineHeight: 15 }}>
+                            💡 <Text style={{ fontWeight: '800' }}>[참고] 갤럭시 기기에서 '인증서 등록 안 됨(-10002 세션값 오류)'</Text> 팝업이 뜨는 경우: 스마트폰 제조사(삼성패스)의 앱 캐시 충돌 현상입니다. 기기 오류이므로 당황하지 마시고 바로 아래 <Text style={{ fontWeight: '800', color: '#0369a1' }}>[6자리 보안 PIN 번호]</Text>(기본값: 휴대폰 끝 6자리)를 입력하시면 100% 즉시 로그인됩니다.
+                          </Text>
+                        </View>
                       </View>
 
                       {/* 구분선 */}

@@ -123,8 +123,8 @@ export async function registerPlatformBiometric(
       ],
       authenticatorSelection: {
         authenticatorAttachment: 'platform', // 스마트폰 자체 하드웨어 센서 사용
-        userVerification: 'required', // 지문/얼굴 본인확인 필수
-        residentKey: 'discouraged',
+        userVerification: 'preferred', // 'required' 대신 'preferred'로 하여 기기 정책(삼성패스/구글) 충돌 완화
+        residentKey: 'preferred',
       },
       timeout: 60000,
       attestation: 'none',
@@ -135,7 +135,10 @@ export async function registerPlatformBiometric(
     })) as PublicKeyCredential | null;
 
     if (!credential) {
-      return { success: false, message: '생체인증 등록이 취소되었습니다.' };
+      return {
+        success: false,
+        message: '생체인증 등록이 취소되었습니다. 아래 6자리 보안 PIN으로 로그인해주세요.',
+      };
     }
 
     const credentialId = bufferToBase64(credential.rawId);
@@ -154,10 +157,17 @@ export async function registerPlatformBiometric(
     };
   } catch (e: any) {
     console.error('Biometric registration error:', e);
+    const errMsg = e?.message || '';
     if (e.name === 'NotAllowedError') {
-      return { success: false, message: '사용자가 생체인증 등록을 취소했습니다.' };
+      return {
+        success: false,
+        message: '스마트폰 생체인증이 취소되었거나 기기 보안 정책에 의해 거부되었습니다.\n💡 아래 6자리 보안 PIN 번호로 바로 로그인하실 수 있습니다.',
+      };
     }
-    return { success: false, message: `생체인증 등록 실패: ${e.message || '센서 오류'}` };
+    return {
+      success: false,
+      message: `스마트폰 생체인증 등록 불가 (${errMsg || '기기 세션 충돌'})\n💡 아래 [6자리 보안 PIN 번호](기본값: 휴대폰 끝 6자리)를 입력하시면 즉시 로그인됩니다.`,
+    };
   }
 }
 
@@ -201,7 +211,7 @@ export async function authenticatePlatformBiometric(
     const publicKeyOptions: PublicKeyCredentialRequestOptions = {
       challenge,
       rpId: hostname === 'localhost' ? undefined : hostname,
-      userVerification: 'required', // 지문 / Face ID 본인 터치 필수
+      userVerification: 'preferred', // 지문 / Face ID 터치
       timeout: 60000,
       allowCredentials: allowCredentials.length > 0 ? allowCredentials : undefined,
     };
