@@ -210,30 +210,28 @@ export function useAuthStore() {
       (acc) => stripPhoneNumber(acc.phone) === cleanPhone
     );
 
-    // [통합 클라우드 DB 실시간 조회] 로컬에 계정이 없는 경우 Firestore / Supabase 클라우드 DB에서 계정 및 가계도 조회
-    if (!account) {
-      try {
-        const cloudRes = await fetchAllFromCloudDatabase(cleanPhone);
-        if (cloudRes.success && cloudRes.user) {
-          account = cloudRes.user;
-          saveCustomAccount(cloudRes.user);
+    // [통합 클라우드 DB 실시간 조회 & 동기화] 로컬 존재 여부와 무관하게 최신 클라우드 DB 계정/가계도/부모 정보 확인
+    try {
+      const cloudRes = await fetchAllFromCloudDatabase(cleanPhone);
+      if (cloudRes.success && cloudRes.user) {
+        account = cloudRes.user;
+        saveCustomAccount(cloudRes.user);
 
-          // 가계도 및 결연 정보 로컬 저장소 동기화
-          if (cloudRes.familyTree && cloudRes.familyTree.length > 0) {
-            try {
-              localStorage.setItem('jokbo_custom_tree_v1_' + account.id, JSON.stringify(cloudRes.familyTree));
-            } catch (e) {}
-          }
-          if (cloudRes.establishedLinks && cloudRes.establishedLinks.length > 0) {
-            try {
-              localStorage.setItem('jokbo_custom_links_v1_' + account.id, JSON.stringify(cloudRes.establishedLinks));
-              localStorage.setItem('jokbo_custom_links_v1_global', JSON.stringify(cloudRes.establishedLinks));
-            } catch (e) {}
-          }
+        // 가계도 및 결연 정보 로컬 저장소 동기화
+        if (cloudRes.familyTree && cloudRes.familyTree.length > 0) {
+          try {
+            localStorage.setItem('jokbo_custom_tree_v1_' + account.id, JSON.stringify(cloudRes.familyTree));
+          } catch (e) {}
         }
-      } catch (err) {
-        console.error('Failed to fetch user from Cloud Database:', err);
+        if (cloudRes.establishedLinks && cloudRes.establishedLinks.length > 0) {
+          try {
+            localStorage.setItem('jokbo_custom_links_v1_' + account.id, JSON.stringify(cloudRes.establishedLinks));
+            localStorage.setItem('jokbo_custom_links_v1_global', JSON.stringify(cloudRes.establishedLinks));
+          } catch (e) {}
+        }
       }
+    } catch (err) {
+      console.warn('Cloud DB hydration warning on login:', err);
     }
 
     if (!account) {

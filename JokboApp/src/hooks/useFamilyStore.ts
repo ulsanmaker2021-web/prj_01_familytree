@@ -372,6 +372,10 @@ function syncWithAuth() {
     if (!customTree || customTree.length === 0) {
       customTree = createInitialFamilyForUser(currentUser);
       saveStoredCustomFamily(currentUser.id, customTree);
+      // 부모님(최헌호·김경순) 포함 초기 가계도를 중앙 클라우드 DB에 즉시 영구 저장
+      saveAllToCloudDatabase(currentUser, customTree, []).catch((e) =>
+        console.warn('Sync initial tree to Cloud DB:', e)
+      );
     }
     globalMembers = customTree;
     globalCenterPersonId = currentUser.memberId || customTree[0].id;
