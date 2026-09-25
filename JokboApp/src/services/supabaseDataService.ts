@@ -1,6 +1,6 @@
 import { getSupabaseClient, isSupabaseConnected } from '../config/supabaseClient';
 import { UserProfile } from '../types/auth';
-import { FamilyMember, EstablishedLink } from '../types/family';
+import { FamilyMember, EstablishedLink, SmartKinshipRequest } from '../types/family';
 
 /**
  * [Supabase 클라우드 DB 동기화 서비스]
@@ -238,6 +238,103 @@ export async function fetchEstablishedLinksFromSupabase(userId: string): Promise
     }));
   } catch (e) {
     console.error('Error fetching established links from Supabase:', e);
+    return null;
+  }
+}
+
+// 7. 스마트 형제/친족 결연 신청 동기화 (저장)
+export async function syncSmartRequestsToSupabase(
+  requests: SmartKinshipRequest[]
+): Promise<{ success: boolean; message?: string }> {
+  if (!isSupabaseConnected() || !requests || requests.length === 0) return { success: false };
+  const client = getSupabaseClient();
+  if (!client) return { success: false };
+
+  try {
+    const rows = requests.map((r) => ({
+      id: r.id,
+      sender_user_id: r.senderUserId,
+      sender_member_id: r.senderMemberId,
+      sender_name: r.senderName,
+      sender_phone: r.senderPhone,
+      sender_birth_date: r.senderBirthDate || '',
+      sender_gender: r.senderGender || 'M',
+      sender_father_name: r.senderFatherName || '',
+      sender_mother_name: r.senderMotherName || '',
+      sender_clan: r.senderClan || '',
+      receiver_phone: r.receiverPhone,
+      receiver_user_id: r.receiverUserId || null,
+      relation_type: r.relationType,
+      sibling_subtype: r.siblingSubtype || 'brother',
+      sibling_subtype_label: r.siblingSubtypeLabel || '형제',
+      status: r.status,
+      father_matched: r.fatherMatched || false,
+      mother_matched: r.motherMatched || false,
+      match_score: r.matchScore || 0,
+      certificate_no: r.certificateNo || '',
+      note: r.note || '',
+      created_at: r.createdAt || new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    }));
+
+    const { error } = await client
+      .from('jokbo_smart_requests')
+      .upsert(rows, { onConflict: 'id' });
+
+    if (error) {
+      console.error('Failed to sync smart requests to Supabase:', error);
+      return { success: false, message: error.message };
+    }
+    return { success: true };
+  } catch (e: any) {
+    console.error('Error syncing smart requests:', e);
+    return { success: false, message: e.message };
+  }
+}
+
+// 8. 스마트 형제/친족 결연 신청 조회 (전화번호 기준)
+export async function fetchSmartRequestsFromSupabase(
+  phone: string
+): Promise<SmartKinshipRequest[] | null> {
+  if (!isSupabaseConnected() || !phone) return null;
+  const client = getSupabaseClient();
+  if (!client) return null;
+
+  try {
+    const cleanPhone = phone.replace(/[^0-9]/g, '');
+    const { data, error } = await client
+      .from('jokbo_smart_requests')
+      .select('*')
+      .or(`receiver_phone.eq.${cleanPhone},sender_phone.eq.${cleanPhone}`);
+
+    if (error || !data || data.length === 0) return null;
+
+    return data.map((d: any) => ({
+      id: d.id,
+      senderUserId: d.sender_user_id,
+      senderMemberId: d.sender_member_id,
+      senderName: d.sender_name,
+      senderPhone: d.sender_phone,
+      senderBirthDate: d.sender_birth_date,
+      senderGender: d.sender_gender,
+      senderFatherName: d.sender_father_name,
+      senderMotherName: d.sender_mother_name,
+      senderClan: d.sender_clan,
+      receiverPhone: d.receiver_phone,
+      receiverUserId: d.receiver_user_id,
+      relationType: d.relation_type,
+      siblingSubtype: d.sibling_subtype,
+      siblingSubtypeLabel: d.sibling_subtype_label,
+      status: d.status,
+      createdAt: d.created_at,
+      fatherMatched: d.father_matched,
+      motherMatched: d.mother_matched,
+      matchScore: d.match_score,
+      certificateNo: d.certificate_no,
+      note: d.note,
+    }));
+  } catch (e) {
+    console.error('Error fetching smart requests from Supabase:', e);
     return null;
   }
 }
