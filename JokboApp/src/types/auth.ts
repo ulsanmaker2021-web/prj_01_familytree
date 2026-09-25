@@ -18,6 +18,8 @@ export interface UserProfile {
   lastLoginAt: string;
   securityTier: '1단계(기본)' | '2단계(2FA 완료)' | '3단계(문중 공인 최고 보안)';
   isCustomRegistered?: boolean;
+  pinCode?: string; // 6자리 2차 보안 PIN 해시
+  biometricKey?: string; // 스마트폰 생체인증 자격증명 ID
 }
 
 export interface ClanInviteToken {

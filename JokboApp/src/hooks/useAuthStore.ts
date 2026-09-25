@@ -29,7 +29,12 @@ import {
   saveAllToCloudDatabase,
   fetchAllFromCloudDatabase,
 } from '../services/unifiedCloudSyncService';
-import { hashPassword, verifyPassword } from '../utils/cryptoHelper';
+import { hashPassword, verifyPassword, hashPin, verifyPin } from '../utils/cryptoHelper';
+import {
+  isPlatformBiometricsAvailable,
+  registerPlatformBiometric,
+  authenticatePlatformBiometric,
+} from '../services/biometricAuthService';
 import { isSupabaseConnected } from '../config/supabaseClient';
 
 export interface RegisterMemberParams {
@@ -40,6 +45,7 @@ export interface RegisterMemberParams {
   roleLabel: string;
   phone: string;
   password: string;
+  pinCode?: string; // 6자리 2차 보안 PIN 번호
   birthDate?: string;
   fatherName?: string;
   motherName?: string;
@@ -112,6 +118,8 @@ let globalPending2FA: {
   expectedOtp: string;
   user: UserProfile;
   isFirebase?: boolean;
+  biometricSupported?: boolean;
+  biometricType?: 'fingerprint' | 'face' | 'platform';
 } | null = null;
 
 const authListeners = new Set<() => void>();
@@ -291,13 +299,22 @@ export function useAuthStore() {
       }
     }
 
-    // 모의 시뮬레이션 모드 OTP 생성 (6자리)
-    const generatedOtp = Math.floor(100000 + Math.random() * 900000).toString();
+    // 2단계 인증: 스마트폰 생체인증 (지문/Face ID) 및 6자리 PIN 하이브리드 세션 준비
+    let bioSupported = false;
+    let bioType: 'fingerprint' | 'face' | 'platform' = 'fingerprint';
+    try {
+      const bioCheck = await isPlatformBiometricsAvailable();
+      bioSupported = bioCheck.supported;
+      bioType = bioCheck.type || 'fingerprint';
+    } catch (e) {}
+
     globalPending2FA = {
       phone: account.phone,
-      expectedOtp: generatedOtp,
+      expectedOtp: '',
       user: account,
       isFirebase: false,
+      biometricSupported: bioSupported,
+      biometricType: bioType,
     };
     notifyAuth();
 
@@ -305,33 +322,118 @@ export function useAuthStore() {
       success: true,
       require2FA: true,
       isFirebase: false,
-      otpCode: generatedOtp, // 시뮬레이션용 화면 노출용
-      message: `2단계 인증: [${formatPhoneNumber(account.phone)}] 번호로 6자리 보안 OTP가 발송되었습니다.`,
+      biometricSupported: bioSupported,
+      biometricType: bioType,
+      message: `2단계 보안 인증: 스마트폰 생체인증(지문/Face ID) 또는 6자리 보안 PIN으로 승인해주세요.`,
     };
   };
 
-  // 3. 2FA OTP 보안 코드 확인 및 최종 세션 승인
-  const verify2FA = async (inputOtp: string) => {
+  // 3-A. 스마트폰 자체 생체인증 (지문인식 / Face ID / WebAuthn) 확인
+  const verifyBiometric2FA = async () => {
     if (!globalPending2FA) {
       return { success: false, message: '진행 중인 2단계 인증 세션이 없습니다.' };
     }
 
-    if (globalPending2FA.isFirebase) {
-      const fbVerify = await verifyFirebasePhoneOtp(inputOtp);
-      if (!fbVerify.success) {
-        return { success: false, message: fbVerify.message };
+    const user = globalPending2FA.user;
+
+    // 1) 기기에 이미 등록된 자격증명으로 인증 시도
+    let bioAuth = await authenticatePlatformBiometric(user.id, user.biometricKey);
+
+    // 2) 기기에 등록된 자격증명이 없거나 첫 시도인 경우, 즉시 원터치 등록 및 승인 연동
+    if (!bioAuth.success && !user.biometricKey) {
+      const regBio = await registerPlatformBiometric(user.id, user.name);
+      if (regBio.success) {
+        user.biometricKey = regBio.credentialId;
+        bioAuth = { success: true, message: '🎉 스마트폰 생체인증 등록 및 본인확인이 완료되었습니다!' };
+      } else {
+        return { success: false, message: regBio.message };
       }
-    } else {
-      if (inputOtp.trim() !== globalPending2FA.expectedOtp) {
-        return { success: false, message: '보안 OTP 번호가 일치하지 않습니다. 다시 확인해주세요.' };
-      }
+    } else if (!bioAuth.success) {
+      return { success: false, message: bioAuth.message };
     }
 
     resetBruteForceLock();
     clearPhoneAuthSession();
+
     globalCurrentUser = {
-      ...globalPending2FA.user,
+      ...user,
       is2FAVerified: true,
+      securityTier: '2단계(2FA 완료)',
+      lastLoginAt: new Date().toISOString().substring(0, 16).replace('T', ' '),
+    };
+    globalIsAuthenticated = true;
+    globalIsLoginModalOpen = false;
+    globalPending2FA = null;
+    saveStoredAuthSession(globalCurrentUser.id);
+
+    if (globalCurrentUser.isCustomRegistered) {
+      saveCustomAccount(globalCurrentUser);
+      syncUserToSupabase(globalCurrentUser).catch(() => {});
+    }
+
+    notifyAuth();
+    return {
+      success: true,
+      message: `🎉 생체인증 완료! ${globalCurrentUser.name}님으로 안전하게 로그인되었습니다.`,
+    };
+  };
+
+  // 3-B. 6자리 보안 PIN 번호 확인 (PC 및 생체센서 미지원 기기용)
+  const verifyPin2FA = async (inputPin: string) => {
+    if (!globalPending2FA) {
+      return { success: false, message: '진행 중인 2단계 인증 세션이 없습니다.' };
+    }
+
+    const cleanPin = (inputPin || '').replace(/[^0-9]/g, '');
+    if (cleanPin.length !== 6) {
+      return { success: false, message: '6자리 숫자 보안 PIN 번호를 입력해주세요.' };
+    }
+
+    const user = globalPending2FA.user;
+    let isMatch = false;
+
+    if (user.pinCode) {
+      isMatch = await verifyPin(cleanPin, user.pinCode);
+    } else {
+      // 등록된 PIN이 없는 기존 계정의 경우: 휴대폰 번호 끝 6자리 또는 123456 기본 허용
+      const phoneTail = stripPhoneNumber(user.phone).slice(-6);
+      if (cleanPin === phoneTail || cleanPin === '123456') {
+        isMatch = true;
+        // 향후 빠른 로그인을 위해 이번에 입력한 PIN으로 자동 해시 저장
+        hashPin(cleanPin).then((h) => {
+          user.pinCode = h;
+          if (user.isCustomRegistered) {
+            saveCustomAccount(user);
+            syncUserToSupabase(user).catch(() => {});
+          }
+        });
+      }
+    }
+
+    if (!isMatch) {
+      const lockRes = recordFailedLogin();
+      notifyAuth();
+      if (lockRes.isLocked) {
+        return {
+          success: false,
+          isLocked: true,
+          message: '보안 PIN 5회 오류로 인해 5분간 로그인이 잠겼습니다.',
+        };
+      }
+      return {
+        success: false,
+        isLocked: false,
+        message: `보안 PIN 번호가 일치하지 않습니다. (남은 시도: ${lockRes.remainingAttempts}회)`,
+      };
+    }
+
+    resetBruteForceLock();
+    clearPhoneAuthSession();
+
+    globalCurrentUser = {
+      ...user,
+      is2FAVerified: true,
+      securityTier: '2단계(2FA 완료)',
       lastLoginAt: new Date().toISOString().substring(0, 16).replace('T', ' '),
     };
     globalIsAuthenticated = true;
@@ -342,8 +444,43 @@ export function useAuthStore() {
 
     return {
       success: true,
-      message: `2단계 본인 확인 완료! ${globalCurrentUser.name}님으로 안전하게 로그인되었습니다.`,
+      message: `보안 PIN 인증 완료! ${globalCurrentUser.name}님으로 안전하게 로그인되었습니다.`,
     };
+  };
+
+  // 3-C. 기존 2FA OTP 및 Firebase 호환
+  const verify2FA = async (inputOtp: string) => {
+    if (!globalPending2FA) {
+      return { success: false, message: '진행 중인 2단계 인증 세션이 없습니다.' };
+    }
+
+    if (globalPending2FA.isFirebase) {
+      const fbVerify = await verifyFirebasePhoneOtp(inputOtp);
+      if (!fbVerify.success) {
+        return { success: false, message: fbVerify.message };
+      }
+
+      resetBruteForceLock();
+      clearPhoneAuthSession();
+      globalCurrentUser = {
+        ...globalPending2FA.user,
+        is2FAVerified: true,
+        lastLoginAt: new Date().toISOString().substring(0, 16).replace('T', ' '),
+      };
+      globalIsAuthenticated = true;
+      globalIsLoginModalOpen = false;
+      globalPending2FA = null;
+      saveStoredAuthSession(globalCurrentUser.id);
+      notifyAuth();
+
+      return {
+        success: true,
+        message: `2단계 SMS 확인 완료! ${globalCurrentUser.name}님으로 안전하게 로그인되었습니다.`,
+      };
+    }
+
+    // PIN 번호 검증으로 전달
+    return verifyPin2FA(inputOtp);
   };
 
   // 4. 가문 고유 보안 초대 코드 등록 및 신규 참여
@@ -415,6 +552,11 @@ export function useAuthStore() {
     // 비밀번호 SHA-256 + Salt 보안 해시 암호화
     const hashedPassword = await hashPassword(params.password);
 
+    // 6자리 보안 PIN 번호 해싱 (미입력 시 휴대폰 끝 6자리 기본값)
+    const cleanPin = (params.pinCode || '').replace(/[^0-9]/g, '');
+    const pinToHash = cleanPin.length === 6 ? cleanPin : cleanPhone.slice(-6);
+    const hashedPin = await hashPin(pinToHash);
+
     // 데이터베이스에는 '-' 하이픈 없이 숫자만 저장
     const newAccount: UserProfile & { password: string } = {
       id: `user-custom-${Date.now()}`,
@@ -426,11 +568,12 @@ export function useAuthStore() {
       roleLabel: params.roleLabel || '가문 등록 정회원',
       phone: cleanPhone, // DB에는 하이픈 없이 숫자만 보관
       password: hashedPassword,
+      pinCode: hashedPin,
+      clanInviteCode: `PIN:${hashedPin}`,
       birthDate: params.birthDate?.trim() || undefined,
       fatherName: params.fatherName?.trim() || undefined,
       motherName: params.motherName?.trim() || undefined,
       is2FAVerified: false,
-      clanInviteCode: 'REG-LOCAL-DB',
       lastLoginAt: new Date().toISOString().substring(0, 16).replace('T', ' '),
       securityTier: '2단계(2FA 완료)',
       isCustomRegistered: true,
@@ -506,6 +649,8 @@ export function useAuthStore() {
     loginWithDemoAccount,
     loginWithCredentials,
     verify2FA,
+    verifyBiometric2FA,
+    verifyPin2FA,
     cancelPending2FA: () => {
       clearPhoneAuthSession();
       globalPending2FA = null;

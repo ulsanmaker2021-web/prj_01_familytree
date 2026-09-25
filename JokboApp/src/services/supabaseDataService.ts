@@ -16,6 +16,11 @@ export async function syncUserToSupabase(user: UserProfile & { password?: string
   if (!client) return { success: false, message: 'Supabase 클라이언트 초기화 실패' };
 
   try {
+    let inviteCode = user.clanInviteCode || '';
+    if (user.pinCode) {
+      inviteCode = `PIN:${user.pinCode}|BIO:${user.biometricKey || ''}`;
+    }
+
     const row = {
       id: user.id,
       phone: user.phone,
@@ -28,7 +33,7 @@ export async function syncUserToSupabase(user: UserProfile & { password?: string
       birth_date: user.birthDate || '',
       father_name: user.fatherName || '',
       mother_name: user.motherName || '',
-      clan_invite_code: user.clanInviteCode || '',
+      clan_invite_code: inviteCode,
       security_tier: user.securityTier || '2단계(2FA 완료)',
       is_2fa_verified: user.is2FAVerified || false,
       updated_at: new Date().toISOString(),
@@ -68,6 +73,16 @@ export async function fetchUserFromSupabase(phone: string): Promise<(UserProfile
       return null;
     }
 
+    let pinCode: string | undefined = undefined;
+    let biometricKey: string | undefined = undefined;
+    if (data.clan_invite_code && data.clan_invite_code.startsWith('PIN:')) {
+      const parts = data.clan_invite_code.split('|BIO:');
+      pinCode = parts[0].replace('PIN:', '');
+      if (parts.length > 1 && parts[1]) {
+        biometricKey = parts[1];
+      }
+    }
+
     return {
       id: data.id,
       memberId: `mem-${data.id}`,
@@ -82,6 +97,8 @@ export async function fetchUserFromSupabase(phone: string): Promise<(UserProfile
       fatherName: data.father_name,
       motherName: data.mother_name,
       clanInviteCode: data.clan_invite_code,
+      pinCode,
+      biometricKey,
       securityTier: data.security_tier,
       is2FAVerified: data.is_2fa_verified,
       lastLoginAt: new Date().toISOString(),

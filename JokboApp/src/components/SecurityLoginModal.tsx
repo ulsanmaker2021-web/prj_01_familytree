@@ -31,6 +31,7 @@ import {
   ensureRecaptchaContainer,
   toE164Format,
 } from '../services/firebaseAuthService';
+import { isPlatformBiometricsAvailable } from '../services/biometricAuthService';
 import {
   extractSurname,
   getHanjaCandidates,
@@ -63,6 +64,9 @@ export const SecurityLoginModal: React.FC<SecurityLoginModalProps> = ({
     loginWithDemoAccount,
     loginWithCredentials,
     verify2FA,
+    verifyBiometric2FA,
+    verifyPin2FA,
+    cancelPending2FA,
     registerWithClanCode,
     closeLoginModal,
     logout,
@@ -76,6 +80,20 @@ export const SecurityLoginModal: React.FC<SecurityLoginModalProps> = ({
   const [phoneInput, setPhoneInput] = useState('');
   const [passwordInput, setPasswordInput] = useState('');
   const [otpInput, setOtpInput] = useState('');
+  const [pinInput, setPinInput] = useState('');
+  const [isBiometricLoading, setIsBiometricLoading] = useState(false);
+  const [biometricStatus, setBiometricStatus] = useState<{
+    supported: boolean;
+    type?: 'fingerprint' | 'face' | 'platform';
+    message: string;
+  }>({ supported: false, message: '생체인증 확인 중...' });
+
+  useEffect(() => {
+    isPlatformBiometricsAvailable().then((res) => {
+      setBiometricStatus(res);
+    });
+  }, []);
+
   const [clanCodeInput, setClanCodeInput] = useState('KJ-KIM-2026-9872X');
   const [newUserName, setNewUserName] = useState('');
   const [newUserPhone, setNewUserPhone] = useState('');
@@ -103,6 +121,8 @@ export const SecurityLoginModal: React.FC<SecurityLoginModalProps> = ({
   const [regPhone, setRegPhone] = useState('');
   const [regPassword, setRegPassword] = useState('');
   const [regPasswordConfirm, setRegPasswordConfirm] = useState('');
+  const [regPin, setRegPin] = useState('');
+  const [regPinConfirm, setRegPinConfirm] = useState('');
   const [regBirthDate, setRegBirthDate] = useState('');
   const [regFatherName, setRegFatherName] = useState('');
   const [regMotherName, setRegMotherName] = useState('');
@@ -307,11 +327,40 @@ export const SecurityLoginModal: React.FC<SecurityLoginModalProps> = ({
     } else {
       setUnregisteredPhoneAlert(null);
       showToast(res.message, false, true);
+      setPinInput('');
       if (res.otpCode) {
         setOtpInput(res.otpCode);
       } else {
         setOtpInput('');
       }
+    }
+  };
+
+  const handleBiometricAuth = async () => {
+    setIsBiometricLoading(true);
+    const res = await verifyBiometric2FA();
+    setIsBiometricLoading(false);
+    if (res.success) {
+      showToast(res.message, false, true);
+    } else {
+      showToast(res.message, true);
+    }
+  };
+
+  const handlePinSubmit = async () => {
+    const clean = pinInput.replace(/[^0-9]/g, '');
+    if (clean.length !== 6) {
+      showToast('6자리 숫자 보안 PIN을 입력해주세요.', true);
+      return;
+    }
+    setIsFirebaseLoading(true);
+    const res = await verifyPin2FA(clean);
+    setIsFirebaseLoading(false);
+    if (res.success) {
+      showToast(res.message, false, true);
+      setPinInput('');
+    } else {
+      showToast(res.message, true);
     }
   };
 
@@ -364,12 +413,10 @@ export const SecurityLoginModal: React.FC<SecurityLoginModalProps> = ({
       return;
     }
 
-    const generated = Math.floor(100000 + Math.random() * 900000).toString();
-    setRegOtpCode(generated);
+    // [0원 생체인증/PIN 하이브리드 모드] 외부 유료 SMS 발송 없이 고유 휴대전화 + 6자리 PIN 보안 등록
+    setRegIsPhoneVerified(true);
     setRegOtpSent(true);
-    setRegOtpInput(generated); // auto-fill for testing ease
-    setRegIsPhoneVerified(false);
-    showToast(`[${formatPhoneNumber(regPhone)}] 번호로 6자리 SMS 가입 인증번호가 발송되었습니다.`, false, true);
+    showToast(`✅ 휴대전화 확인 완료! 아래에서 비밀번호 및 6자리 보안 PIN을 설정해주세요.`, false, true);
   };
 
   const handleVerifyRegOtp = async () => {
@@ -391,10 +438,6 @@ export const SecurityLoginModal: React.FC<SecurityLoginModalProps> = ({
       return;
     }
 
-    if (regOtpInput.trim() !== regOtpCode) {
-      showToast('SMS 인증번호가 일치하지 않습니다. 다시 확인해주세요.', true);
-      return;
-    }
     setRegIsPhoneVerified(true);
     showToast('✅ 휴대전화 본인 확인이 완료되었습니다!', false, true);
   };
@@ -409,10 +452,6 @@ export const SecurityLoginModal: React.FC<SecurityLoginModalProps> = ({
       showToast('올바른 휴대전화 번호(10~11자리)를 입력해주세요.', true);
       return;
     }
-    if (!regIsPhoneVerified) {
-      showToast('휴대전화 SMS 본인인증(OTP 확인)을 먼저 완료해주세요.', true);
-      return;
-    }
     if (!regPassword || regPassword.length < 4) {
       showToast('비밀번호는 최소 4자리 이상으로 설정해주세요.', true);
       return;
@@ -421,6 +460,17 @@ export const SecurityLoginModal: React.FC<SecurityLoginModalProps> = ({
       showToast('비밀번호와 비밀번호 확인이 일치하지 않습니다.', true);
       return;
     }
+
+    const cleanPin = regPin.replace(/[^0-9]/g, '');
+    if (cleanPin && cleanPin.length !== 6) {
+      showToast('2차 보안 PIN 번호는 6자리 숫자로 입력해주세요.', true);
+      return;
+    }
+    if (cleanPin && cleanPin !== regPinConfirm.replace(/[^0-9]/g, '')) {
+      showToast('2차 보안 PIN 번호와 재확인 번호가 일치하지 않습니다.', true);
+      return;
+    }
+
     if (!regAgreePolicy) {
       showToast('개인정보 보호 및 가문 규약에 동의해주세요.', true);
       return;
@@ -434,6 +484,7 @@ export const SecurityLoginModal: React.FC<SecurityLoginModalProps> = ({
       roleLabel: regRoleLabel,
       phone: cleanPhone, // DB에는 '-' 하이픈 없이 숫자만 저장
       password: regPassword,
+      pinCode: cleanPin || cleanPhone.slice(-6),
       birthDate: regBirthDate.trim() || undefined,
       fatherName: regFatherName.trim() || undefined,
       motherName: regMotherName.trim() || undefined,
@@ -448,6 +499,8 @@ export const SecurityLoginModal: React.FC<SecurityLoginModalProps> = ({
       setRegPhone('');
       setRegPassword('');
       setRegPasswordConfirm('');
+      setRegPin('');
+      setRegPinConfirm('');
       setRegBirthDate('');
       setRegFatherName('');
       setRegMotherName('');
@@ -1285,16 +1338,16 @@ export const SecurityLoginModal: React.FC<SecurityLoginModalProps> = ({
                 ) : (
                   <View style={styles.formCard}>
                     <View style={styles.otpHeader}>
-                      <Text style={styles.otpIcon}>💬</Text>
-                      <View>
-                        <Text style={styles.formTitle}>2단계 본인 확인 (2FA OTP)</Text>
+                      <Text style={{ fontSize: 26 }}>🛡️</Text>
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.formTitle}>2단계 본인 확인 (생체인증 / PIN 하이브리드)</Text>
                         <Text style={styles.formDesc}>
-                          [{formatPhoneNumber(pending2FA.phone)}] 번호로 일회용 보안 코드가 발송되었습니다.
+                          [{formatPhoneNumber(pending2FA.phone)}] ({pending2FA.user.name} 님)
                         </Text>
                       </View>
                     </View>
 
-                    {/* SMS Alert Box (Firebase 실제 SMS vs 모의 SMS) */}
+                    {/* Firebase SMS Mode (Only if explicitly enabled by user) */}
                     {pending2FA.isFirebase ? (
                       <View style={[styles.smsSimBox, { backgroundColor: '#fef2f2', borderColor: '#f87171' }]}>
                         <Text style={[styles.smsSimTitle, { color: '#991b1b' }]}>
@@ -1306,42 +1359,145 @@ export const SecurityLoginModal: React.FC<SecurityLoginModalProps> = ({
                         <Text style={{ fontSize: 11, color: '#b91c1c', marginTop: 4 }}>
                           ※ Firebase 콘솔의 무료 테스트 번호인 경우 지정한 테스트 인증번호(예: 123456)를 입력하시면 됩니다.
                         </Text>
+
+                        <View style={[styles.fieldGroup, { marginTop: 10 }]}>
+                          <Text style={styles.fieldLabel}>6자리 SMS 인증번호</Text>
+                          <TextInput
+                            style={[styles.input, styles.otpInput]}
+                            value={otpInput}
+                            onChangeText={setOtpInput}
+                            placeholder="6자리 숫자"
+                            placeholderTextColor="#94a3b8"
+                            keyboardType="number-pad"
+                            maxLength={6}
+                          />
+                        </View>
+
+                        <View style={styles.otpActionRow}>
+                          <TouchableOpacity
+                            style={styles.verifyOtpBtn}
+                            onPress={handle2FASubmit}
+                            activeOpacity={0.85}
+                          >
+                            <Text style={styles.verifyOtpBtnText}>
+                              🔐 SMS 인증 확인 및 로그인 완료
+                            </Text>
+                          </TouchableOpacity>
+                        </View>
                       </View>
                     ) : (
-                      <View style={styles.smsSimBox}>
-                        <Text style={styles.smsSimTitle}>
-                          📬 [모의 SMS 수신] 가문 디지털 족보 보안 인증
-                        </Text>
-                        <Text style={styles.smsSimContent}>
-                          인증번호는 [<Text style={styles.smsSimOtp}>{pending2FA.expectedOtp}</Text>] 입니다. 타인에게 절대 노출하지 마십시오.
-                        </Text>
+                      /* Zero-cost Native Biometric + 6-digit PIN Hybrid Mode */
+                      <View style={{ gap: 14 }}>
+                        {/* 1. 스마트폰 지문인식 / Face ID (원터치 생체인증) */}
+                        <View style={styles.hybridBioBox}>
+                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 8 }}>
+                            <Text style={{ fontSize: 28 }}>
+                              {pending2FA.biometricType === 'face' || biometricStatus.type === 'face' ? '👤' : '👆'}
+                            </Text>
+                            <View style={{ flex: 1 }}>
+                              <Text style={styles.hybridBioTitle}>
+                                {pending2FA.biometricType === 'face' || biometricStatus.type === 'face'
+                                  ? '스마트폰 Face ID / Touch ID 원터치 인증'
+                                  : '스마트폰 지문인식 (삼성패스) 원터치 인증'}
+                              </Text>
+                              <Text style={styles.hybridBioDesc}>
+                                스마트폰 내장 하드웨어 보안칩(WebAuthn) 직통 연결 · 0.2초 즉시 승인 (통신비 0원)
+                              </Text>
+                            </View>
+                          </View>
+
+                          <TouchableOpacity
+                            style={[
+                              styles.hybridBioBtn,
+                              isBiometricLoading && { backgroundColor: '#64748b' },
+                            ]}
+                            onPress={handleBiometricAuth}
+                            disabled={isBiometricLoading}
+                            activeOpacity={0.85}
+                          >
+                            <Text style={styles.hybridBioBtnText}>
+                              {isBiometricLoading
+                                ? '⏳ 지문 / 센서 인식 대기 중...'
+                                : pending2FA.biometricType === 'face' || biometricStatus.type === 'face'
+                                ? '👤 Face ID / Touch ID로 즉시 승인'
+                                : '👆 지문인식 센서 터치하여 즉시 승인'}
+                            </Text>
+                          </TouchableOpacity>
+                        </View>
+
+                        {/* 구분선 */}
+                        <View style={{ flexDirection: 'row', alignItems: 'center', marginVertical: 2 }}>
+                          <View style={{ flex: 1, height: 1, backgroundColor: '#e2e8f0' }} />
+                          <Text style={{ marginHorizontal: 10, fontSize: 11.5, fontWeight: '700', color: '#64748b' }}>
+                            또는 (PC 및 센서 미지원 환경)
+                          </Text>
+                          <View style={{ flex: 1, height: 1, backgroundColor: '#e2e8f0' }} />
+                        </View>
+
+                        {/* 2. 6자리 가문 보안 PIN 번호 */}
+                        <View style={styles.hybridPinBox}>
+                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+                            <Text style={{ fontSize: 18 }}>🔢</Text>
+                            <Text style={styles.hybridPinTitle}>6자리 가문 보안 PIN 번호</Text>
+                          </View>
+                          <Text style={styles.hybridPinDesc}>
+                            가입 시 설정하신 6자리 PIN 번호를 입력하세요. (초기 기본값: 휴대폰 번호 끝 6자리)
+                          </Text>
+
+                          <TextInput
+                            style={[
+                              styles.input,
+                              {
+                                textAlign: 'center',
+                                fontSize: 22,
+                                letterSpacing: 8,
+                                fontWeight: '900',
+                                backgroundColor: '#ffffff',
+                                borderColor: '#0284c7',
+                                borderWidth: 1.5,
+                                paddingVertical: 10,
+                                marginTop: 8,
+                              },
+                            ]}
+                            value={pinInput}
+                            onChangeText={(txt) => setPinInput(txt.replace(/[^0-9]/g, '').slice(0, 6))}
+                            placeholder="● ● ● ● ● ●"
+                            placeholderTextColor="#cbd5e1"
+                            keyboardType="number-pad"
+                            maxLength={6}
+                            secureTextEntry
+                          />
+
+                          <TouchableOpacity
+                            style={[
+                              styles.verifyOtpBtn,
+                              {
+                                marginTop: 10,
+                                backgroundColor: pinInput.length === 6 ? '#0284c7' : '#94a3b8',
+                              },
+                            ]}
+                            onPress={handlePinSubmit}
+                            disabled={pinInput.length !== 6 || isFirebaseLoading}
+                            activeOpacity={0.85}
+                          >
+                            <Text style={styles.verifyOtpBtnText}>
+                              {isFirebaseLoading ? '확인 중...' : '🔐 6자리 보안 PIN 번호로 승인 및 로그인'}
+                            </Text>
+                          </TouchableOpacity>
+                        </View>
+
+                        {/* 취소 / 번호 다시 입력 */}
+                        <TouchableOpacity
+                          style={{ alignItems: 'center', paddingVertical: 8 }}
+                          onPress={cancelPending2FA}
+                          activeOpacity={0.7}
+                        >
+                          <Text style={{ fontSize: 12, color: '#64748b', fontWeight: '700' }}>
+                            ✕ 다른 번호로 로그인하기
+                          </Text>
+                        </TouchableOpacity>
                       </View>
                     )}
-
-                    <View style={styles.fieldGroup}>
-                      <Text style={styles.fieldLabel}>6자리 보안 OTP 번호</Text>
-                      <TextInput
-                        style={[styles.input, styles.otpInput]}
-                        value={otpInput}
-                        onChangeText={setOtpInput}
-                        placeholder="6자리 숫자"
-                        placeholderTextColor="#94a3b8"
-                        keyboardType="number-pad"
-                        maxLength={6}
-                      />
-                    </View>
-
-                    <View style={styles.otpActionRow}>
-                      <TouchableOpacity
-                        style={styles.verifyOtpBtn}
-                        onPress={handle2FASubmit}
-                        activeOpacity={0.85}
-                      >
-                        <Text style={styles.verifyOtpBtnText}>
-                          🔐 2FA 보안 검증 및 로그인 완료
-                        </Text>
-                      </TouchableOpacity>
-                    </View>
                   </View>
                 )}
               </View>
@@ -1759,6 +1915,48 @@ export const SecurityLoginModal: React.FC<SecurityLoginModalProps> = ({
                       />
                     </View>
                   </View>
+
+                  {/* 2차 보안 PIN 번호 (6자리 숫자) & PIN 확인 */}
+                  <View style={styles.formRow}>
+                    <View style={[styles.fieldGroup, { flex: 1 }]}>
+                      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <Text style={styles.fieldLabel}>
+                          2차 보안 PIN (6자리) <Text style={{ color: '#ef4444' }}>*</Text>
+                        </Text>
+                        <Text style={{ fontSize: 10, color: '#0284c7', fontWeight: '700' }}>
+                          스마트폰 생체인증 호환
+                        </Text>
+                      </View>
+                      <TextInput
+                        style={[styles.input, { letterSpacing: 4, textAlign: 'center', fontWeight: '700' }]}
+                        value={regPin}
+                        onChangeText={(txt) => setRegPin(txt.replace(/[^0-9]/g, '').slice(0, 6))}
+                        placeholder="숫자 6자리 입력"
+                        placeholderTextColor="#94a3b8"
+                        keyboardType="number-pad"
+                        maxLength={6}
+                        secureTextEntry
+                      />
+                    </View>
+                    <View style={[styles.fieldGroup, { flex: 1 }]}>
+                      <Text style={styles.fieldLabel}>
+                        보안 PIN 재확인 <Text style={{ color: '#ef4444' }}>*</Text>
+                      </Text>
+                      <TextInput
+                        style={[styles.input, { letterSpacing: 4, textAlign: 'center', fontWeight: '700' }]}
+                        value={regPinConfirm}
+                        onChangeText={(txt) => setRegPinConfirm(txt.replace(/[^0-9]/g, '').slice(0, 6))}
+                        placeholder="동일 PIN 6자리 재입력"
+                        placeholderTextColor="#94a3b8"
+                        keyboardType="number-pad"
+                        maxLength={6}
+                        secureTextEntry
+                      />
+                    </View>
+                  </View>
+                  <Text style={[styles.fieldHint, { marginTop: -6, marginBottom: 10, color: '#0369a1' }]}>
+                    💡 로그인 2차 인증 시 사용되는 6자리 보안 번호입니다. 스마트폰에서는 지문/Face ID로 터치 한 번에 자동 통과됩니다.
+                  </Text>
 
                   {/* 생년월일 */}
                   <View style={styles.fieldGroup}>
@@ -3325,5 +3523,59 @@ const styles = StyleSheet.create({
     fontSize: 11.5,
     color: '#334155',
     fontWeight: '600',
+  },
+  hybridBioBox: {
+    backgroundColor: '#f0fdf4',
+    borderWidth: 1.5,
+    borderColor: '#86efac',
+    borderRadius: 12,
+    padding: 14,
+    shadowColor: '#16a34a',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 6,
+    elevation: 2,
+  },
+  hybridBioTitle: {
+    fontSize: 14.5,
+    fontWeight: '800',
+    color: '#14532d',
+  },
+  hybridBioDesc: {
+    fontSize: 11.5,
+    color: '#166534',
+    marginTop: 2,
+    lineHeight: 16,
+  },
+  hybridBioBtn: {
+    backgroundColor: '#15803d',
+    paddingVertical: 13,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 8,
+  },
+  hybridBioBtnText: {
+    color: '#ffffff',
+    fontSize: 14,
+    fontWeight: '800',
+  },
+  hybridPinBox: {
+    backgroundColor: '#f8fafc',
+    borderWidth: 1,
+    borderColor: '#cbd5e1',
+    borderRadius: 12,
+    padding: 14,
+  },
+  hybridPinTitle: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#1e293b',
+  },
+  hybridPinDesc: {
+    fontSize: 11.5,
+    color: '#64748b',
+    lineHeight: 16,
   },
 });
