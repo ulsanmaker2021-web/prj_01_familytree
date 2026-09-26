@@ -26,6 +26,12 @@ import {
   DEFAULT_FIREBASE_PLACEHOLDER,
 } from '../config/firebaseConfig';
 import {
+  getSavedSupabaseConfig,
+  saveSupabaseConfig,
+  DEFAULT_SUPABASE_URL,
+  isSupabaseConnected,
+} from '../config/supabaseClient';
+import {
   sendFirebasePhoneOtp,
   verifyFirebasePhoneOtp,
   ensureRecaptchaContainer,
@@ -110,13 +116,17 @@ export const SecurityLoginModal: React.FC<SecurityLoginModalProps> = ({
   const [syncQrCodeFallbackUrl, setSyncQrCodeFallbackUrl] = useState('');
   const [syncQrImageError, setSyncQrImageError] = useState(false);
 
-  // Firebase Phone Auth State
+  // Firebase Phone Auth & Supabase Cloud DB State
   const [isFirebaseConfiguredState, setIsFirebaseConfiguredState] = useState(isFirebaseConfigured());
   const [isFirebaseMode, setIsFirebaseMode] = useState(isFirebaseConfigured());
   const [isFirebaseConfigModalOpen, setIsFirebaseConfigModalOpen] = useState(false);
   const [fbConfigInput, setFbConfigInput] = useState<JokboFirebaseConfig>(
     getSavedFirebaseConfig() || DEFAULT_FIREBASE_PLACEHOLDER
   );
+  const [sbConfigInput, setSbConfigInput] = useState<{ url: string; anonKey: string }>(
+    getSavedSupabaseConfig()
+  );
+  const [isSupabaseConfiguredState, setIsSupabaseConfiguredState] = useState(isSupabaseConnected());
   const [isFirebaseLoading, setIsFirebaseLoading] = useState(false);
 
   // Registration form state
@@ -222,28 +232,49 @@ export const SecurityLoginModal: React.FC<SecurityLoginModalProps> = ({
     }, 4000);
   };
 
-  // Firebase Config Save
+  // Firebase & Supabase Cloud Config Save
   const handleSaveFirebaseConfig = () => {
-    if (!fbConfigInput.apiKey.trim() || !fbConfigInput.projectId.trim()) {
-      showToast('Firebase API Key와 Project ID는 필수입니다.', true);
-      return;
-    }
-    const cleanConfig: JokboFirebaseConfig = {
-      apiKey: fbConfigInput.apiKey.trim(),
-      authDomain: fbConfigInput.authDomain.trim() || `${fbConfigInput.projectId.trim()}.firebaseapp.com`,
-      projectId: fbConfigInput.projectId.trim(),
-      storageBucket: fbConfigInput.storageBucket?.trim() || `${fbConfigInput.projectId.trim()}.appspot.com`,
-      messagingSenderId: fbConfigInput.messagingSenderId?.trim() || '',
-      appId: fbConfigInput.appId.trim(),
-    };
-    const ok = saveFirebaseConfig(cleanConfig);
-    if (ok) {
-      setIsFirebaseConfiguredState(true);
-      setIsFirebaseMode(true);
-      setIsFirebaseConfigModalOpen(false);
-      showToast('🔥 Firebase 연동 설정이 저장되었습니다! 이제 실제 스마트폰 SMS가 발송됩니다.', false, true);
-    } else {
-      showToast('설정 저장 중 오류가 발생했습니다.', true);
+    try {
+      const apiKey = (fbConfigInput.apiKey || '').trim();
+      const projectId = (fbConfigInput.projectId || '').trim();
+
+      if (!apiKey || !projectId) {
+        showToast('Firebase API Key와 Project ID는 필수 입력값입니다.', true);
+        return;
+      }
+
+      const cleanConfig: JokboFirebaseConfig = {
+        apiKey,
+        authDomain: (fbConfigInput.authDomain || '').trim() || `${projectId}.firebaseapp.com`,
+        projectId,
+        storageBucket: (fbConfigInput.storageBucket || '').trim() || `${projectId}.appspot.com`,
+        messagingSenderId: (fbConfigInput.messagingSenderId || '').trim(),
+        appId: (fbConfigInput.appId || '').trim(),
+      };
+
+      const okFb = saveFirebaseConfig(cleanConfig);
+
+      // Supabase 설정도 함께 저장
+      if (sbConfigInput.anonKey && sbConfigInput.anonKey.trim()) {
+        saveSupabaseConfig(
+          (sbConfigInput.url || DEFAULT_SUPABASE_URL).trim(),
+          sbConfigInput.anonKey.trim()
+        );
+        setIsSupabaseConfiguredState(true);
+      }
+
+      if (okFb) {
+        setFbConfigInput(cleanConfig);
+        setIsFirebaseConfiguredState(true);
+        setIsFirebaseMode(true);
+        setIsFirebaseConfigModalOpen(false);
+        showToast('🔥 클라우드 및 Firebase 설정이 안전하게 저장되었습니다!', false, true);
+      } else {
+        showToast('설정 저장 중 오류가 발생했습니다. 브라우저 저장소 권한을 확인해주세요.', true);
+      }
+    } catch (e: any) {
+      console.error('Error in handleSaveFirebaseConfig:', e);
+      showToast('설정 저장 오류: ' + (e?.message || '알 수 없는 오류'), true);
     }
   };
 
@@ -254,6 +285,13 @@ export const SecurityLoginModal: React.FC<SecurityLoginModalProps> = ({
     setIsFirebaseMode(false);
     setIsFirebaseConfigModalOpen(false);
     showToast('Firebase 설정이 초기화되었습니다. 모의 시뮬레이션 모드로 전환되었습니다.');
+  };
+
+  const openFirebaseConfigModal = () => {
+    const savedFb = getSavedFirebaseConfig() || DEFAULT_FIREBASE_PLACEHOLDER;
+    setFbConfigInput(savedFb);
+    setSbConfigInput(getSavedSupabaseConfig());
+    setIsFirebaseConfigModalOpen(true);
   };
 
   useEffect(() => {
@@ -726,7 +764,7 @@ export const SecurityLoginModal: React.FC<SecurityLoginModalProps> = ({
                   ]}
                   onPress={() => {
                     if (!isFirebaseConfiguredState) {
-                      setIsFirebaseConfigModalOpen(true);
+                      openFirebaseConfigModal();
                     } else {
                       const nextMode = !isFirebaseMode;
                       setIsFirebaseMode(nextMode);
@@ -755,7 +793,7 @@ export const SecurityLoginModal: React.FC<SecurityLoginModalProps> = ({
 
                 <TouchableOpacity
                   style={styles.firebaseSettingBtnMobile}
-                  onPress={() => setIsFirebaseConfigModalOpen(true)}
+                  onPress={openFirebaseConfigModal}
                   activeOpacity={0.8}
                 >
                   <Text style={{ fontSize: 13 }}>⚙️</Text>
@@ -795,7 +833,7 @@ export const SecurityLoginModal: React.FC<SecurityLoginModalProps> = ({
                   ]}
                   onPress={() => {
                     if (!isFirebaseConfiguredState) {
-                      setIsFirebaseConfigModalOpen(true);
+                      openFirebaseConfigModal();
                     } else {
                       const nextMode = !isFirebaseMode;
                       setIsFirebaseMode(nextMode);
@@ -824,7 +862,7 @@ export const SecurityLoginModal: React.FC<SecurityLoginModalProps> = ({
 
                 <TouchableOpacity
                   style={styles.firebaseSettingBtn}
-                  onPress={() => setIsFirebaseConfigModalOpen(true)}
+                  onPress={openFirebaseConfigModal}
                   activeOpacity={0.8}
                 >
                   <Text style={styles.firebaseSettingBtnText}>⚙️ Firebase 설정</Text>
@@ -2283,22 +2321,17 @@ export const SecurityLoginModal: React.FC<SecurityLoginModalProps> = ({
         </View>
       </View>
 
-      {/* ================= FIREBASE CONFIG MODAL ================= */}
-      <Modal
-        visible={isFirebaseConfigModalOpen}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setIsFirebaseConfigModalOpen(false)}
-      >
+      {/* ================= FIREBASE & CLOUD CONFIG OVERLAY ================= */}
+      {isFirebaseConfigModalOpen && (
         <View style={styles.fbOverlay}>
-          <View style={styles.fbCard}>
+          <View style={[styles.fbCard, isMobile && { width: '96%', maxHeight: '92%' }]}>
             <View style={styles.fbHeader}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1 }}>
                 <Text style={{ fontSize: 24 }}>🔥</Text>
                 <View style={{ flex: 1 }}>
-                  <Text style={styles.fbTitle}>Firebase Phone Auth 프로젝트 설정</Text>
+                  <Text style={styles.fbTitle}>가문 클라우드(Firebase & Supabase) 설정</Text>
                   <Text style={styles.fbSub}>
-                    Google Firebase 콘솔의 웹 앱 설정 키를 등록하여 무료 6자리 SMS OTP를 활성화합니다.
+                    실제 스마트폰 6자리 SMS 발송 및 실시간 중앙 DB 연동 설정
                   </Text>
                 </View>
               </View>
@@ -2312,17 +2345,53 @@ export const SecurityLoginModal: React.FC<SecurityLoginModalProps> = ({
             </View>
 
             <ScrollView style={styles.fbScroll} showsVerticalScrollIndicator={false}>
+              {/* jokbo360 원클릭 기본값 자동완성 버튼 */}
+              <TouchableOpacity
+                style={{
+                  backgroundColor: '#fff7ed',
+                  borderWidth: 1.5,
+                  borderColor: '#f97316',
+                  borderRadius: 10,
+                  padding: 12,
+                  marginBottom: 14,
+                }}
+                onPress={() => {
+                  setFbConfigInput((prev) => ({
+                    ...prev,
+                    projectId: 'jokbo360',
+                    authDomain: 'jokbo360.firebaseapp.com',
+                    storageBucket: 'jokbo360.appspot.com',
+                  }));
+                  showToast('⚡ [jokbo360] 프로젝트 기본값이 입력되었습니다. apiKey와 appId만 채워주세요!', false, true);
+                }}
+                activeOpacity={0.8}
+              >
+                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <View style={{ flex: 1, marginRight: 8 }}>
+                    <Text style={{ fontSize: 13, fontWeight: '800', color: '#c2410c' }}>
+                      ⚡ [jokbo360] 프로젝트 원클릭 자동완성
+                    </Text>
+                    <Text style={{ fontSize: 11, color: '#9a3412', marginTop: 2 }}>
+                      터치 한 번으로 projectId(jokbo360), authDomain, storageBucket이 자동 입력됩니다.
+                    </Text>
+                  </View>
+                  <View style={{ backgroundColor: '#ea580c', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 6 }}>
+                    <Text style={{ color: '#ffffff', fontSize: 11.5, fontWeight: '800' }}>자동완성</Text>
+                  </View>
+                </View>
+              </TouchableOpacity>
+
               {/* Step by step guide */}
               <View style={styles.fbGuideBox}>
-                <Text style={styles.fbGuideTitle}>💡 3단계 초간단 연동 가이드 (비용 0원):</Text>
+                <Text style={styles.fbGuideTitle}>💡 Firebase 콘솔 3단계 연동 안내 (월 1만건 무료):</Text>
                 <Text style={styles.fbGuideStep}>
-                  1. <Text style={{ fontWeight: '700' }}>console.firebase.google.com</Text> 접속 후 무료 프로젝트 생성
+                  1. <Text style={{ fontWeight: '700' }}>console.firebase.google.com</Text> ➔ [jokbo360] 프로젝트 접속
                 </Text>
                 <Text style={styles.fbGuideStep}>
-                  2. <Text style={{ fontWeight: '700' }}>Authentication ➔ Sign-in method</Text>에서 <Text style={{ fontWeight: '700', color: '#0369a1' }}>[전화 (Phone)]</Text> 사용 설정
+                  2. <Text style={{ fontWeight: '700' }}>Authentication ➔ Sign-in method</Text>에서 [전화] 사용 설정
                 </Text>
                 <Text style={styles.fbGuideStep}>
-                  3. 프로젝트 설정 ➔ 일반 ➔ <Text style={{ fontWeight: '700' }}>내 앱 (웹 앱 &lt;/&gt;)</Text> 추가 후 표시되는 설정값을 아래에 복사/붙여넣기
+                  3. 프로젝트 설정 ➔ 일반 ➔ <Text style={{ fontWeight: '700' }}>내 앱 (웹 앱 &lt;/&gt;)</Text>의 apiKey와 appId를 아래에 입력
                 </Text>
               </View>
 
@@ -2341,18 +2410,6 @@ export const SecurityLoginModal: React.FC<SecurityLoginModalProps> = ({
               </View>
 
               <View style={styles.fieldGroup}>
-                <Text style={styles.fieldLabel}>authDomain</Text>
-                <TextInput
-                  style={styles.input}
-                  value={fbConfigInput.authDomain}
-                  onChangeText={(txt) => setFbConfigInput({ ...fbConfigInput, authDomain: txt })}
-                  placeholder="예: my-jokbo-project.firebaseapp.com"
-                  placeholderTextColor="#94a3b8"
-                  autoCapitalize="none"
-                />
-              </View>
-
-              <View style={styles.fieldGroup}>
                 <Text style={styles.fieldLabel}>
                   projectId <Text style={{ color: '#ef4444' }}>*</Text>
                 </Text>
@@ -2360,7 +2417,19 @@ export const SecurityLoginModal: React.FC<SecurityLoginModalProps> = ({
                   style={styles.input}
                   value={fbConfigInput.projectId}
                   onChangeText={(txt) => setFbConfigInput({ ...fbConfigInput, projectId: txt })}
-                  placeholder="예: my-jokbo-project"
+                  placeholder="jokbo360"
+                  placeholderTextColor="#94a3b8"
+                  autoCapitalize="none"
+                />
+              </View>
+
+              <View style={styles.fieldGroup}>
+                <Text style={styles.fieldLabel}>authDomain</Text>
+                <TextInput
+                  style={styles.input}
+                  value={fbConfigInput.authDomain}
+                  onChangeText={(txt) => setFbConfigInput({ ...fbConfigInput, authDomain: txt })}
+                  placeholder="jokbo360.firebaseapp.com"
                   placeholderTextColor="#94a3b8"
                   autoCapitalize="none"
                 />
@@ -2378,11 +2447,53 @@ export const SecurityLoginModal: React.FC<SecurityLoginModalProps> = ({
                 />
               </View>
 
+              {/* Supabase PostgreSQL 중앙 DB 연동 섹션 */}
+              <View style={{ marginTop: 14, paddingTop: 14, borderTopWidth: 1.5, borderTopColor: '#e2e8f0' }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+                  <Text style={{ fontSize: 18 }}>☁️</Text>
+                  <Text style={{ fontSize: 13.5, fontWeight: '800', color: '#0f172a' }}>
+                    Supabase PostgreSQL 클라우드 DB 연동 (PC ↔ 폰 가계도 동기화)
+                  </Text>
+                </View>
+                <Text style={{ fontSize: 11, color: '#64748b', marginBottom: 10 }}>
+                  PC와 스마트폰 간 가계도 및 결연 정보를 실시간 양방향 영구 보존합니다.
+                </Text>
+
+                <View style={styles.fieldGroup}>
+                  <Text style={styles.fieldLabel}>Supabase Project URL</Text>
+                  <TextInput
+                    style={[styles.input, { backgroundColor: '#f8fafc' }]}
+                    value={sbConfigInput.url}
+                    onChangeText={(txt) => setSbConfigInput({ ...sbConfigInput, url: txt })}
+                    placeholder={DEFAULT_SUPABASE_URL}
+                    placeholderTextColor="#94a3b8"
+                    autoCapitalize="none"
+                  />
+                </View>
+
+                <View style={styles.fieldGroup}>
+                  <Text style={styles.fieldLabel}>
+                    Supabase anon public API Key <Text style={{ color: '#0284c7' }}>(대시보드 API 키)</Text>
+                  </Text>
+                  <TextInput
+                    style={styles.input}
+                    value={sbConfigInput.anonKey}
+                    onChangeText={(txt) => setSbConfigInput({ ...sbConfigInput, anonKey: txt })}
+                    placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+                    placeholderTextColor="#94a3b8"
+                    autoCapitalize="none"
+                  />
+                  <Text style={{ fontSize: 11, color: '#0284c7', marginTop: 4 }}>
+                    💡 Supabase 대시보드 ➔ Project Settings ➔ API 에서 'anon public' 키를 복사하여 붙여넣으세요.
+                  </Text>
+                </View>
+              </View>
+
               {/* Free Test Numbers Tip */}
               <View style={styles.fbTipBox}>
                 <Text style={styles.fbTipTitle}>🧪 통신비 0원 무료 테스트 꿀팁:</Text>
                 <Text style={styles.fbTipText}>
-                  Firebase Console의 [테스트용 전화번호]에 본인 번호(예: <Text style={{ fontWeight: '700' }}>+82 10-1234-5678</Text>)와 고정 인증번호(예: <Text style={{ fontWeight: '700' }}>123456</Text>)를 등록해 두시면 실제 SMS 발송량 차감 없이 완전 무료로 무한정 테스트할 수 있습니다!
+                  Firebase Console의 [테스트용 전화번호]에 본인 번호(예: <Text style={{ fontWeight: '700' }}>+82 10-6730-2029</Text>)와 고정 인증번호(예: <Text style={{ fontWeight: '700' }}>123456</Text>)를 등록해 두시면 실제 SMS 발송량 차감 없이 완전 무료로 무한정 테스트할 수 있습니다!
                 </Text>
               </View>
             </ScrollView>
@@ -2407,7 +2518,7 @@ export const SecurityLoginModal: React.FC<SecurityLoginModalProps> = ({
             </View>
           </View>
         </View>
-      </Modal>
+      )}
     </Modal>
   );
 };
@@ -3442,13 +3553,18 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#c2410c',
   },
-  // Firebase Config Modal Styles
+  // Firebase & Cloud Config Overlay Styles
   fbOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(15, 23, 42, 0.75)',
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(15, 23, 42, 0.85)',
     justifyContent: 'center',
     alignItems: 'center',
     padding: 16,
+    zIndex: 9999,
   },
   fbCard: {
     width: '100%',

@@ -17,6 +17,11 @@ import {
   saveFirebaseConfig,
   JokboFirebaseConfig,
 } from '../config/firebaseConfig';
+import {
+  getSavedSupabaseConfig,
+  saveSupabaseConfig,
+  DEFAULT_SUPABASE_URL,
+} from '../config/supabaseClient';
 import { saveAllToCloudDatabase } from '../services/unifiedCloudSyncService';
 
 export interface JokboSyncPayload {
@@ -97,6 +102,7 @@ export function generateSyncPackage(userId?: string): GenerateSyncPackageResult 
     const familyTree = getStoredCustomFamily(targetAccount.id) || [];
     const establishedLinks = getStoredEstablishedLinks(targetAccount.id) || [];
     const fbConfig = getSavedFirebaseConfig();
+    const sbConfig = getSavedSupabaseConfig();
 
     // V2 Compact 규격: 이미지 414 URI Too Large 에러 방지를 위해 필수 필드만 추출
     const compactPayload = {
@@ -138,6 +144,13 @@ export function generateSyncPackage(userId?: string): GenerateSyncPackageResult 
               d: fbConfig.authDomain || `${fbConfig.projectId}.firebaseapp.com`,
               p: fbConfig.projectId,
               a: fbConfig.appId || '',
+            }
+          : undefined,
+      sb:
+        sbConfig && sbConfig.anonKey
+          ? {
+              u: sbConfig.url,
+              k: sbConfig.anonKey,
             }
           : undefined,
     };
@@ -269,6 +282,11 @@ export function importSyncPackage(rawSyncCode: string): {
       firebaseConfig = rawData.firebaseConfig;
     } else {
       return { success: false, message: '올바른 가문 족보 동기화 데이터 규격이 아닙니다.' };
+    }
+
+    // 0. Supabase 설정 동기화
+    if (rawData.sb && rawData.sb.k) {
+      saveSupabaseConfig(rawData.sb.u || DEFAULT_SUPABASE_URL, rawData.sb.k);
     }
 
     // 1. Firebase 설정 동기화
