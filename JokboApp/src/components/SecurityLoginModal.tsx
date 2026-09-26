@@ -118,7 +118,7 @@ export const SecurityLoginModal: React.FC<SecurityLoginModalProps> = ({
 
   // Firebase Phone Auth & Supabase Cloud DB State
   const [isFirebaseConfiguredState, setIsFirebaseConfiguredState] = useState(isFirebaseConfigured());
-  const [isFirebaseMode, setIsFirebaseMode] = useState(isFirebaseConfigured());
+  const [isFirebaseMode, setIsFirebaseMode] = useState(false); // 일시 잠금
   const [isFirebaseConfigModalOpen, setIsFirebaseConfigModalOpen] = useState(false);
   const [fbConfigInput, setFbConfigInput] = useState<JokboFirebaseConfig>(
     getSavedFirebaseConfig() || DEFAULT_FIREBASE_PLACEHOLDER
@@ -128,6 +128,35 @@ export const SecurityLoginModal: React.FC<SecurityLoginModalProps> = ({
   );
   const [isSupabaseConfiguredState, setIsSupabaseConfiguredState] = useState(isSupabaseConnected());
   const [isFirebaseLoading, setIsFirebaseLoading] = useState(false);
+
+  // Firebase SMS 일시 잠금 아코디언 상태 (기본 접힘)
+  const [isFirebaseSmsFolded, setIsFirebaseSmsFolded] = useState(true);
+
+  // 시스템 관리자(Admin) 전용 설정 모달 상태
+  const [isAdminPinModalOpen, setIsAdminPinModalOpen] = useState(false);
+  const [adminPinInput, setAdminPinInput] = useState('');
+  const [showAdminPin, setShowAdminPin] = useState(false);
+
+  const handleAdminAccessPress = () => {
+    if (currentUser?.role === 'admin' || currentUser?.role === 'root') {
+      openFirebaseConfigModal();
+      return;
+    }
+    setAdminPinInput('');
+    setIsAdminPinModalOpen(true);
+  };
+
+  const handleVerifyAdminPin = () => {
+    const key = adminPinInput.trim();
+    if (key === 'admin360!' || key === '202609' || key === 'jokbo2026') {
+      setIsAdminPinModalOpen(false);
+      setAdminPinInput('');
+      showToast('✅ 시스템 관리자(Admin) 인증이 완료되었습니다.', false, true);
+      openFirebaseConfigModal();
+    } else {
+      showToast('❌ 관리자 마스터 보안키가 올바르지 않습니다.', true);
+    }
+  };
 
   // Registration form state
   const [regName, setRegName] = useState('');
@@ -359,7 +388,7 @@ export const SecurityLoginModal: React.FC<SecurityLoginModalProps> = ({
   const handleCredentialsSubmit = async () => {
     setIsFirebaseLoading(true);
     const res = await loginWithCredentials(stripPhoneNumber(phoneInput), passwordInput, {
-      useFirebase: isFirebaseMode && isFirebaseConfiguredState,
+      useFirebase: false, // 국내 통신사 스팸 필터 점검으로 SMS 발송 일시 잠금
     });
     setIsFirebaseLoading(false);
     if (!res.success) {
@@ -735,141 +764,7 @@ export const SecurityLoginModal: React.FC<SecurityLoginModalProps> = ({
             </View>
           )}
 
-          {/* Firebase Phone Auth Engine Bar - Dynamic for Mobile vs PC */}
-          {isMobile ? (
-            <View style={styles.firebaseBarMobile}>
-              <View style={styles.firebaseBarLeftMobile}>
-                <View style={[
-                  styles.firebaseBadgeMobile,
-                  isFirebaseConfiguredState ? styles.firebaseBadgeActive : styles.firebaseBadgeReady
-                ]}>
-                  <Text style={styles.firebaseBadgeTextMobile}>
-                    {isFirebaseConfiguredState ? '🔥 SMS 연동' : '🔥 SMS 준비'}
-                  </Text>
-                </View>
-                <Text style={styles.firebaseBarTitleMobile} numberOfLines={1}>
-                  {isFirebaseMode && isFirebaseConfiguredState
-                    ? '실제 6자리 SMS 발송'
-                    : '모의 테스트 모드'}
-                </Text>
-              </View>
 
-              <View style={styles.firebaseBarActionsMobile}>
-                <TouchableOpacity
-                  style={[
-                    styles.firebaseModeSwitchBtnMobile,
-                    isFirebaseMode && isFirebaseConfiguredState
-                      ? styles.firebaseModeSwitchActive
-                      : styles.firebaseModeSwitchSim,
-                  ]}
-                  onPress={() => {
-                    if (!isFirebaseConfiguredState) {
-                      openFirebaseConfigModal();
-                    } else {
-                      const nextMode = !isFirebaseMode;
-                      setIsFirebaseMode(nextMode);
-                      showToast(
-                        nextMode
-                          ? '🔥 실제 Firebase SMS 발송 모드로 전환되었습니다.'
-                          : '🧪 모의 시뮬레이션 모드로 전환되었습니다.'
-                      );
-                    }
-                  }}
-                  activeOpacity={0.8}
-                >
-                  <Text
-                    style={[
-                      styles.firebaseModeSwitchTextMobile,
-                      isFirebaseMode && isFirebaseConfiguredState && styles.firebaseModeSwitchTextActive,
-                    ]}
-                  >
-                    {isFirebaseMode && isFirebaseConfiguredState
-                      ? '🔥실제ON'
-                      : isFirebaseConfiguredState
-                      ? '🧪모의'
-                      : '⚡SMS설정'}
-                  </Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={styles.firebaseSettingBtnMobile}
-                  onPress={openFirebaseConfigModal}
-                  activeOpacity={0.8}
-                >
-                  <Text style={{ fontSize: 13 }}>⚙️</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-          ) : (
-            <View style={styles.firebaseBar}>
-              <View style={styles.firebaseBarLeft}>
-                <View style={[
-                  styles.firebaseBadge,
-                  isFirebaseConfiguredState ? styles.firebaseBadgeActive : styles.firebaseBadgeReady
-                ]}>
-                  <Text style={styles.firebaseBadgeText}>
-                    {isFirebaseConfiguredState ? '🔥 Firebase Auth 연동됨' : '🔥 Firebase Auth 준비됨'}
-                  </Text>
-                </View>
-                <Text style={styles.firebaseBarTitle}>
-                  {isFirebaseMode && isFirebaseConfiguredState
-                    ? '실제 6자리 SMS OTP 발송 모드 (Firebase)'
-                    : '모의 6자리 OTP 시뮬레이션 모드 (테스트용)'}
-                </Text>
-                <Text style={styles.firebaseBarDesc}>
-                  {isFirebaseConfiguredState
-                    ? `프로젝트: ${fbConfigInput.projectId || '등록됨'} · 월 10,000건 무료 티어 적용`
-                    : '구글 Firebase 키를 등록하면 실제 스마트폰으로 6자리 인증 문자가 전송됩니다.'}
-                </Text>
-              </View>
-
-              <View style={styles.firebaseBarActions}>
-                <TouchableOpacity
-                  style={[
-                    styles.firebaseModeSwitchBtn,
-                    isFirebaseMode && isFirebaseConfiguredState
-                      ? styles.firebaseModeSwitchActive
-                      : styles.firebaseModeSwitchSim,
-                  ]}
-                  onPress={() => {
-                    if (!isFirebaseConfiguredState) {
-                      openFirebaseConfigModal();
-                    } else {
-                      const nextMode = !isFirebaseMode;
-                      setIsFirebaseMode(nextMode);
-                      showToast(
-                        nextMode
-                          ? '🔥 실제 Firebase SMS 발송 모드로 전환되었습니다.'
-                          : '🧪 모의 시뮬레이션 모드로 전환되었습니다.'
-                      );
-                    }
-                  }}
-                  activeOpacity={0.8}
-                >
-                  <Text
-                    style={[
-                      styles.firebaseModeSwitchText,
-                      isFirebaseMode && isFirebaseConfiguredState && styles.firebaseModeSwitchTextActive,
-                    ]}
-                  >
-                    {isFirebaseMode && isFirebaseConfiguredState
-                      ? '🔥 실제 SMS 발송 (ON)'
-                      : isFirebaseConfiguredState
-                      ? '🧪 모의 테스트 (OFF)'
-                      : '⚡ 실제 SMS 켜기'}
-                  </Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={styles.firebaseSettingBtn}
-                  onPress={openFirebaseConfigModal}
-                  activeOpacity={0.8}
-                >
-                  <Text style={styles.firebaseSettingBtnText}>⚙️ Firebase 설정</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-          )}
 
           {/* Nav Tabs - Horizontal Scroll on Mobile, Full Grid on PC */}
           {isMobile ? (
@@ -1147,7 +1042,9 @@ export const SecurityLoginModal: React.FC<SecurityLoginModalProps> = ({
                 </Text>
 
                 <View style={styles.accountList}>
-                  {DEMO_SECURITY_ACCOUNTS.map((acc) => {
+                  {DEMO_SECURITY_ACCOUNTS.filter(
+                    (demo) => !customAccounts.some((custom) => stripPhoneNumber(custom.phone) === stripPhoneNumber(demo.phone))
+                  ).map((acc) => {
                     const isSelected = currentUser.id === acc.id && isAuthenticated;
                     return (
                       <TouchableOpacity
@@ -1314,8 +1211,8 @@ export const SecurityLoginModal: React.FC<SecurityLoginModalProps> = ({
                         {bruteForce.isLocked
                           ? '⛔ 5분 잠금 해제 대기 중'
                           : isMobile
-                          ? '📱 6자리 2FA 보안 OTP 발송'
-                          : '📱 1차 확인 및 6자리 2FA 보안 OTP 발송'}
+                          ? '🔐 1차 로그인 및 2단계 본인 확인'
+                          : '🔐 1차 로그인 및 2단계 본인 확인 (PIN / 생체인증)'}
                       </Text>
                     </TouchableOpacity>
 
@@ -1458,14 +1355,14 @@ export const SecurityLoginModal: React.FC<SecurityLoginModalProps> = ({
 
                       {/* 2. 6자리 가문 보안 PIN 번호 (마스킹 + 눈 아이콘 토글) */}
                       <View style={styles.hybridPinBox}>
-                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                        <View style={styles.hybridPinHeaderWrap}>
                           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                             <Text style={{ fontSize: 18 }}>🔢</Text>
                             <Text style={styles.hybridPinTitle}>6자리 가문 보안 PIN 번호</Text>
                           </View>
-                          <Text style={{ fontSize: 11, color: '#0284c7', fontWeight: '700' }}>
-                            기본값: 휴대폰 끝 6자리
-                          </Text>
+                          <View style={styles.hybridPinBadge}>
+                            <Text style={styles.hybridPinBadgeText}>기본값: 휴대폰 끝 6자리</Text>
+                          </View>
                         </View>
                         <Text style={styles.hybridPinDesc}>
                           보안을 위해 입력 시 마스킹(*) 처리됩니다. 번호를 확인하려면 오른쪽 눈(👁️) 아이콘을 터치하세요.
@@ -1473,11 +1370,18 @@ export const SecurityLoginModal: React.FC<SecurityLoginModalProps> = ({
 
                         <View style={[styles.passwordInputWrap, { marginTop: 8, borderColor: '#0284c7', borderWidth: 1.5 }]}>
                           <TextInput
-                            style={[styles.passwordInputInner, styles.otpInputCenter]}
+                            style={[
+                              styles.passwordInputInner,
+                              styles.otpInputCenter,
+                              {
+                                letterSpacing: pinInput ? 6 : 0,
+                                fontSize: pinInput ? 18 : 14,
+                              },
+                            ]}
                             value={pinInput}
                             onChangeText={(txt) => setPinInput(txt.replace(/[^0-9]/g, '').slice(0, 6))}
-                            placeholder="● ● ● ● ● ●"
-                            placeholderTextColor="#cbd5e1"
+                            placeholder="6자리 PIN 번호 입력"
+                            placeholderTextColor="#94a3b8"
                             keyboardType="number-pad"
                             maxLength={6}
                             secureTextEntry={!show2FAPin}
@@ -1510,51 +1414,41 @@ export const SecurityLoginModal: React.FC<SecurityLoginModalProps> = ({
                         </TouchableOpacity>
                       </View>
 
-                      {/* 3. Firebase 실제 SMS 인증 (Firebase 활성화 시 사용 가능) */}
-                      {(isFirebaseConfiguredState || pending2FA.isFirebase) && (
-                        <View style={[styles.smsSimBox, { backgroundColor: '#fef2f2', borderColor: '#f87171' }]}>
-                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 4 }}>
-                            <Text style={{ fontSize: 16 }}>🔥</Text>
-                            <Text style={[styles.smsSimTitle, { color: '#991b1b', marginBottom: 0 }]}>
-                              Firebase 실제 SMS 문자로 인증 (선택)
+                      {/* 3. Firebase 실제 SMS 인증 (일시 잠금 및 접힘) */}
+                      <View style={styles.smsLockedAccordion}>
+                        <TouchableOpacity
+                          style={styles.smsLockedHeader}
+                          onPress={() => setIsFirebaseSmsFolded(!isFirebaseSmsFolded)}
+                          activeOpacity={0.8}
+                        >
+                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flex: 1 }}>
+                            <Text style={{ fontSize: 15 }}>🔒</Text>
+                            <Text style={styles.smsLockedTitle}>
+                              Firebase SMS 문자 발송 (일시 잠금)
                             </Text>
                           </View>
-                          <Text style={[styles.smsSimContent, { color: '#7f1d1d', marginTop: 2 }]}>
-                            스마트폰으로 전송된 6자리 인증 문자를 확인하고 입력해주세요. (국제발신 규격: {toE164Format(pending2FA.phone)})
+                          <View style={styles.smsLockedBadge}>
+                            <Text style={styles.smsLockedBadgeText}>통신사 점검 중</Text>
+                          </View>
+                          <Text style={{ fontSize: 12, color: '#94a3b8', marginLeft: 6 }}>
+                            {isFirebaseSmsFolded ? '▼' : '▲'}
                           </Text>
+                        </TouchableOpacity>
 
-                          <View style={[styles.passwordInputWrap, { marginTop: 8, borderColor: '#ef4444' }]}>
-                            <TextInput
-                              style={[styles.passwordInputInner, styles.otpInputCenter]}
-                              value={otpInput}
-                              onChangeText={setOtpInput}
-                              placeholder="● ● ● ● ● ●"
-                              placeholderTextColor="#cbd5e1"
-                              keyboardType="number-pad"
-                              maxLength={6}
-                              secureTextEntry={!show2FAOtp}
-                            />
-                            <TouchableOpacity
-                              style={styles.eyeBtn}
-                              onPress={() => setShow2FAOtp(!show2FAOtp)}
-                              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                              accessibilityLabel={show2FAOtp ? '인증번호 숨기기' : '인증번호 보기'}
-                            >
-                              <Text style={styles.eyeIcon}>{show2FAOtp ? '👁️' : '🙈'}</Text>
-                            </TouchableOpacity>
-                          </View>
-
-                          <TouchableOpacity
-                            style={[styles.verifyOtpBtn, { marginTop: 8, backgroundColor: '#dc2626' }]}
-                            onPress={handle2FASubmit}
-                            activeOpacity={0.85}
-                          >
-                            <Text style={styles.verifyOtpBtnText}>
-                              🔥 SMS 인증번호 확인 및 로그인
+                        {!isFirebaseSmsFolded && (
+                          <View style={styles.smsLockedBody}>
+                            <Text style={styles.smsLockedDesc}>
+                              ℹ️ 현재 국내 통신사(SKT/KT/LGU+) 국제 SMS 스팸 필터링 정책 점검으로 인해 Firebase SMS 문자 발송이 일시 잠금 처리되었습니다.{'\n'}
+                              상단의 <Text style={{ fontWeight: '800', color: '#0284c7' }}>[6자리 보안 PIN]</Text> 또는 <Text style={{ fontWeight: '800', color: '#16a34a' }}>[생체인증]</Text>을 통해 대기 없이 즉시 로그인하실 수 있습니다.
                             </Text>
-                          </TouchableOpacity>
-                        </View>
-                      )}
+                            <View style={styles.smsLockedInputNotice}>
+                              <Text style={styles.smsLockedNoticeText}>
+                                🔒 문자 발송 및 입력 기능이 잠겨 있습니다. (통신사 확인 완료 후 자동 재개 예정)
+                              </Text>
+                            </View>
+                          </View>
+                        )}
+                      </View>
 
                       {/* 취소 / 번호 다시 입력 */}
                       <TouchableOpacity
@@ -2008,20 +1902,30 @@ export const SecurityLoginModal: React.FC<SecurityLoginModalProps> = ({
                   {/* 2차 보안 PIN 번호 (6자리 숫자) & PIN 확인 */}
                   <View style={styles.formRow}>
                     <View style={[styles.fieldGroup, { flex: 1 }]}>
-                      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 4, marginBottom: 2 }}>
                         <Text style={styles.fieldLabel}>
                           2차 보안 PIN (6자리) <Text style={{ color: '#ef4444' }}>*</Text>
                         </Text>
-                        <Text style={{ fontSize: 10, color: '#0284c7', fontWeight: '700' }}>
-                          스마트폰 생체인증 호환
-                        </Text>
+                        <View style={{ backgroundColor: '#e0f2fe', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 }}>
+                          <Text style={{ fontSize: 10, color: '#0284c7', fontWeight: '700' }}>
+                            생체인증 호환
+                          </Text>
+                        </View>
                       </View>
                       <View style={styles.passwordInputWrap}>
                         <TextInput
-                          style={[styles.passwordInputInner, { letterSpacing: 4, textAlign: 'center', fontWeight: '700' }]}
+                          style={[
+                            styles.passwordInputInner,
+                            {
+                              letterSpacing: regPin ? 4 : 0,
+                              fontSize: regPin ? 16 : 13,
+                              textAlign: 'center',
+                              fontWeight: '700',
+                            },
+                          ]}
                           value={regPin}
                           onChangeText={(txt) => setRegPin(txt.replace(/[^0-9]/g, '').slice(0, 6))}
-                          placeholder="숫자 6자리 입력"
+                          placeholder="6자리 PIN"
                           placeholderTextColor="#94a3b8"
                           keyboardType="number-pad"
                           maxLength={6}
@@ -2038,15 +1942,23 @@ export const SecurityLoginModal: React.FC<SecurityLoginModalProps> = ({
                       </View>
                     </View>
                     <View style={[styles.fieldGroup, { flex: 1 }]}>
-                      <Text style={styles.fieldLabel}>
+                      <Text style={[styles.fieldLabel, { marginBottom: 4 }]}>
                         보안 PIN 재확인 <Text style={{ color: '#ef4444' }}>*</Text>
                       </Text>
                       <View style={styles.passwordInputWrap}>
                         <TextInput
-                          style={[styles.passwordInputInner, { letterSpacing: 4, textAlign: 'center', fontWeight: '700' }]}
+                          style={[
+                            styles.passwordInputInner,
+                            {
+                              letterSpacing: regPinConfirm ? 4 : 0,
+                              fontSize: regPinConfirm ? 16 : 13,
+                              textAlign: 'center',
+                              fontWeight: '700',
+                            },
+                          ]}
                           value={regPinConfirm}
                           onChangeText={(txt) => setRegPinConfirm(txt.replace(/[^0-9]/g, '').slice(0, 6))}
-                          placeholder="동일 PIN 6자리 재입력"
+                          placeholder="PIN 재입력"
                           placeholderTextColor="#94a3b8"
                           keyboardType="number-pad"
                           maxLength={6}
@@ -2317,6 +2229,17 @@ export const SecurityLoginModal: React.FC<SecurityLoginModalProps> = ({
                 • 직계 혈족이 아닌 방계 친족으로 로그인 시, 생존 가족의 전화번호 및 상세 생년월일은 보안 마스킹(010-****-5678) 처리됩니다.
               </Text>
             </View>
+
+            {/* 시스템 관리자 전용 설정 진입 링크 */}
+            <View style={{ alignItems: 'center', marginTop: 14, marginBottom: 8 }}>
+              <TouchableOpacity
+                style={styles.adminEntryBtn}
+                onPress={handleAdminAccessPress}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.adminEntryBtnText}>🔐 시스템 관리자(Admin) 설정</Text>
+              </TouchableOpacity>
+            </View>
           </ScrollView>
         </View>
       </View>
@@ -2514,6 +2437,81 @@ export const SecurityLoginModal: React.FC<SecurityLoginModalProps> = ({
                 activeOpacity={0.85}
               >
                 <Text style={styles.fbSaveBtnText}>💾 설정 저장 및 실제 SMS 활성화</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      )}
+
+      {/* ================= ADMIN PIN VERIFICATION MODAL ================= */}
+      {isAdminPinModalOpen && (
+        <View style={styles.fbOverlay}>
+          <View style={[styles.fbCard, { maxWidth: 440, padding: 20 }]}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                <Text style={{ fontSize: 22 }}>🔐</Text>
+                <Text style={{ fontSize: 16, fontWeight: '800', color: '#1e293b' }}>
+                  시스템 관리자(Admin) 인증
+                </Text>
+              </View>
+              <TouchableOpacity
+                onPress={() => setIsAdminPinModalOpen(false)}
+                style={styles.closeBtn}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.closeBtnText}>✕</Text>
+              </TouchableOpacity>
+            </View>
+
+            <Text style={{ fontSize: 12.5, color: '#64748b', lineHeight: 18, marginBottom: 14 }}>
+              클라우드 DB(Supabase) 및 Firebase SMS API 설정은 가문 시스템 관리자만 열람 및 변경할 수 있습니다. 관리자 마스터 보안키를 입력해주세요.
+            </Text>
+
+            <View style={[styles.passwordInputWrap, { borderColor: '#475569', borderWidth: 1.5, marginBottom: 14 }]}>
+              <TextInput
+                style={[styles.passwordInputInner, { fontSize: 14, fontWeight: '700' }]}
+                value={adminPinInput}
+                onChangeText={setAdminPinInput}
+                placeholder="관리자 마스터 키 입력"
+                placeholderTextColor="#94a3b8"
+                secureTextEntry={!showAdminPin}
+                autoFocus
+              />
+              <TouchableOpacity
+                style={styles.eyeBtn}
+                onPress={() => setShowAdminPin(!showAdminPin)}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              >
+                <Text style={styles.eyeIcon}>{showAdminPin ? '👁️' : '🙈'}</Text>
+              </TouchableOpacity>
+            </View>
+
+            <View style={{ flexDirection: 'row', gap: 10 }}>
+              <TouchableOpacity
+                style={{
+                  flex: 1,
+                  backgroundColor: '#f1f5f9',
+                  paddingVertical: 12,
+                  borderRadius: 8,
+                  alignItems: 'center',
+                }}
+                onPress={() => setIsAdminPinModalOpen(false)}
+                activeOpacity={0.8}
+              >
+                <Text style={{ fontSize: 13, fontWeight: '700', color: '#475569' }}>취소</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={{
+                  flex: 1.5,
+                  backgroundColor: '#0f172a',
+                  paddingVertical: 12,
+                  borderRadius: 8,
+                  alignItems: 'center',
+                }}
+                onPress={handleVerifyAdminPin}
+                activeOpacity={0.85}
+              >
+                <Text style={{ fontSize: 13, fontWeight: '800', color: '#ffffff' }}>🔐 관리자 확인</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -3794,5 +3792,96 @@ const styles = StyleSheet.create({
     fontSize: 18,
     letterSpacing: 4,
     fontWeight: '700',
+  },
+  hybridPinHeaderWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    flexWrap: 'wrap',
+    gap: 6,
+    marginBottom: 4,
+  },
+  hybridPinBadge: {
+    backgroundColor: '#e0f2fe',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#bae6fd',
+    alignSelf: 'flex-start',
+  },
+  hybridPinBadgeText: {
+    fontSize: 11,
+    color: '#0284c7',
+    fontWeight: '700',
+  },
+  smsLockedAccordion: {
+    backgroundColor: '#f8fafc',
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    borderRadius: 10,
+    overflow: 'hidden',
+    marginTop: 4,
+  },
+  smsLockedHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    backgroundColor: '#f1f5f9',
+  },
+  smsLockedTitle: {
+    fontSize: 12.5,
+    fontWeight: '700',
+    color: '#64748b',
+  },
+  smsLockedBadge: {
+    backgroundColor: '#e2e8f0',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  smsLockedBadgeText: {
+    fontSize: 10,
+    color: '#475569',
+    fontWeight: '700',
+  },
+  smsLockedBody: {
+    padding: 12,
+    backgroundColor: '#ffffff',
+    borderTopWidth: 1,
+    borderTopColor: '#e2e8f0',
+  },
+  smsLockedDesc: {
+    fontSize: 11.5,
+    color: '#64748b',
+    lineHeight: 16,
+    marginBottom: 8,
+  },
+  smsLockedInputNotice: {
+    backgroundColor: '#fef2f2',
+    borderWidth: 1,
+    borderColor: '#fecaca',
+    borderRadius: 6,
+    padding: 8,
+    alignItems: 'center',
+  },
+  smsLockedNoticeText: {
+    fontSize: 11,
+    color: '#991b1b',
+    fontWeight: '600',
+  },
+  adminEntryBtn: {
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 6,
+    backgroundColor: '#f8fafc',
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+  },
+  adminEntryBtnText: {
+    fontSize: 11.5,
+    fontWeight: '700',
+    color: '#64748b',
   },
 });

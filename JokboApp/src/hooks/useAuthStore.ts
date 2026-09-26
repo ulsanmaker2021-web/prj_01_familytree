@@ -279,32 +279,9 @@ export function useAuthStore() {
       bioType = bioCheck.type || 'fingerprint';
     } catch (e) {}
 
-    // 1차 인증 성공 ➔ 2단계 인증(2FA) 발송 (Firebase 활성화 시 SMS 병행 시도, PIN/생체인증도 상시 활성)
-    const useFirebase = options?.useFirebase ?? isFirebaseConfigured();
-
-    if (useFirebase) {
-      const fbRes = await sendFirebasePhoneOtp(account.phone);
-      globalPending2FA = {
-        phone: account.phone,
-        expectedOtp: '',
-        user: account,
-        isFirebase: fbRes.success,
-        biometricSupported: bioSupported,
-        biometricType: bioType,
-      };
-      notifyAuth();
-      return {
-        success: true,
-        require2FA: true,
-        isFirebase: fbRes.success,
-        biometricSupported: bioSupported,
-        biometricType: bioType,
-        message: fbRes.success
-          ? `${fbRes.message} (또는 6자리 보안 PIN / 지문인식으로 즉시 승인 가능)`
-          : `SMS 발송 대기: 6자리 보안 PIN 번호 또는 생체인증으로 즉시 로그인하실 수 있습니다.`,
-      };
-    }
-
+    // 1차 인증 성공 ➔ 2단계 인증(2FA) 준비
+    // [사용자 요청: Firebase SMS 일시 잠금]
+    // 국내 통신사 스팸 필터 점검 기간 동안 SMS 발송을 일시 중단하고 100% 신뢰할 수 있는 6자리 PIN / 생체인증으로 즉시 연결
     globalPending2FA = {
       phone: account.phone,
       expectedOtp: '',
@@ -321,7 +298,7 @@ export function useAuthStore() {
       isFirebase: false,
       biometricSupported: bioSupported,
       biometricType: bioType,
-      message: `2단계 보안 인증: 스마트폰 생체인증(지문/Face ID) 또는 6자리 보안 PIN으로 승인해주세요.`,
+      message: `2단계 보안 인증: 6자리 가문 보안 PIN 번호 또는 스마트폰 생체인증으로 승인해주세요.`,
     };
   };
 
