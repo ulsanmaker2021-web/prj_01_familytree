@@ -7,6 +7,7 @@ import {
   View,
   ScrollView,
   TextInput,
+  useWindowDimensions,
 } from 'react-native';
 import { FamilyMember, RelationType, EstablishedLink, OperationMode, SmartKinshipRequest, SiblingSubtype } from '../types/family';
 import {
@@ -223,11 +224,79 @@ export const RelationshipStudioModal: React.FC<RelationshipStudioModalProps> = (
   initialPersonAId,
 }) => {
   const { currentUser } = useAuthStore();
+  const { width: windowWidth } = useWindowDimensions();
+  const isCompact = windowWidth < 880;
+  const isIconOnly = windowWidth < 620;
+  const [hoveredTab, setHoveredTab] = useState<string | null>(null);
 
   // Navigation inside modal
   const [subTab, setSubTab] = useState<
     'p2p_flow' | 'presets' | 'phone_sibling' | 'elder_inbox' | 'register_custom' | 'central_custom' | 'central_manage'
   >('phone_sibling');
+
+  const decentralizedTabs = [
+    {
+      key: 'phone_sibling',
+      icon: '📞',
+      shortLabel: '형제·자매 결연',
+      fullLabel: '전화번호 형제·자매·남매 결연',
+      tooltip: '010 휴대전화 번호 기반 동기 결연 및 스마트 부모 대조',
+      badge: (smartRequests || []).filter((r) => r.status === 'pending').length,
+    },
+    {
+      key: 'p2p_flow',
+      icon: '📱',
+      shortLabel: '2인 P2P 워크플로우',
+      fullLabel: '2인 P2P & 어르신 승인 워크플로우',
+      tooltip: '스마트폰 2인 상호 서명 및 직계 존속 어르신 2차 승인 체계',
+      badge: 0,
+    },
+    {
+      key: 'presets',
+      icon: '⚡',
+      shortLabel: '1초 퀵 검증',
+      fullLabel: '1초 퀵 검증 시나리오',
+      tooltip: '가계도 촌수 및 2중 승인 시뮬레이션 즉시 체험',
+      badge: 0,
+    },
+    {
+      key: 'register_custom',
+      icon: '➕',
+      shortLabel: '새 친족 등록',
+      fullLabel: '새 친족 직접 등록',
+      tooltip: '가계도에 미등재된 새로운 친족 정보 직접 입력 및 등재',
+      badge: 0,
+    },
+    {
+      key: 'elder_inbox',
+      icon: '🛡️',
+      shortLabel: '어르신 결재함',
+      fullLabel: '어르신 결재함',
+      tooltip: '생존 윗대 어르신 최종 결재 대기 목록 검토',
+      badge: pendingElderLinks.length,
+    },
+  ];
+
+  const centralizedTabs = [
+    {
+      key: 'central_custom',
+      icon: '✏️',
+      shortLabel: '중앙 결연 링커',
+      fullLabel: '중앙 자유 결연 링커',
+      tooltip: '관리자 직권 가계도 인물 간 관계 자유 연결',
+      badge: 0,
+    },
+    {
+      key: 'central_manage',
+      icon: '📋',
+      shortLabel: '형성된 결연 관리',
+      fullLabel: '형성된 결연 관리',
+      tooltip: '기존 공인된 가계도 결연선 확인 및 해제 관리',
+      badge: establishedLinks.length,
+    },
+  ];
+
+  const currentTabs = operationMode === 'decentralized' ? decentralizedTabs : centralizedTabs;
 
   // Sibling phone input & selected subtype
   const [siblingPhoneInput, setSiblingPhoneInput] = useState('');
@@ -570,96 +639,71 @@ export const RelationshipStudioModal: React.FC<RelationshipStudioModalProps> = (
             </View>
           )}
 
-          {/* 2. SUB-TABS NAVIGATION */}
-          <View style={styles.subTabBar}>
-            {operationMode === 'decentralized' ? (
-              <>
-                <TouchableOpacity
-                  style={[styles.subTabItem, subTab === 'phone_sibling' && styles.subTabItemActive]}
-                  onPress={() => setSubTab('phone_sibling')}
-                >
-                  <Text
-                    style={[styles.subTabText, subTab === 'phone_sibling' && styles.subTabTextActive]}
-                  >
-                    📞 전화번호 형제·자매·남매 결연 {smartRequests.filter((r) => r.status === 'pending').length > 0 ? `(${smartRequests.filter((r) => r.status === 'pending').length})` : ''}
-                  </Text>
-                </TouchableOpacity>
+          {/* 2. SUB-TABS NAVIGATION (가로 스크롤 + 짧은 메뉴명 + 화면 축소 시 아이콘 전환 + 마우스 호버 툴팁) */}
+          <View style={styles.subTabBarOuter}>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              style={styles.subTabBarScrollView}
+              contentContainerStyle={styles.subTabBarContent}
+            >
+              {currentTabs.map((tab) => {
+                const isActive = subTab === tab.key;
+                const isHovered = hoveredTab === tab.key;
+                const showIconOnly = isIconOnly;
+                const labelText = isCompact ? tab.shortLabel : tab.fullLabel;
 
-                <TouchableOpacity
-                  style={[styles.subTabItem, subTab === 'p2p_flow' && styles.subTabItemActive]}
-                  onPress={() => setSubTab('p2p_flow')}
-                >
-                  <Text
-                    style={[styles.subTabText, subTab === 'p2p_flow' && styles.subTabTextActive]}
-                  >
-                    📱 2인 P2P & 어르신 승인 워크플로우
-                  </Text>
-                </TouchableOpacity>
+                return (
+                  <View key={tab.key} style={styles.subTabItemWrapper}>
+                    <TouchableOpacity
+                      style={[
+                        styles.subTabItem,
+                        isActive && styles.subTabItemActive,
+                        isHovered && styles.subTabItemHover,
+                      ]}
+                      onPress={() => setSubTab(tab.key as any)}
+                      activeOpacity={0.8}
+                      accessibilityLabel={tab.fullLabel}
+                      {...({
+                        title: `${tab.fullLabel} - ${tab.tooltip}`,
+                        onMouseEnter: () => setHoveredTab(tab.key),
+                        onMouseLeave: () => setHoveredTab(null),
+                      } as any)}
+                    >
+                      <Text style={showIconOnly ? styles.subTabIconOnly : styles.subTabIcon}>
+                        {tab.icon}
+                      </Text>
 
-                <TouchableOpacity
-                  style={[styles.subTabItem, subTab === 'presets' && styles.subTabItemActive]}
-                  onPress={() => setSubTab('presets')}
-                >
-                  <Text
-                    style={[styles.subTabText, subTab === 'presets' && styles.subTabTextActive]}
-                  >
-                    ⚡ 1초 퀵 검증 시나리오
-                  </Text>
-                </TouchableOpacity>
+                      {!showIconOnly && (
+                        <Text
+                          numberOfLines={1}
+                          style={[styles.subTabText, isActive && styles.subTabTextActive]}
+                        >
+                          {labelText}
+                        </Text>
+                      )}
 
-                <TouchableOpacity
-                  style={[styles.subTabItem, subTab === 'register_custom' && styles.subTabItemActive]}
-                  onPress={() => setSubTab('register_custom')}
-                >
-                  <Text
-                    style={[styles.subTabText, subTab === 'register_custom' && styles.subTabTextActive]}
-                  >
-                    ➕ 새 친족 직접 등록
-                  </Text>
-                </TouchableOpacity>
+                      {tab.badge > 0 && (
+                        <View style={[styles.subTabBadge, isActive && styles.subTabBadgeActive]}>
+                          <Text style={styles.subTabBadgeText}>{tab.badge}</Text>
+                        </View>
+                      )}
+                    </TouchableOpacity>
 
-                <TouchableOpacity
-                  style={[styles.subTabItem, subTab === 'elder_inbox' && styles.subTabItemActive]}
-                  onPress={() => setSubTab('elder_inbox')}
-                >
-                  <Text
-                    style={[styles.subTabText, subTab === 'elder_inbox' && styles.subTabTextActive]}
-                  >
-                    🛡️ 어르신 결재함 ({pendingElderLinks.length}건)
-                  </Text>
-                </TouchableOpacity>
-              </>
-            ) : (
-              <>
-                <TouchableOpacity
-                  style={[styles.subTabItem, subTab === 'central_custom' && styles.subTabItemActive]}
-                  onPress={() => setSubTab('central_custom')}
-                >
-                  <Text
-                    style={[
-                      styles.subTabText,
-                      subTab === 'central_custom' && styles.subTabTextActive,
-                    ]}
-                  >
-                    ✏️ 중앙 자유 결연 링커
-                  </Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={[styles.subTabItem, subTab === 'central_manage' && styles.subTabItemActive]}
-                  onPress={() => setSubTab('central_manage')}
-                >
-                  <Text
-                    style={[
-                      styles.subTabText,
-                      subTab === 'central_manage' && styles.subTabTextActive,
-                    ]}
-                  >
-                    📋 형성된 결연 관리 ({establishedLinks.length}건)
-                  </Text>
-                </TouchableOpacity>
-              </>
-            )}
+                    {/* 마우스 호버 시 상세 메뉴명 및 설명 오버랩 툴팁 표시 */}
+                    {isHovered && (
+                      <View style={styles.tabHoverTooltip} pointerEvents="none">
+                        <View style={styles.tabHoverTooltipArrow} />
+                        <Text style={styles.tabHoverTooltipTitle}>
+                          {tab.icon} {tab.fullLabel}
+                        </Text>
+                        <Text style={styles.tabHoverTooltipDesc}>{tab.tooltip}</Text>
+                      </View>
+                    )}
+                  </View>
+                );
+              })}
+            </ScrollView>
           </View>
 
           {/* 3. MAIN CONTENT AREA */}
@@ -2053,32 +2097,117 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
 
-  // Sub Tab Bar
-  subTabBar: {
-    flexDirection: 'row',
+  // Sub Tab Bar (가로 스크롤 & 반응형 아이콘 & 호버 툴팁)
+  subTabBarOuter: {
     backgroundColor: '#0f172a',
     borderBottomWidth: 1,
     borderBottomColor: '#1e293b',
-    paddingHorizontal: 16,
-    gap: 6,
+    position: 'relative',
+    zIndex: 100,
+  },
+  subTabBarScrollView: {
+    flexGrow: 0,
+  },
+  subTabBarContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    gap: 4,
+  },
+  subTabItemWrapper: {
+    position: 'relative',
+    zIndex: 10,
   },
   subTabItem: {
-    paddingVertical: 12,
-    paddingHorizontal: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 10,
+    paddingHorizontal: 10,
     borderBottomWidth: 2,
     borderBottomColor: 'transparent',
+    borderRadius: 6,
   },
   subTabItemActive: {
     borderBottomColor: '#10b981',
+    backgroundColor: 'rgba(16, 185, 129, 0.08)',
+  },
+  subTabItemHover: {
+    backgroundColor: 'rgba(255, 255, 255, 0.06)',
+  },
+  subTabIcon: {
+    fontSize: 13.5,
+    marginRight: 5,
+  },
+  subTabIconOnly: {
+    fontSize: 16,
+    paddingHorizontal: 4,
   },
   subTabText: {
-    fontSize: 12.5,
+    fontSize: 12,
     fontWeight: '600',
     color: '#94a3b8',
   },
   subTabTextActive: {
     color: '#10b981',
     fontWeight: '800',
+  },
+  subTabBadge: {
+    marginLeft: 5,
+    paddingHorizontal: 6,
+    paddingVertical: 1.5,
+    borderRadius: 10,
+    backgroundColor: '#334155',
+  },
+  subTabBadgeActive: {
+    backgroundColor: '#065f46',
+  },
+  subTabBadgeText: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: '#e2e8f0',
+  },
+  // 마우스 오버랩(호버) 플로팅 툴팁
+  tabHoverTooltip: {
+    position: 'absolute',
+    top: 42,
+    left: 4,
+    backgroundColor: '#020617',
+    borderWidth: 1.5,
+    borderColor: '#38bdf8',
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    zIndex: 9999,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.5,
+    shadowRadius: 10,
+    elevation: 25,
+    minWidth: 190,
+    maxWidth: 290,
+  },
+  tabHoverTooltipArrow: {
+    position: 'absolute',
+    top: -6,
+    left: 16,
+    width: 10,
+    height: 10,
+    backgroundColor: '#020617',
+    borderLeftWidth: 1.5,
+    borderTopWidth: 1.5,
+    borderColor: '#38bdf8',
+    transform: [{ rotate: '45deg' }],
+  },
+  tabHoverTooltipTitle: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#38bdf8',
+    marginBottom: 2,
+  },
+  tabHoverTooltipDesc: {
+    fontSize: 11,
+    color: '#cbd5e1',
+    lineHeight: 14,
   },
 
   // Scroll Area
